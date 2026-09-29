@@ -69,4 +69,25 @@ describe('Topbar', () => {
     await userEvent.keyboard('{ArrowDown}{Enter}')
     await waitFor(() => expect(location()).toBe('/journal?q=TAH-2026-1-000233'))
   })
+
+  it('opens a part hit on its card', async () => {
+    renderApp('/balances?depot=2')
+    const box = await screen.findByRole('searchbox', { name: 'Ara' })
+    await userEvent.type(box, 'HP-3774')
+    await userEvent.click(await screen.findByRole('option', { name: /HP-3774/ }))
+    await waitFor(() => expect(location()).toBe('/parts/1001?depot=2'))
+  })
+
+  it.each([['{Control>}k{/Control}'], ['{F2}']])('finds a part with %s', async (keys) => {
+    renderApp('/balances?depot=1')
+    await screen.findByRole('searchbox', { name: 'Ara' })
+    await userEvent.keyboard(keys)
+    const input = await screen.findByRole('combobox', { name: 'Parça ara' })
+    await waitFor(() => expect(input).toHaveFocus())
+    await userEvent.type(input, 'HP-3774')
+    await screen.findByRole('option', { name: /HP-3774/ })
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(location()).toBe('/parts/1001?depot=1'))
+    expect(screen.queryByRole('combobox', { name: 'Parça ara' })).not.toBeInTheDocument()
+  })
 })

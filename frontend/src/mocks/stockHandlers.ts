@@ -814,7 +814,7 @@ function parseCsv(text: string, delimiter?: string): string[][] {
 function autoMap(headers: string[]): MappingWrite['columns'] {
   const cols: Record<string, { header: string }> = {}
   for (const [target, names] of Object.entries(ALIASES)) {
-    const h = headers.find((x) => names.includes(fold(x.trim())))
+    const h = headers.find((x) => names.some((n) => fold(n) === fold(x.trim())))
     if (h) cols[target] = { header: h }
   }
   return columns(cols)
