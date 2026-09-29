@@ -54,6 +54,7 @@ function StatementPicker({ orgId }: Readonly<{ orgId: number }>) {
   const { t } = useTranslation('ledger')
   const navigate = useNavigate()
   const { depotId } = useDepot()
+  const [none, setNone] = useState(false)
   return (
     <div className="flex max-w-xl flex-col gap-3">
       <h1 className="text-2xl font-semibold">{t('statement.title')}</h1>
@@ -62,11 +63,16 @@ function StatementPicker({ orgId }: Readonly<{ orgId: number }>) {
         orgId={orgId}
         label={t('statement.account')}
         autoFocus
-        onPick={async (h) => {
-          const s = await getSicilSummary(orgId, h.sicilId)
-          navigate(withDepot(`/statements/${s.accountId}`, depotId))
+        onPick={(h) => {
+          setNone(!h.accountId)
+          if (h.accountId) navigate(withDepot(`/statements/${h.accountId}`, depotId))
         }}
       />
+      {none && (
+        <p role="status" className="text-sm text-fk-muted">
+          {t('statement.noAccount')}
+        </p>
+      )}
     </div>
   )
 }
@@ -148,7 +154,9 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
           options: SUBTYPES.map((s) => ({ value: s, label: t(`docType.${s}`) })),
         }),
         cellRenderer: (p: ICellRendererParams<StatementLine>) =>
-          p.value && !p.node.rowPinned ? (
+          p.data?.resetsBalance && !p.node.rowPinned ? (
+            <Chip tone="grey">{t('statement.opening')}</Chip>
+          ) : p.value && !p.node.rowPinned ? (
             <Chip tone={docTone(p.value)}>
               {t(`docType.${p.value}`, { defaultValue: p.value })}
             </Chip>
@@ -255,14 +263,21 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
             columnDefs={columnDefs}
             rowData={statement?.lines ?? []}
             pinnedTopRowData={statement?.broughtForward ?? []}
-            getRowClass={(p) => (p.node.rowPinned ? 'fk-row-bf' : undefined)}
+            getRowClass={(p) =>
+              p.node.rowPinned ? 'fk-row-bf' : p.data?.resetsBalance ? 'fk-row-reset' : undefined
+            }
           />
           <DepotTotals totals={statement?.depotTotals ?? []} />
         </Panel>
         <aside className="flex w-[300px] shrink-0 flex-col gap-3.5">
-          <CreditPanel summary={summary} />
+          <CreditPanel summary={summary} limit={sicil.data?.credit_limit ?? null} />
           {sicil.data && (
-            <CardPanel orgId={orgId} sicil={sicil.data} onSaved={(s) => sicil.setData(s)} />
+            <CardPanel
+              orgId={orgId}
+              sicil={sicil.data}
+              onSaved={(s) => sicil.setData(s)}
+              onReload={sicil.reload}
+            />
           )}
         </aside>
       </div>
@@ -298,16 +313,19 @@ function DepotTotals({
   )
 }
 
-function CreditPanel({ summary }: Readonly<{ summary: SicilSummary | undefined }>) {
+function CreditPanel({
+  summary,
+  limit,
+}: Readonly<{ summary: SicilSummary | undefined; limit: string | null }>) {
   const { t } = useTranslation('ledger')
-  const pct = summary?.creditUsedPct ?? null
+  const pct = summary && limit ? Math.round((Number(summary.balance) / Number(limit)) * 100) : null
   return (
     <Panel aria-labelledby="credit-h" className="flex flex-col gap-2.5 p-4">
       <h2 id="credit-h" className="text-15 font-semibold">
         {t('statement.credit')}
       </h2>
       <KeyValue label={t('statement.limit')}>
-        {summary?.creditLimit ? formatMoney(summary.creditLimit) : '—'}
+        {limit ? formatMoney(limit) : '—'}
       </KeyValue>
       <div
         role="progressbar"
@@ -343,7 +361,13 @@ function CardPanel({
   orgId,
   sicil,
   onSaved,
-}: Readonly<{ orgId: number; sicil: Sicil; onSaved: (s: Sicil) => void }>) {
+  onReload,
+}: Readonly<{
+  orgId: number
+  sicil: Sicil
+  onSaved: (s: Sicil) => void
+  onReload: () => void
+}>) {
   const { t } = useTranslation('ledger')
   const [editing, setEditing] = useState(false)
   const contact = sicil.contacts?.[0]
@@ -359,6 +383,7 @@ function CardPanel({
           {p.numara}
         </div>
       ))}
+      {sicil.emails?.[0] && <div className="break-all text-13">{sicil.emails[0]}</div>}
       {place && <div className="text-fk-muted">{place}</div>}
       {(sicil.v_dairesi || sicil.v_no) && (
         <div className="font-mono text-13 text-fk-muted">
@@ -376,6 +401,10 @@ function CardPanel({
           onSaved={(s) => {
             onSaved(s)
             setEditing(false)
+          }}
+          onReload={() => {
+            setEditing(false)
+            onReload()
           }}
         />
       )}

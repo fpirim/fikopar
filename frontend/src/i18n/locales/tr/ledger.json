@@ -60,9 +60,16 @@
       "district": "İlçe",
       "taxOffice": "Vergi dairesi",
       "taxNo": "Vergi no",
-      "term": "Vade (gün)"
+      "term": "Vade (gün)",
+      "creditLimit": "Kredi limiti",
+      "email": "E-posta",
+      "contact": "Yetkili"
     },
-    "depotTotals": "Depo toplamları"
+    "depotTotals": "Depo toplamları",
+    "conflictTitle": "Kart değişti",
+    "conflict": "Başka biri bu kartı değiştirdi — yeniden yükleyin",
+    "noAccount": "Bu kartın henüz cari hesabı yok",
+    "opening": "DEVİR"
   },
   "carryForward": {
     "title": "Cari devir {{from}} → {{to}}",
@@ -179,7 +186,6 @@
       "submit": "Ters kaydı at",
       "done": "Ters kayıt {{no}} atıldı"
     },
-    "postings": "Kayıt satırları",
-    "trailUser": "kullanıcı {{user}}"
+    "postings": "Kayıt satırları"
   }
 }

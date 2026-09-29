@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Search } from 'lucide-react'
-import { getSicilSummary, globalSearch } from '../../api/endpoints'
+import { globalSearch } from '../../api/endpoints'
 import type { SearchResult } from '../../api/types'
 import { useDepot, withDepot } from '../../hooks/useDepot'
 import { useOrgId } from '../../hooks/useOrgId'
@@ -57,7 +57,7 @@ export default function GlobalSearch() {
         key: `a${a.sicilId}`,
         code: a.hesapNo,
         label: a.hesapAdi,
-        open: async () => `/statements/${(await getSicilSummary(orgId, a.sicilId)).accountId}`,
+        open: async () => (a.accountId ? `/statements/${a.accountId}` : '/statements'),
       })),
       ...shown.documents.map<Hit>((d) => ({
         group: 'documents',

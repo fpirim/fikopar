@@ -59,7 +59,8 @@ describe('StatementPage', () => {
     expect(opening).toHaveClass('fk-row-reset')
     expect(opening).toHaveTextContent('142.300,00')
     const totals = screen.getByRole('table', { name: 'Depo toplamları' })
-    expect(within(totals).getByText('120.870,00')).toBeInTheDocument()
+    expect(within(totals).getAllByText('120.870,00').length).toBeGreaterThan(0)
+    expect(within(totals).queryByText('263.170,00')).not.toBeInTheDocument()
   })
 
   it('follows the depot switch and the period', async () => {
@@ -165,12 +166,15 @@ describe('StatementPage', () => {
   })
 
   it('picks an account when none is open', async () => {
-    const summaries = capture('get', '/api/orgs/:orgId/sicils/:sicilId/summary')
+    server.use(
+      http.get('/api/orgs/:orgId/sicils/:sicilId/summary', () =>
+        HttpResponse.json({ code: 'ERR_INTERNAL' }, { status: 500 }),
+      ),
+    )
     renderApp('/statements')
     await userEvent.type(await screen.findByRole('combobox', { name: 'Hesap' }), 'Kaya')
     await userEvent.click(await screen.findByRole('option', { name: /Kaya Ziraat/ }))
     await waitFor(() => expect(location()).toBe('/statements/5006'))
-    expect(summaries).toHaveLength(0)
   })
 
   it('writes the period in English', async () => {

@@ -60,9 +60,16 @@
       "district": "District",
       "taxOffice": "Tax office",
       "taxNo": "Tax no.",
-      "term": "Payment term (days)"
+      "term": "Payment term (days)",
+      "creditLimit": "Credit limit",
+      "email": "Email",
+      "contact": "Contact"
     },
-    "depotTotals": "Depot totals"
+    "depotTotals": "Depot totals",
+    "conflictTitle": "Card changed",
+    "conflict": "Someone else changed this card — reload",
+    "noAccount": "This card has no current account yet",
+    "opening": "CARRIED"
   },
   "carryForward": {
     "title": "Carry forward {{from}} → {{to}}",
@@ -179,7 +186,6 @@
       "submit": "Post reversal",
       "done": "{{no}} posted as the reversal"
     },
-    "postings": "Postings",
-    "trailUser": "user {{user}}"
+    "postings": "Postings"
   }
 }
