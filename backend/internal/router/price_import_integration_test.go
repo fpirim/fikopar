@@ -7,10 +7,12 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -169,7 +171,7 @@ func TestPriceImport_CSVPreviewApplyAndReplay(t *testing.T) {
 	assert.Equal(t, "20.0", *price.Rows[0].PriceChangePct)
 	assert.Equal(t, "10", price.Rows[0].Current["price"])
 	assert.Equal(t, "12", price.Rows[0].File["price"])
-	assert.EqualValues(t, 4, price.UnfilteredCount)
+	assert.EqualValues(t, 1, price.UnfilteredCount, "rows of the tab before column filters")
 	attrs := f.importRows(t, job.ID, `{"startRow":0,"endRow":50,"change":"ATTRIBUTES"}`)
 	require.Len(t, attrs.Rows, 1)
 	assert.Equal(t, []string{"description"}, attrs.Rows[0].ChangedFields)
@@ -487,4 +489,27 @@ func TestPriceImport_RowsGridXLSX(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	rec = f.req(t, http.MethodPost, f.importPath(999999, "/rows/grid"), f.token, `{}`, nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// A full 100 000-row list: preview and apply in one request each. Run with FIKOPAR_LARGE=1.
+func TestPriceImport_LargeFile(t *testing.T) {
+	if os.Getenv("FIKOPAR_LARGE") == "" {
+		t.Skip("set FIKOPAR_LARGE=1")
+	}
+	f := newStock(t)
+	var b strings.Builder
+	b.WriteString("code;description;price\n")
+	for i := 0; i < 100_000; i++ {
+		b.WriteString("P-" + strconv.Itoa(i) + ";Part " + strconv.Itoa(i) + ";" + strconv.Itoa(i%500+1) + ",25\n")
+	}
+	start := time.Now()
+	job := f.upload(t, "big.csv", b.String(), nil)
+	t.Logf("preview %v", time.Since(start))
+	require.Equal(t, "READY", job.Status)
+	require.Equal(t, 100_000, job.Counts["new"])
+	start = time.Now()
+	rec := f.apply(t, job, uuid.NewString(), `{}`)
+	t.Logf("apply %v", time.Since(start))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, 100_000, decode[importJSON](t, rec).Result["partsCreated"])
 }
