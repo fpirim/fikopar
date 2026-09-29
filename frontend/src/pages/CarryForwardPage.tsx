@@ -2,16 +2,17 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { CellKeyDownEvent, ColDef, ICellRendererParams } from 'ag-grid-community'
-import { ApiError } from '../api/client'
 import { exportCarryForward, getCarryForward, postCarryForward } from '../api/endpoints'
-import type { CarryForwardRow } from '../api/types'
+import { errorText } from '../api/errorText'
+import type { CarryForward as Preview, CarryForwardRow } from '../api/types'
+import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useApi } from '../hooks/useApi'
 import { useDepot } from '../hooks/useDepot'
 import { useDownload } from '../hooks/useDownload'
 import { useIdempotencyKey } from '../hooks/useIdempotencyKey'
 import { useOrgId } from '../hooks/useOrgId'
-import { formatBalance, formatMoney, todayIso } from '../lib/format'
+import { formatBalance, formatDateTime, formatMoney, todayIso } from '../lib/format'
 import { Button } from '../components/ui/button'
 import { Chip, type ChipTone } from '../components/ui/chip'
 import {
@@ -27,7 +28,9 @@ import { Stat } from '../components/ui/stat'
 import { FkGrid } from '../components/grid/FkGrid'
 import { exprFilter, numCol } from '../components/grid/columns'
 import SelectCompany from '../components/layout/SelectCompany'
+import ConflictDialog from '../components/ConflictDialog'
 import OverrideDialog from './carryforward/OverrideDialog'
+import ReopenDialog from './carryforward/ReopenDialog'
 import Steps from './carryforward/Steps'
 import { dash } from './statement/docType'
 
@@ -52,12 +55,20 @@ function CarryForward({ orgId, year }: Readonly<{ orgId: number; year: number }>
   const { depotId } = useDepot()
   const download = useDownload()
   const idem = useIdempotencyKey()
+  const admin = useAuth().user?.role === 'admin'
   const cf = useApi(() => getCarryForward(orgId, year, depotId), [orgId, year, depotId])
   const [editing, setEditing] = useState<CarryForwardRow | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [reopening, setReopening] = useState(false)
+  const [conflict, setConflict] = useState(false)
   const [busy, setBusy] = useState(false)
   const data = cf.data
   const posted = data?.status === 'POSTED'
+  const onConflict = () => {
+    setEditing(null)
+    setReopening(false)
+    setConflict(true)
+  }
   const blocked = data?.checks.some((c) => c.blocking && !c.ok && c.code !== 'YEAR_NOT_OPENED')
 
   const columnDefs = useMemo<ColDef<CarryForwardRow>[]>(
@@ -141,7 +152,7 @@ function CarryForward({ orgId, year }: Readonly<{ orgId: number; year: number }>
       toast.success(t('carryForward.confirm.done', { year }))
       setConfirming(false)
     } catch (e) {
-      toast.error(t(`errors:${e instanceof ApiError ? e.code : 'ERR_UNKNOWN'}`))
+      toast.error(errorText(t, e))
     } finally {
       setBusy(false)
     }
@@ -158,7 +169,13 @@ function CarryForward({ orgId, year }: Readonly<{ orgId: number; year: number }>
           {t('carryForward.title', { from: year - 1, to: year })}
         </h1>
         {posted && <Chip tone="green">{t('carryForward.posted')}</Chip>}
+        {data?.status === 'REOPENED' && <Reopened cf={data} />}
         <div className="flex-1" />
+        {posted && admin && (
+          <Button variant="outline" onClick={() => setReopening(true)}>
+            {t('carryForward.reopen')}
+          </Button>
+        )}
         <Button
           variant="outline"
           disabled={download.busy !== null}
@@ -202,14 +219,39 @@ function CarryForward({ orgId, year }: Readonly<{ orgId: number; year: number }>
           }}
         />
       </Panel>
-      {editing && (
+      {editing && data && (
         <OverrideDialog
           orgId={orgId}
           year={year}
           row={editing}
+          preview={{ version: data.version, depotId }}
           onClose={() => setEditing(null)}
-          onSaved={() => {
+          onSaved={(next) => {
             setEditing(null)
+            cf.setData(next)
+          }}
+          onConflict={onConflict}
+        />
+      )}
+      {reopening && data && (
+        <ReopenDialog
+          orgId={orgId}
+          cf={data}
+          onClose={() => setReopening(false)}
+          onReopened={() => {
+            setReopening(false)
+            toast.success(t('carryForward.reopenDialog.done', { year }))
+            cf.reload()
+          }}
+          onConflict={onConflict}
+        />
+      )}
+      {conflict && (
+        <ConflictDialog
+          title={t('carryForward.conflictTitle')}
+          message={t('carryForward.conflict')}
+          onReload={() => {
+            setConflict(false)
             cf.reload()
           }}
         />
@@ -235,5 +277,22 @@ function CarryForward({ orgId, year }: Readonly<{ orgId: number; year: number }>
         </Dialog>
       )}
     </div>
+  )
+}
+
+function Reopened({ cf }: Readonly<{ cf: Preview }>) {
+  const { t } = useTranslation('ledger')
+  return (
+    <>
+      <Chip tone="amber">{t('carryForward.reopened')}</Chip>
+      {cf.reopenReason && (
+        <span className="min-w-0 truncate text-13 text-fk-muted">
+          {t('carryForward.reopenedNote', {
+            at: cf.reopenedAt ? formatDateTime(cf.reopenedAt) : '—',
+            reason: cf.reopenReason,
+          })}
+        </span>
+      )}
+    </>
   )
 }

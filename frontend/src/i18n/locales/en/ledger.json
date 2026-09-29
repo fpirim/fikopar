@@ -79,10 +79,10 @@
     "posted": "Posted",
     "steps": "Year-end steps",
     "step": {
-      "NO_DRAFT_DOCUMENTS": "Close {{year}} documents",
-      "STOCK_COUNTS_POSTED": "Stock count posted",
-      "LEDGER_BALANCED": "Account balances",
-      "YEAR_NOT_OPENED": "Open {{year}}"
+      "CLOSE_DOCUMENTS": "Close {{year}} documents",
+      "STOCK_COUNTS": "Stock count posted",
+      "ACCOUNT_BALANCES": "Account balances",
+      "OPEN_YEAR": "Open {{year}}"
     },
     "blocked": "Blocked: {{detail}}",
     "kpi": {
@@ -123,7 +123,20 @@
       "body": "{{count}} entries dated 01.01.{{year}} are posted in one transaction. This cannot be edited afterwards; corrections go through reversal entries.",
       "post": "Post",
       "done": "Carry forward {{year}} posted"
-    }
+    },
+    "reopen": "Reopen…",
+    "reopened": "Reopened",
+    "reopenedNote": "Reopened {{at}} · {{reason}}",
+    "reopenDialog": {
+      "title": "Reopen the {{year}} carry-forward",
+      "body": "The opening entries are reversed on 1 January and {{prev}} is open for posting again. Overrides are kept.",
+      "reason": "Reason",
+      "reasonShort": "Enter a reason (at least 3 characters)",
+      "submit": "Reopen",
+      "done": "Carry forward {{year}} reopened"
+    },
+    "conflictTitle": "Preview changed",
+    "conflict": "Someone else changed the preview — reload"
   },
   "journal": {
     "title": "Journal",

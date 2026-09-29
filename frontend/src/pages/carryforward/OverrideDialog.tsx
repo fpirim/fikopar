@@ -1,7 +1,12 @@
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
-import { deleteCarryForwardOverride, setCarryForwardOverride } from '../../api/endpoints'
+import {
+  deleteCarryForwardOverride,
+  setCarryForwardOverride,
+  type PreviewRef,
+} from '../../api/endpoints'
+import { errorText } from '../../api/errorText'
 import type { CarryForward, CarryForwardRow } from '../../api/types'
 import { formatBalance } from '../../lib/format'
 import { Button } from '../../components/ui/button'
@@ -21,14 +26,18 @@ export default function OverrideDialog({
   orgId,
   year,
   row,
+  preview,
   onClose,
   onSaved,
+  onConflict,
 }: Readonly<{
   orgId: number
   year: number
   row: CarryForwardRow
+  preview: PreviewRef
   onClose: () => void
   onSaved: (cf: CarryForward) => void
+  onConflict: () => void
 }>) {
   const { t } = useTranslation(['ledger', 'common', 'errors'])
   const ids = { debit: useId(), credit: useId() }
@@ -46,7 +55,8 @@ export default function OverrideDialog({
     try {
       onSaved(await fn())
     } catch (e) {
-      setError(t(`errors:${e instanceof ApiError ? e.code : 'ERR_UNKNOWN'}`))
+      if (e instanceof ApiError && e.status === 412) onConflict()
+      else setError(errorText(t, e))
     } finally {
       setBusy(false)
     }
@@ -57,13 +67,18 @@ export default function OverrideDialog({
     setTouched(true)
     if (short) return
     void run(() =>
-      setCarryForwardOverride(orgId, year, {
-        accountId: row.accountId,
-        depotId: row.depotId,
-        debit: debit || '0.00',
-        credit: credit || '0.00',
-        reason: reason.trim(),
-      }),
+      setCarryForwardOverride(
+        orgId,
+        year,
+        {
+          accountId: row.accountId,
+          depotId: row.depotId,
+          debit: debit || '0.00',
+          credit: credit || '0.00',
+          reason: reason.trim(),
+        },
+        preview,
+      ),
     )
   }
 
@@ -110,9 +125,7 @@ export default function OverrideDialog({
               type="button"
               variant="ghost"
               disabled={busy || row.status === 'READY'}
-              onClick={() =>
-                void run(() => deleteCarryForwardOverride(orgId, year, row.accountId, row.depotId))
-              }
+              onClick={() => void run(() => deleteCarryForwardOverride(orgId, year, row, preview))}
             >
               {t('carryForward.override.remove')}
             </Button>

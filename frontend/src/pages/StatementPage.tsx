@@ -324,9 +324,7 @@ function CreditPanel({
       <h2 id="credit-h" className="text-15 font-semibold">
         {t('statement.credit')}
       </h2>
-      <KeyValue label={t('statement.limit')}>
-        {limit ? formatMoney(limit) : '—'}
-      </KeyValue>
+      <KeyValue label={t('statement.limit')}>{limit ? formatMoney(limit) : '—'}</KeyValue>
       <div
         role="progressbar"
         aria-label={t('statement.used')}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { bypass, http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/node'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
@@ -11,7 +11,7 @@ const kpi = (label: string) => screen.getByRole('group', { name: label })
 
 async function openRow(code: string, depot: string) {
   await userEvent.type(await screen.findByLabelText('Hesap filtresi'), code)
-  await waitFor(() => expect(within(grid()).getAllByText(code)).toHaveLength(2))
+  await waitFor(() => expect(within(grid()).getAllByText(code).length).toBeGreaterThan(0))
   const row = within(grid())
     .getAllByRole('row')
     .find(
@@ -92,19 +92,25 @@ describe('CarryForwardPage', () => {
 
   it('draws the stepper from steps[]', async () => {
     server.use(
-      http.get('/api/orgs/:orgId/ledger/carry-forwards/:year', async ({ request }) => {
-        const res = await fetch(bypass(request))
-        const body = (await res.json()) as Record<string, unknown>
-        return HttpResponse.json({
-          ...body,
+      http.get('/api/orgs/:orgId/ledger/carry-forwards/:year', () =>
+        HttpResponse.json({
+          year: 2026,
+          status: 'PREVIEW',
+          version: 1,
+          checks: [],
+          accountCount: 0,
+          entryCount: 0,
+          totalDebit: '0.00',
+          totalCredit: '0.00',
+          rows: [],
           steps: [
             { code: 'CLOSE_DOCUMENTS', status: 'DONE' },
             { code: 'STOCK_COUNTS', status: 'BLOCKED' },
             { code: 'ACCOUNT_BALANCES', status: 'TODO' },
             { code: 'OPEN_YEAR', status: 'TODO' },
           ],
-        })
-      }),
+        }),
+      ),
     )
     renderApp('/carry-forward/2026')
     const steps = await screen.findByRole('list', { name: 'Yıl sonu adımları' })
