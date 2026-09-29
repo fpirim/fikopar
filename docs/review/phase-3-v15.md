@@ -28,6 +28,26 @@ coverage on a loaded machine the grid tests take 3–7 s (this one 5.7 s, PartsP
 `asyncUtilTimeout` could not help. Reproduced under load (runs 8–9: 9 grid tests "timed out in 5000ms").
 `testTimeout` 20 s: 20 / 20 full coverage runs green (338 tests) with the backend race suite running alongside.
 
+### Flake, second pass (`f3/flake`)
+Load: 3 concurrent `vitest run` loops + 8 `yes` workers. Before: 7 failures in 36 runs; `--sequence.shuffle`
+failed 8 / 10 seeds. None was a timeout; each read state that arrives by a separate async path:
+- `DocumentPage › shows a draft…`: the number comes from the number series, fetched after the document; the test
+  read the heading once the lines were in. Now waits for the heading name (and the Plasiyer option: members list).
+  A 300 ms series delay fails the old assertion every time.
+- `BalancesPage › combines column filters…`: the total row comes from the response, the range (`1–6 / 6`) from
+  AG Grid's later model / viewport events ("1–1 / 6" seen under load). `› prints statements…`: "2 seçili" comes
+  from AG Grid's async selection event. `PartPage › filters movements…`: read the cell once the request was out.
+- `PriceImportPage › reloads the job…`: a Radix modal disables pointer events on `<body>` in an effect and
+  re-enables them on itself a render later; a click in between fails user-event's check. `test/dialog.ts`
+  `findDialog` waits for the dialog to take pointer events; all `findByRole('dialog' | 'alertdialog')` use it.
+- Order: `createDb` shallow-copied `FEATURED`, so receipts posted in one test changed the seed balances for the
+  next (`ReceiptPage › shows the balance…` saw 76.499,50). Balance arrays are copied now.
+- Order: AG Grid React destroys the grid after unmount, so a block load queued by a short test fetched during
+  the next one and landed in its `capture` (`lists recent receipts…` saw `depotId: null`). `useInfiniteGrid`
+  skips `getRows` once unmounted (set in cleanup only: the grid may ask for rows before the parent's effect).
+Red tests first (`data.test.ts`, `useInfiniteGrid.test.ts`). After: 36 / 36 full runs under the same load (363
+tests) and 10 / 10 shuffled seeds (incl. the failing 23, 41, 67, 89, 101) green; no limit raised.
+
 ## Gates
 Backend: build, vet, golangci-lint 0, go-arch-lint, deadcode (Go 1.25) clean; `-race -count=3 -tags=integration`
 green (router 143 s). Frontend: eslint 0 errors (7 older warnings), tsc, prettier, knip, depcruise clean, vitest
