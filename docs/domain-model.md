@@ -125,7 +125,9 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
 - `Part {catalog_id, stock_no, name, type, brand, unit, vat_pct, package_qty, is_active, version}` — belongs to exactly one
   catalog, fixed after create; `stock_no` unique per catalog. Parts are deactivated, never deleted.
 - `PartCode {kind: MANUFACTURER|OEM|ALT|EQUIVALENT, code, normalized_code, equivalent_part_id?}` — ALT is a free
-  alternative or old code; EQUIVALENT (muadil) links another part. Codes match after normalization (upper case, 0-9 A-Z).
+  alternative or old code; EQUIVALENT (muadil) links another part and its `code` is that part's stock no (v1.3).
+  Codes match after normalization (upper case, 0-9 A-Z). Search: the whole query against codes (exact, prefix,
+  substring), then word by word, each word in the name or in a code.
 - `Price {part_id, price, valid_from, source: MANUAL|IMPORT|LEGACY, import_id?}` — append-only list price history, one row
   per (part, valid_from). **Price on D** = the row with the latest `valid_from` ≤ D (`price_on()`); a row is valid until
   the day before the next one, so periods never overlap. Future-dated rows are allowed and take effect on their day.
@@ -135,9 +137,11 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
   diff (NEW, PRICE, ATTRIBUTES, UNCHANGED, MISSING, DELETE, per-row errors) → apply once with `If-Match` on the job and an
   `Idempotency-Key`. Apply is one transaction and is refused if the catalog moved since the preview (`ERR_IMPORT_STALE`).
   Presets: LISAKT (below).
-- `PartDepot {min_qty, max_qty, shelf}` per depot; no row reads as 0 / none / "" (version 0).
+- `PartDepot {min_qty, max_qty, shelf}` per depot; no row reads as 0 / none / "" (version 0). Written whole (PUT):
+  an omitted field is cleared.
 - `StockMovement {part_id, depot_id, kind: IN|OUT|ADJUST_IN|ADJUST_OUT|TRANSFER_IN|TRANSFER_OUT, qty > 0, movement_date, occurred_at, unit_cost?, source}`
   — append-only. Ledger order is (movement_date, id); running on-hand follows it. ADJUST only from counts, TRANSFER only from transfers.
+  `occurred_at` is `clock_timestamp()` (wall clock at insert), as is a count's `started_at`.
 - `StockLevel {part_id, depot_id, on_hand, reserved}` — projection written by the movement insert in the same transaction.
   **on_hand may be negative.** available = on_hand − reserved. belowMin = min_qty > 0 and on_hand < min_qty.
 - `StockTransfer {transfer_no (TRF of the source depot), from_depot, to_depot, date}` — one transaction: per line a
@@ -147,7 +151,9 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
   One OPEN count per depot. `system_qty` = on hand from movements with `occurred_at` ≤ `started_at` (`on_hand_at()`),
   frozen, also for lines added later; one line per part. Each counted quantity is saved on its own (autosave, `If-Match` on
   the line version, +1 per save). Finalize writes one ADJUST per line with counted − system ≠ 0, dated `count_date`;
-  movements after `started_at` stay on top (on hand after = on hand now + difference).
+  movements after `started_at` stay on top (on hand after = on hand now + difference). A movement committed after
+  `started_at` but stamped before it (long transaction) counts as before the freeze. `uncounted = ZERO` writes
+  `counted_qty` 0 on the uncounted lines at finalize.
 - **Negative stock.** Posting, cancelling, transfers and count finalize never fail on stock. Their responses carry
   `warnings[]` `{code: NEGATIVE_STOCK, partId, depotId, onHandAfter}`; stock lists and the dashboard filter NEGATIVE.
 - **Count valuation.** A difference is valued at the **last purchase cost**: `net_amount / qty` (after both
@@ -155,7 +161,8 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
   for the part in the company, from any depot, dated on or before the count date (ties: later `posted_at`,
   then higher line id). Returns, waybills and price differences are ignored. Without a purchase the list price of
   the part's catalog on the count date is used and flagged `LIST_PRICE`; without either the line
-  is `NONE` and has no value. Cost and source are snapshotted at finalize (`last_purchase_cost()`).
+  is `NONE` and has no value. Cost and source are snapshotted at finalize (`last_purchase_cost()`). Until documents
+  exist (F3) the function has the LIST_PRICE and NONE branches only; F3 replaces it with the `0004_documents` version.
 - **Closed years** apply to stock too: no movement dated in a closed year (`ERR_YEAR_CLOSED`).
 - **Carry-forward stock checks.** `STOCK_COUNTS_POSTED` (blocking): no OPEN count dated on or before 31 December of
   Y − 1. `YEAR_END_COUNTS` (warning): every depot has a FINALIZED count dated in Y − 1.

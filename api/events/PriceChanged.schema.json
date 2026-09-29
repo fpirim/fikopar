@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fikopar.fpirim.me/schemas/events/PriceChanged.schema.json",
   "title": "PriceChanged",
-  "description": "A list price row was added by setPartPrice or setPrices (one event per row). Imports emit PriceListImported instead. depotId is null.",
+  "description": "A list price row was added by setPartPrice, setPrices or createPart initialPrice (one event per row). Imports emit PriceListImported instead. depotId is null.",
   "allOf": [
     {
       "$ref": "envelope.schema.json"

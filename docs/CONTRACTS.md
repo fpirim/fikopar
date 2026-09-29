@@ -1,6 +1,6 @@
-# Contracts v1.2
+# Contracts v1.3
 
-Frozen 2026-09-29, git tag `contracts-v1.2` (earlier: `contracts-v1.1`, `contracts-v1`). Code is written against these; a change needs
+Frozen 2026-09-29, git tag `contracts-v1.3` (earlier: `contracts-v1.2`, `contracts-v1.1`, `contracts-v1`). Code is written against these; a change needs
 an ADR in [`adr/`](adr/) and a new version here.
 
 | Artifact | Path |
@@ -8,12 +8,21 @@ an ADR in [`adr/`](adr/) and a new version here.
 | Domain model, invariants, number prefixes | [`docs/domain-model.md`](domain-model.md) |
 | HTTP API (OpenAPI 3.1) | [`api/openapi.yaml`](../api/openapi.yaml) |
 | Event schemas (JSON Schema 2020-12) | [`api/events/`](../api/events) |
-| Schema and DB invariants | [`backend/migrations/draft/`](../backend/migrations/draft) (`check/run.sh`) |
+| Schema and DB invariants | [`backend/migrations/draft/`](../backend/migrations/draft) (`check/run.sh`); catalog and stock: [`0008_catalog_stock.sql`](../backend/migrations/0008_catalog_stock.sql) |
 | Screens → operations | [`docs/screens.md`](screens.md) |
 | Design tokens | [`frontend/src/styles/tokens.css`](../frontend/src/styles/tokens.css), [`docs/brand.md`](brand.md) |
-| Decisions | [`docs/adr/0001`–`0011`](adr/) |
+| Decisions | [`docs/adr/0001`–`0012`](adr/) |
 
 ## Changelog
+
+**v1.3** (2026-09-29, [ADR-0012](adr/0012-contracts-v1-3.md)) — resolves
+[phase 2 contract issues](review/phase-2-contract-issues.md).
+- F2 backend behaviour documented: dashboard tiles, unknown query `depotId`, count ZERO finalize, `clock_timestamp()`,
+  movement labels and opening / closing, grid `unfilteredCount` and IN_STOCK, import limits and hashing.
+- `searchCatalog`: each word matches the name or any normalized code.
+- `PartRow.stockByDepot`, movements `qtyIn` / `qtyOut` column ids, `getPart.equivalents`, EQUIVALENT code = stock no.
+- `PriceImportMappingWrite` for requests, effective `PriceImportMapping` in responses.
+- `setPartDepotSettings` PUT semantics; `getStockCountLine`.
 
 **v1.2** (2026-09-29, [ADR-0011](adr/0011-contracts-v1-2.md)) — F2 catalog and stock.
 - Negative stock allowed: `warnings[]` NEGATIVE_STOCK on post / cancel / transfer / count finalize; `SignedQuantity`;

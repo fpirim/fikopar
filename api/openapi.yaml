@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: fikopar API
-  version: 1.2.0
+  version: 1.3.0
   summary: B2B trade, ledger and instrument management for a spare-parts distributor.
   description: |
     **DRAFT / provisional.** Revised against the live JHipster (v2) inventory; see `docs/domain-model.md`.
@@ -18,7 +18,8 @@ info:
     - **Dates**: date ranges are inclusive on both ends; years are calendar years. Date parameters and
       grid date filters are `yyyy-mm-dd`; a time part (`yyyy-mm-dd hh:mm:ss`, AG Grid) is accepted and ignored.
     - **Unknown ids**: an unknown id in the path answers `404 ERR_*_NOT_FOUND`; an unknown id in the request
-      body (account, depot, sicil, part …) answers `422 ERR_*_NOT_FOUND` with `field`.
+      body (account, depot, sicil, part …) answers `422 ERR_*_NOT_FOUND` with `field`. In a query string it is
+      stated per operation (v1.3: `getDashboard depotId` 404, `listStockLevels depotId` an empty list).
     - **Closed years**: posting the carry-forward into year Y closes Y − 1 and every earlier year. Any operation
       that writes a journal entry dated in a closed year answers `409 ERR_YEAR_CLOSED` (manual and reversal
       entries, document post/cancel, receipts and their voids, cash vouchers and counts, instrument operations,
@@ -361,6 +362,14 @@ paths:
       tags: [Dashboard]
       operationId: getDashboard
       summary: Start page aggregates
+      description: |
+        As of `date`, for `depotId` or the whole company. An unknown `depotId` answers 404 ERR_DEPOT_NOT_FOUND.
+        - `receivables`: Σ of the positive balances of `120.*` accounts; `accounts` = how many.
+        - `payables`: Σ of the credit balances of `320.*` accounts (as a positive amount); `accounts` = how many.
+        - `cash`: the CASH role account of each depot (depots without the role are left out); `total` = Σ.
+        - `instrumentsDue30`: open receivable instruments due on or before `date` + 30, overdue included;
+          `overdueCount` = due before `date`.
+        - `dueThisWeek`: open receivable instruments due on or before `date` + 7, overdue first, then by due date.
       parameters:
         - $ref: '#/components/parameters/DepotIdQuery'
         - { name: date, in: query, schema: { type: string, format: date }, description: Defaults to today }
@@ -372,12 +381,16 @@ paths:
               schema: { $ref: '#/components/schemas/Dashboard' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/orgs/{orgId}/search:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
       tags: [Dashboard]
       operationId: globalSearch
       summary: Top-bar search over account cards, parts and document numbers
+      description: |
+        The parts group uses the `searchCatalog` match and ranking, `limit` hits per group. A `q` over 60 characters
+        skips the parts group.
       parameters:
         - { name: q, in: query, required: true, schema: { type: string, minLength: 2 } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 5 }, description: Per group }
@@ -1745,8 +1758,12 @@ paths:
         Column ids and filter types: `PartColId`. `search` is OR over stockNo, name, brand and every code (normalized).
         The `codes` filter matches any code of the part, normalized. Stock columns (onHand, reserved, available)
         are for `depotId`, or summed over depots when it is null; minQty, maxQty and shelf need a `depotId` and are
-        null without one. Default sort `stockNo` asc, then `catalogCode`. `totals` has onHand, reserved and
-        available. XLSX carries every filtered row (at most 100 000) with the same columns.
+        null without one. With `depotId` null each row also has `stockByDepot` (every depot of the company, depot code
+        order, zeros included); it is omitted with a `depotId` and has no column ids (no filter or sort).
+        `stock=IN_STOCK` = available > 0 in the scope. `unfilteredCount` = parts in the scope (`catalogId`,
+        `includeInactive`) before column filters, `search` and `stock`. Default sort `stockNo` asc, then
+        `catalogCode`. `totals` has onHand, reserved and available. XLSX carries every filtered row (at most 100 000)
+        with the same columns.
       requestBody:
         required: true
         content:
@@ -1774,10 +1791,14 @@ paths:
       operationId: searchCatalog
       summary: Part picker (F2 on an invoice line, typing in a line)
       description: |
-        `q` is matched against stock no and every code (MANUFACTURER, OEM, ALT, EQUIVALENT) after normalization
-        (upper case, only 0-9 A-Z), and against the name word by word (every word must occur, case- and
-        Turkish-dotless-i-insensitive). Rank: 1 exact code or stock no, 2 prefix, 3 substring (normalized `q` of
-        3+ characters), 4 name; then stock no, then catalog code. Inactive parts are left out.
+        The whole `q`, normalized (upper case, only 0-9 A-Z), is matched against stock no and every code
+        (MANUFACTURER, OEM, ALT, EQUIVALENT): rank 1 exact, 2 prefix, 3 substring (normalized `q` of 3+ characters).
+        Rank 4 (words): `q` is split on spaces and every word must occur in the name (case- and
+        Turkish-dotless-i-insensitive) or, normalized, as a substring of the stock no or any code; `pump 37` finds a
+        pump named "Hydraulic pump" with code `HP-3712`. A rank-4 hit has `matchKind` NAME and `matchedCode` the
+        first code (stock no, then MANUFACTURER, OEM, ALT, EQUIVALENT) a word occurs in, or null. A word without
+        letters or digits matches the name only; a `q` without any skips ranks 1–3. Order: rank, then stock no,
+        then catalog code. Inactive parts are left out.
         Each hit has on hand and available for every depot of the company (zero rows included) and the list price of
         its catalog valid on `date`.
 
@@ -1842,6 +1863,7 @@ paths:
       description: |
         409 ERR_PART_CODE_EXISTS when the stock no exists in the catalog; 422 ERR_CATALOG_NOT_FOUND (`catalogId`),
         ERR_PART_NOT_FOUND (`codes[i].equivalentPartId`). The same stock no may exist in another catalog.
+        `initialPrice` is a MANUAL price row and emits `PriceChanged` like `setPartPrice`.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
@@ -1876,7 +1898,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: getPart
-      summary: Get part with codes, current and next list price
+      summary: Get part with codes, equivalents, current and next list price
       responses:
         '200': { $ref: '#/components/responses/PartResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -1937,7 +1959,8 @@ paths:
       summary: Min, max and shelf of a part in one depot (upsert)
       description: |
         `If-Match` is the `version` of that depot row in `getPartStock`; `"0"` creates it. 422 ERR_INVALID_REQUEST
-        (`maxQty`) when max < min.
+        (`maxQty`) when max < min. PUT semantics: the body replaces all three fields, an omitted field is cleared
+        (`minQty` 0, `maxQty` null, `shelf` empty).
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
@@ -2036,6 +2059,9 @@ paths:
         by header name (`PriceImportTarget` names, Turkish aliases in `listPriceImportPresets`); if `code` or `price`
         stay unmapped the job is NEEDS_MAPPING with `headers` and `sample`, and `updatePriceImport` sends the mapping.
         A file whose SHA-256 was already applied to the catalog sets `duplicateOfImportId` (warning only).
+        A file over 10 MiB answers 400 ERR_FILE_TOO_LARGE and creates no job. The idempotency request hash is the
+        file SHA-256 plus the form fields, so a retry with a new multipart boundary replays.
+        A NEW row without a description takes the stock no as the part name.
         400 ERR_NO_FILE_UPLOADED, ERR_FILE_TOO_LARGE; 422 ERR_CATALOG_NOT_FOUND.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
@@ -2049,7 +2075,7 @@ paths:
                 file: { type: string, contentMediaType: application/octet-stream, description: '.csv, .xlsx or .txt (LISAKT)' }
                 catalogId: { type: integer }
                 validFrom: { type: string, format: date, description: For rows without their own valid_from }
-                mapping: { $ref: '#/components/schemas/PriceImportMapping' }
+                mapping: { $ref: '#/components/schemas/PriceImportMappingWrite' }
             encoding:
               mapping: { contentType: application/json }
       responses:
@@ -2085,7 +2111,7 @@ paths:
             schema:
               type: object
               properties:
-                mapping: { $ref: '#/components/schemas/PriceImportMapping' }
+                mapping: { $ref: '#/components/schemas/PriceImportMappingWrite' }
                 validFrom: { type: string, format: date }
       responses:
         '200': { $ref: '#/components/responses/PriceImportResponse' }
@@ -2105,8 +2131,10 @@ paths:
       summary: Preview diff rows (file vs catalog); XLSX via Accept
       description: |
         `change` picks the tab; a row with PRICE and ATTRIBUTES shows under both. Column ids: rowNo, stockNo,
-        description, brand, price, currentPrice, priceChangePct, validFrom, changes, errors. Default sort rowNo, MISSING
-        rows (rowNo null) last by stock no. `totals` is empty.
+        description, brand, price, currentPrice, priceChangePct, validFrom, changes, errors. `description` and `brand`
+        filter and sort the file value, else the current value (MISSING rows). Default sort rowNo, MISSING rows
+        (rowNo null) last by stock no. `unfilteredCount` = rows of the selected tab before column filters.
+        `totals` is empty.
       requestBody:
         required: true
         content:
@@ -2217,7 +2245,7 @@ paths:
       summary: On hand per part and depot (projection of movements); below-minimum and negative lists
       description: |
         `belowMin` = minQty > 0 and onHand < minQty; `negative` = onHand < 0. Order: onHand asc for NEGATIVE,
-        otherwise onHand − minQty asc, then stock no.
+        otherwise onHand − minQty asc, then stock no. An unknown `depotId` returns an empty list.
       parameters:
         - { name: partId, in: query, schema: { type: integer } }
         - $ref: '#/components/parameters/DepotIdQuery'
@@ -2246,9 +2274,13 @@ paths:
         Ledger order is (date, id). `runningOnHand` is the on hand after the movement in that order, per depot
         (`depotId`) or over all depots (`depotId` null); it is set only when `partId` is given and the sort is `date`
         (asc or desc), otherwise null. It counts every movement of the part, so column filters hide rows without
-        changing it. `openingOnHand` / `closingOnHand` bracket the `date` filter range (same scope).
-        Column ids: date, kind, label, sourceNo, sicilName, stockNo, name, depotId, qty, delta, unitCost; default sort
-        date desc, id desc. `totals`: qtyIn, qtyOut (Σ over filtered rows).
+        changing it. `openingOnHand` / `closingOnHand` bracket the `date` filter range (same scope); without a date
+        filter opening is 0 and closing is the on hand through today. Both need `partId` and are null without it.
+        Column ids: date, kind, label, sourceNo, sicilName, stockNo, name, depotId, qty, qtyIn, qtyOut, delta, unitCost;
+        `qtyIn` / `qtyOut` are number columns (null on rows of the other direction, `blank` matches those). Default
+        sort date desc, id desc. `totals`: qtyIn, qtyOut (Σ over filtered rows). A transfer is two rows
+        (TRANSFER_OUT, TRANSFER_IN), each with `otherDepotId`. Until documents exist (F3) `label` comes from the source
+        (TRANSFER, COUNT, OPENING for legacy imports) and `documentId`, `documentType`, `sicilName` are null.
       requestBody:
         required: true
         content:
@@ -2467,6 +2499,21 @@ paths:
       - $ref: '#/components/parameters/OrgId'
       - $ref: '#/components/parameters/CountId'
       - { name: lineId, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Stock]
+      operationId: getStockCountLine
+      summary: One count line with its ETag (re-read after a 412 on autosave)
+      description: Any count status. 404 ERR_STOCK_COUNT_NOT_FOUND, ERR_STOCK_COUNT_LINE_NOT_FOUND (a line of another count too).
+      responses:
+        '200':
+          description: Line
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountLine' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [Stock]
       operationId: setStockCountLine
@@ -2508,7 +2555,8 @@ paths:
       operationId: finalizeStockCount
       summary: Post differences; OPEN → FINALIZED, one ADJUST movement per line with a difference
       description: |
-        `uncounted`: SKIP leaves lines without a count as they are; ZERO treats them as counted 0.
+        `uncounted`: SKIP leaves lines without a count as they are; ZERO sets `countedQty` 0 on them (countedBy /
+        countedAt = the finalizing user and time), so they show their difference afterwards.
         Difference = counted − systemQty (frozen); movements after `startedAt` stay on top, so on hand after =
         on hand now + difference. ADJUST_IN / ADJUST_OUT dated `countDate`, `unitCost` = snapshot of
         `last_purchase_cost(countDate)` with `costSource` (ADR-0008). One transaction; negative results are allowed
@@ -3497,8 +3545,9 @@ components:
           description: |
             The four steps of the screen, in order. CLOSE_DOCUMENTS ← NO_DRAFT_DOCUMENTS, STOCK_COUNTS ←
             STOCK_COUNTS_POSTED and YEAR_END_COUNTS, ACCOUNT_BALANCES ← LEDGER_BALANCED, OPEN_YEAR ← YEAR_NOT_OPENED and the post.
-            A failing blocking check makes its step BLOCKED; the first step not DONE is CURRENT; all four are
-            DONE when status is POSTED.
+            A failing blocking check makes its step BLOCKED; a failing warning (YEAR_END_COUNTS) is shown in
+            `checks` but does not keep its step from DONE. The first step not DONE is CURRENT; all four are DONE
+            when status is POSTED.
           minItems: 4
           maxItems: 4
           items:
@@ -4104,7 +4153,11 @@ components:
           type: string
           enum: [MANUFACTURER, OEM, ALT, EQUIVALENT]
           description: 'MANUFACTURER (PRCNO), OEM (OEMNO), ALT (alternative / old code, no linked part), EQUIVALENT (muadil: links another part)'
-        code: { type: string, minLength: 1, maxLength: 40 }
+        code:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: 'For EQUIVALENT the linked part''s stock no: the server stores it from `equivalentPartId` and ignores the sent value'
         normalizedCode: { type: string, readOnly: true, description: 'Upper case, 0-9 A-Z only; unique per part and kind' }
         equivalentPartId: { type: [integer, 'null'], description: 'Required for EQUIVALENT; null otherwise' }
     PartWrite:
@@ -4126,7 +4179,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/PartWrite'
         - type: object
-          required: [id, orgId, catalogCode, isActive, version]
+          required: [id, orgId, catalogCode, isActive, equivalents, version]
           properties:
             id: { type: integer }
             orgId: { type: integer }
@@ -4144,9 +4197,23 @@ components:
                     price: { $ref: '#/components/schemas/Money4' }
                     validFrom: { type: string, format: date }
             onHand: { $ref: '#/components/schemas/SignedQuantity', description: Sum over depots }
+            equivalents:
+              type: array
+              readOnly: true
+              description: Parts linked by EQUIVALENT codes, either direction, by stock no
+              items: { $ref: '#/components/schemas/PartEquivalent' }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
             version: { type: integer }
+    PartEquivalent:
+      type: object
+      required: [partId, stockNo, name, catalogId, catalogName]
+      properties:
+        partId: { type: integer }
+        stockNo: { type: string }
+        name: { type: string }
+        catalogId: { type: integer }
+        catalogName: { type: string }
     PartColId:
       type: string
       description: |
@@ -4199,6 +4266,17 @@ components:
         shelf: { type: [string, 'null'] }
         belowMin: { type: boolean, description: 'With depotId: minQty > 0 and onHand < minQty; without: in any depot' }
         negative: { type: boolean, description: 'With depotId: onHand < 0; without: in any depot' }
+        stockByDepot:
+          type: array
+          description: 'Only when the request depotId is null: every depot of the company, depot code order, zeros included'
+          items:
+            type: object
+            required: [depotId, depotCode, onHand, available]
+            properties:
+              depotId: { type: integer }
+              depotCode: { type: string }
+              onHand: { $ref: '#/components/schemas/SignedQuantity' }
+              available: { $ref: '#/components/schemas/SignedQuantity' }
         isActive: { type: boolean }
         updatedAt: { type: string, format: date-time }
         version: { type: integer }
@@ -4287,30 +4365,56 @@ components:
         (altCodes split on `listSeparator`). catalogCode, op and equivalent* are LISAKT fields.
       enum: [code, description, brand, type, manufacturerCode, oem, altCodes, price, validFrom, packQty, vatPct,
              catalogCode, op, equivalentCatalogCode, equivalentCode]
-    PriceImportColumn:
+    PriceImportColumnWrite:
       type: object
       description: |
         Source of one target. CSV / XLSX: `header` (case-insensitive, trimmed) or `index` (1-based) or `letter` (XLSX).
-        FIXED_WIDTH: `start` (1-based) and `length`; `scale` = implied decimals of an unsigned zoned number.
+        FIXED_WIDTH: `start` (1-based) and `length`; `scale` = implied decimals of an unsigned zoned number (0 when omitted).
       properties:
         header: { type: string }
         index: { type: integer, minimum: 1 }
         letter: { type: string, pattern: '^[A-Z]{1,3}$' }
         start: { type: integer, minimum: 1 }
         length: { type: integer, minimum: 1 }
-        scale: { type: integer, minimum: 0, maximum: 6, default: 0 }
-    PriceImportMapping:
+        scale: { type: integer, minimum: 0, maximum: 6 }
+    PriceImportColumn:
+      description: One column of an effective mapping; an omitted `scale` is 0.
+      allOf:
+        - $ref: '#/components/schemas/PriceImportColumnWrite'
+    PriceImportMappingWrite:
       type: object
+      description: |
+        Request side (`createPriceImport`, `updatePriceImport`); every field is optional. Omitted fields come from the
+        preset, then the defaults: format from the file extension, encoding UTF-8, decimalSeparator `,`, dateFormat
+        dd.mm.yyyy, headerRow 1, listSeparator `|`; unmapped columns are matched by header name.
       properties:
         preset: { type: [string, 'null'], enum: [LISAKT, null], description: 'Fills format, encoding, dateFormat and columns; fields given here override' }
         format: { type: string, enum: [CSV, XLSX, FIXED_WIDTH], description: 'From the extension when omitted; FIXED_WIDTH needs a preset' }
-        encoding: { type: string, enum: [UTF-8, CP857, WINDOWS-1254], default: UTF-8, description: CSV and FIXED_WIDTH }
+        encoding: { type: string, enum: [UTF-8, CP857, WINDOWS-1254], description: CSV and FIXED_WIDTH }
         delimiter: { type: string, maxLength: 1, description: 'CSV; detected from ; , or tab when omitted' }
-        decimalSeparator: { type: string, enum: [',', '.'], default: ',' }
-        dateFormat: { type: string, enum: [dd.mm.yyyy, yyyy-mm-dd, yyyymmdd], default: dd.mm.yyyy, description: 'Text dates; XLSX date cells are read as dates' }
+        decimalSeparator: { type: string, enum: [',', '.'] }
+        dateFormat: { type: string, enum: [dd.mm.yyyy, yyyy-mm-dd, yyyymmdd], description: 'Text dates; XLSX date cells are read as dates' }
         sheet: { type: string, description: XLSX sheet name; first sheet when omitted }
-        headerRow: { type: integer, minimum: 0, default: 1, description: '0 = no header (CSV / XLSX); data starts on the next row' }
-        listSeparator: { type: string, maxLength: 1, default: '|' }
+        headerRow: { type: integer, minimum: 0, description: '0 = no header (CSV / XLSX); data starts on the next row' }
+        listSeparator: { type: string, maxLength: 1 }
+        columns:
+          type: object
+          propertyNames: { $ref: '#/components/schemas/PriceImportTarget' }
+          additionalProperties: { $ref: '#/components/schemas/PriceImportColumnWrite' }
+    PriceImportMapping:
+      type: object
+      description: Effective mapping (responses) after the preset, the defaults and auto-mapping; `delimiter` and `sheet` only when set.
+      required: [format, encoding, decimalSeparator, dateFormat, headerRow, listSeparator, columns]
+      properties:
+        preset: { type: [string, 'null'], enum: [LISAKT, null] }
+        format: { type: string, enum: [CSV, XLSX, FIXED_WIDTH] }
+        encoding: { type: string, enum: [UTF-8, CP857, WINDOWS-1254] }
+        delimiter: { type: string, maxLength: 1 }
+        decimalSeparator: { type: string, enum: [',', '.'] }
+        dateFormat: { type: string, enum: [dd.mm.yyyy, yyyy-mm-dd, yyyymmdd] }
+        sheet: { type: string }
+        headerRow: { type: integer, minimum: 0 }
+        listSeparator: { type: string, maxLength: 1 }
         columns:
           type: object
           propertyNames: { $ref: '#/components/schemas/PriceImportTarget' }
@@ -4330,7 +4434,10 @@ components:
             preset: LISAKT
             format: FIXED_WIDTH
             encoding: CP857
+            decimalSeparator: '.'
             dateFormat: yyyymmdd
+            headerRow: 0
+            listSeparator: '|'
             columns:
               op: { start: 1, length: 1 }
               catalogCode: { start: 2, length: 4 }
@@ -4372,7 +4479,9 @@ components:
         fileSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
         fileSize: { type: integer }
         format: { type: string, enum: [CSV, XLSX, FIXED_WIDTH] }
-        mapping: { $ref: '#/components/schemas/PriceImportMapping', description: Effective mapping (after preset and auto-mapping) }
+        mapping:
+          description: 'Effective mapping (after preset, defaults and auto-mapping); null when the sent mapping could not be resolved (FAILED ERR_IMPORT_FORMAT)'
+          oneOf: [{ $ref: '#/components/schemas/PriceImportMapping' }, { type: 'null' }]
         validFrom: { type: string, format: date }
         status:
           type: string
@@ -4439,7 +4548,7 @@ components:
             Errors: REQUIRED, INVALID_NUMBER, INVALID_DATE, INVALID_PERCENT, NEGATIVE_PRICE, TOO_LONG, DUPLICATE_IN_FILE
             (same stock no twice), PRICE_EXISTS (a different price already on that validFrom), CATALOG_MISMATCH (LISAKT
             KATNO ≠ job catalog), UNKNOWN_OP. Warnings: BACKDATED (validFrom before the latest price), OP_MISMATCH
-            (insert of an existing part or update of an unknown one), EQUIVALENT_NOT_FOUND, INACTIVE_PART (reactivated).
+            (insert of an existing part, update of an unknown one, op 0 for an unknown part: no change), EQUIVALENT_NOT_FOUND, INACTIVE_PART (reactivated).
           enum: [REQUIRED, INVALID_NUMBER, INVALID_DATE, INVALID_PERCENT, NEGATIVE_PRICE, TOO_LONG, DUPLICATE_IN_FILE,
                  PRICE_EXISTS, CATALOG_MISMATCH, UNKNOWN_OP, BACKDATED, OP_MISMATCH, EQUIVALENT_NOT_FOUND, INACTIVE_PART]
         value: { type: [string, 'null'], description: Raw cell }
@@ -4459,7 +4568,7 @@ components:
         changes: { type: array, items: { type: string, enum: [NEW, PRICE, ATTRIBUTES, MISSING, DELETE] }, description: Empty = UNCHANGED }
         file: { oneOf: [{ $ref: '#/components/schemas/PriceImportFields' }, { type: 'null' }] }
         current: { oneOf: [{ $ref: '#/components/schemas/PriceImportFields' }, { type: 'null' }], description: 'Catalog now; price = valid on the row validFrom' }
-        changedFields: { type: array, items: { $ref: '#/components/schemas/PriceImportTarget' } }
+        changedFields: { type: array, items: { $ref: '#/components/schemas/PriceImportTarget' }, description: 'Targets that differ; PRICE rows list `price`' }
         priceChangePct: { type: [string, 'null'] }
         errors: { type: array, items: { $ref: '#/components/schemas/PriceImportIssue' } }
         warnings: { type: array, items: { $ref: '#/components/schemas/PriceImportIssue' } }
@@ -4502,6 +4611,8 @@ components:
         label: { type: string, enum: [SALE, PURCHASE, SALES_RETURN, PURCHASE_RETURN, TRANSFER, COUNT, OPENING], description: Grid "Type" }
         qty: { $ref: '#/components/schemas/Quantity' }
         delta: { $ref: '#/components/schemas/SignedQuantity', description: '+qty for IN kinds, −qty for OUT kinds' }
+        qtyIn: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }], description: 'qty for IN, ADJUST_IN, TRANSFER_IN; null otherwise' }
+        qtyOut: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }], description: 'qty for OUT, ADJUST_OUT, TRANSFER_OUT; null otherwise' }
         unitCost: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }] }
         sourceType: { type: string, enum: [document, stock_count, transfer, legacy_import] }
         sourceId: { type: [string, 'null'] }
@@ -4514,7 +4625,7 @@ components:
         otherDepotId: { type: [integer, 'null'], description: Transfers }
         runningOnHand: { oneOf: [{ $ref: '#/components/schemas/SignedQuantity' }, { type: 'null' }] }
         date: { type: string, format: date }
-        occurredAt: { type: string, format: date-time }
+        occurredAt: { type: string, format: date-time, description: 'Wall clock at insert (clock_timestamp()), not transaction start' }
     StockTransferCreate:
       type: object
       required: [fromDepotId, toDepotId, date, lines]
@@ -4591,7 +4702,12 @@ components:
             countNo: { type: string, examples: [SAY-2026-1-000001] }
             year: { type: integer, description: Year of countDate }
             status: { type: string, enum: [OPEN, FINALIZED, CANCELLED] }
-            startedAt: { type: string, format: date-time, description: Freeze instant of systemQty }
+            startedAt:
+              type: string
+              format: date-time
+              description: |
+                Freeze instant of systemQty (clock_timestamp()). A movement committed after it but stamped before it
+                (long transaction) counts as before the freeze.
             lineCount: { type: integer }
             countedCount: { type: integer, description: 'Progress "412 / 1,280"' }
             differenceCount: { type: integer, description: Counted lines with a difference }
