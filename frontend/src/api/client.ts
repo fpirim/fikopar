@@ -1,3 +1,5 @@
+import type { EntryOwner } from './types'
+
 type QueryValue = string | number | boolean | null | undefined
 
 export interface RequestOptions {
@@ -21,15 +23,20 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly field?: string
+  readonly owner?: EntryOwner
 
-  constructor(status: number, code: string, field?: string) {
+  constructor(status: number, code: string, field?: string, owner?: EntryOwner) {
     super(code)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.field = field
+    this.owner = owner
   }
 }
+
+// ETag is "<version>"; send it back as If-Match.
+export const ifMatch = (version: number) => `"${version}"`
 
 export const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 export const PDF = 'application/pdf'
@@ -71,8 +78,8 @@ async function toError(res: Response): Promise<ApiError> {
     if (globalThis.location.pathname !== '/login') globalThis.location.assign('/login')
   }
   try {
-    const body = (await res.json()) as { code?: string; field?: string }
-    return new ApiError(res.status, body.code ?? 'ERR_UNKNOWN', body.field)
+    const body = (await res.json()) as { code?: string; field?: string; owner?: EntryOwner }
+    return new ApiError(res.status, body.code ?? 'ERR_UNKNOWN', body.field, body.owner)
   } catch {
     return new ApiError(res.status, 'ERR_UNKNOWN')
   }
