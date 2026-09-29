@@ -62,7 +62,8 @@
     "counted": "Sayılan",
     "difference": "Fark",
     "value": "Tutar",
-    "countedBy": "Sayan"
+    "countedBy": "Sayan",
+    "unitCost": "Birim maliyet"
   },
   "filter": {
     "startsWith": "İle başlar…",
@@ -133,5 +134,10 @@
     "counted": "Sayılan",
     "submit": "Ekle",
     "added": "{{no}} sayıma eklendi"
+  },
+  "costFrom": {
+    "LAST_PURCHASE": "Son alış faturası",
+    "LIST_PRICE": "Alış yok: liste fiyatı",
+    "NONE": "Alış ve liste fiyatı yok"
   }
 }

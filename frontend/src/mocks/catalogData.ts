@@ -77,6 +77,8 @@ export interface MockMovement {
   transferId: number | null
   countId: number | null
   documentId: number | null
+  documentType?: StockMovement['documentType']
+  reversal?: boolean
   date: string
   occurredAt: string
 }

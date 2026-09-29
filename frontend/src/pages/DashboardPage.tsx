@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getDashboard } from '../api/endpoints'
+import { getDashboard, gridDocuments } from '../api/endpoints'
 import { errorText } from '../api/errorText'
 import type { Dashboard } from '../api/types'
 import { useApi } from '../hooks/useApi'
@@ -77,10 +77,21 @@ function CardHead({
 }
 
 function Overview({ orgId }: Readonly<{ orgId: number }>) {
-  const { t, i18n } = useTranslation(['dashboard', 'ledger', 'shell', 'errors'])
+  const { t, i18n } = useTranslation(['dashboard', 'documents', 'shell', 'errors'])
   const { depotId } = useDepot()
   const depots = useDepots()
   const { data, error } = useApi(() => getDashboard(orgId, depotId), [orgId, depotId])
+  const latest = useApi(
+    () =>
+      gridDocuments(orgId, {
+        startRow: 0,
+        endRow: 10,
+        statuses: ['POSTED', 'CANCELLED'],
+        depotId,
+        sortModel: [{ colId: 'postedAt', sort: 'desc' }],
+      }),
+    [orgId, depotId],
+  ).data?.rows
   const code = (id: number) => depots.find((d) => d.id === id)?.code ?? String(id)
   const money = (v: string | undefined) => (v === undefined ? '—' : formatMoney(v))
   const to = (path: string) => withDepot(path, depotId)
@@ -108,7 +119,7 @@ function Overview({ orgId }: Readonly<{ orgId: number }>) {
             {t('newReceipt')}
           </Link>
           <Link
-            to={to('/invoices')}
+            to={to('/invoices/new?type=SALES_INVOICE_WITH_WAYBILL')}
             className={cn(
               btn,
               'border-fk-accent bg-fk-accent text-white hover:bg-fk-accent-hover hover:text-white',
@@ -164,7 +175,7 @@ function Overview({ orgId }: Readonly<{ orgId: number }>) {
               id="dsh-latest"
               title={t('latest')}
               link={
-                <Link to={to('/journal')} className="text-sm">
+                <Link to={to('/invoices')} className="text-sm">
                   {t('all')}
                 </Link>
               }
@@ -181,27 +192,37 @@ function Overview({ orgId }: Readonly<{ orgId: number }>) {
               </tr>
             </thead>
             <tbody>
-              {data?.latest.map((a) => {
-                const type = a.subtype ?? a.kind
-                return (
-                  <tr key={`${a.kind}${a.id}`} className="hover:bg-fk-hover">
-                    <td className={cn(TD, 'font-mono')}>
-                      <Link to={to(`/journal?q=${encodeURIComponent(a.number)}`)}>{a.number}</Link>
-                    </td>
-                    <td className={TD}>
-                      <Chip tone={docTone(type)}>
-                        {t(`ledger:docType.${type}`, {
-                          defaultValue: t(`kind.${type}`, { defaultValue: type }),
-                        })}
+              {latest?.map((d) => (
+                <tr key={d.id} className="hover:bg-fk-hover">
+                  <td className={cn(TD, 'font-mono')}>
+                    <Link to={to(`/invoices/${d.id}`)}>{d.documentNo}</Link>
+                  </td>
+                  <td className={TD}>
+                    <span className="flex items-center gap-1.5">
+                      <Chip tone={docTone(d.type)}>
+                        {t(
+                          `documents:typeShort.${d.type}${d.type === 'PRICE_DIFFERENCE' && d.priceDirection ? `_${d.priceDirection}` : ''}`,
+                        )}
                       </Chip>
-                    </td>
-                    <td className={cn(TD, 'max-w-0 truncate')}>{a.sicilName ?? '—'}</td>
-                    <td className={cn(TD, 'font-mono')}>{code(a.depotId)}</td>
-                    <td className={cn(TD, 'fk-num')}>{formatMoney(a.amount)}</td>
-                  </tr>
-                )
-              })}
-              {data && !data.latest.length && (
+                      {d.status === 'CANCELLED' && (
+                        <Chip tone="red">{t('documents:status.CANCELLED')}</Chip>
+                      )}
+                    </span>
+                  </td>
+                  <td className={cn(TD, 'max-w-0 truncate')}>{d.sicilName}</td>
+                  <td className={cn(TD, 'font-mono')}>{d.depotCode}</td>
+                  <td
+                    className={cn(
+                      TD,
+                      'fk-num',
+                      d.status === 'CANCELLED' && 'text-fk-faint line-through',
+                    )}
+                  >
+                    {formatMoney(d.grandTotal)}
+                  </td>
+                </tr>
+              ))}
+              {latest && !latest.length && (
                 <tr>
                   <td colSpan={5} className={cn(TD, 'text-fk-muted')}>
                     {t('noLatest')}

@@ -62,7 +62,8 @@
     "counted": "Counted",
     "difference": "Difference",
     "value": "Value",
-    "countedBy": "Counted by"
+    "countedBy": "Counted by",
+    "unitCost": "Unit cost"
   },
   "filter": {
     "startsWith": "Starts with…",
@@ -133,5 +134,10 @@
     "counted": "Counted",
     "submit": "Add",
     "added": "{{no}} added to the count"
+  },
+  "costFrom": {
+    "LAST_PURCHASE": "Last purchase invoice",
+    "LIST_PRICE": "No purchase yet: list price",
+    "NONE": "No purchase and no list price"
   }
 }

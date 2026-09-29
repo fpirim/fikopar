@@ -1,4 +1,4 @@
-import type { EntryOwner } from './types'
+import type { CreditLimitExceeded, EntryOwner } from './types'
 
 type QueryValue = string | number | boolean | null | undefined
 
@@ -24,14 +24,22 @@ export class ApiError extends Error {
   readonly code: string
   readonly field?: string
   readonly owner?: EntryOwner
+  readonly details?: CreditLimitExceeded
 
-  constructor(status: number, code: string, field?: string, owner?: EntryOwner) {
+  constructor(
+    status: number,
+    code: string,
+    field?: string,
+    owner?: EntryOwner,
+    details?: CreditLimitExceeded,
+  ) {
     super(code)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.field = field
     this.owner = owner
+    this.details = details
   }
 }
 
@@ -82,8 +90,19 @@ async function toError(res: Response): Promise<ApiError> {
     if (globalThis.location.pathname !== '/login') globalThis.location.assign('/login')
   }
   try {
-    const body = (await res.json()) as { code?: string; field?: string; owner?: EntryOwner }
-    return new ApiError(res.status, body.code ?? 'ERR_UNKNOWN', body.field, body.owner)
+    const body = (await res.json()) as {
+      code?: string
+      field?: string
+      owner?: EntryOwner
+      details?: CreditLimitExceeded
+    }
+    return new ApiError(
+      res.status,
+      body.code ?? 'ERR_UNKNOWN',
+      body.field,
+      body.owner,
+      body.details,
+    )
   } catch {
     return new ApiError(res.status, 'ERR_UNKNOWN')
   }

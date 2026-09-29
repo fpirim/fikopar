@@ -14,15 +14,21 @@ import type {
   CashVoucher,
   CashVoucherCreate,
   Catalog,
+  CatalogHit,
   CatalogSearchResult,
   CountLinesRequest,
   Dashboard,
   Depot,
+  Document,
+  DocumentsRequest,
+  DocumentSummary,
+  DocumentWrite,
   GridResponse,
   ImportApply,
   ImportRowsRequest,
   JournalEntry,
   JournalEntryPage,
+  Member,
   MovementsRequest,
   MovementsResponse,
   NumberSeries,
@@ -288,6 +294,21 @@ export const searchCatalog = (orgId: number, query: CatalogSearchQuery, signal?:
     }),
   )
 
+export interface ResolvedCode {
+  code: string
+  status: 'FOUND' | 'NOT_FOUND' | 'AMBIGUOUS'
+  part?: CatalogHit
+  candidates?: CatalogHit[]
+}
+
+export const resolvePartCodes = (orgId: number, codes: string[], depotId?: number | null) =>
+  data(
+    apiRequest<ResolvedCode[]>('POST', `${cat(orgId)}/parts/resolve`, {
+      body: depotId ? { codes, depotId } : { codes },
+      safe: true,
+    }),
+  )
+
 export const getPart = (orgId: number, partId: number) =>
   apiRequest<Part>('GET', `${cat(orgId)}/parts/${partId}`)
 
@@ -506,3 +527,71 @@ export const discardPriceImport = (orgId: number, job: { id: number; version: nu
 
 export const exportPriceImportRows = (orgId: number, importId: number, body: ImportRowsRequest) =>
   apiBlob('POST', `${cat(orgId)}/imports/${importId}/rows/grid`, XLSX, { body })
+
+const docs = (orgId: number) => `${org(orgId)}/documents`
+
+export const listMembers = (orgId: number) =>
+  data(apiRequest<Member[]>('GET', `${org(orgId)}/members`))
+
+export const gridDocuments = (orgId: number, body: DocumentsRequest) =>
+  data(
+    apiRequest<GridResponse<DocumentSummary>>('POST', `${docs(orgId)}/grid`, {
+      body,
+      safe: true,
+    }),
+  )
+
+export const exportDocuments = (orgId: number, body: DocumentsRequest) =>
+  apiBlob('POST', `${docs(orgId)}/grid`, XLSX, { body })
+
+export const getDocument = (orgId: number, documentId: number) =>
+  data(apiRequest<Document>('GET', `${docs(orgId)}/${documentId}`))
+
+export const printDocument = (orgId: number, documentId: number) =>
+  apiBlob('GET', `${docs(orgId)}/${documentId}`, PDF)
+
+export const createDocument = (orgId: number, body: DocumentWrite, idempotencyKey: string) =>
+  data(apiRequest<Document>('POST', docs(orgId), { body, idempotencyKey }))
+
+export const updateDocument = (
+  orgId: number,
+  doc: { id: number; version: number },
+  body: DocumentWrite,
+) =>
+  data(
+    apiRequest<Document>('PUT', `${docs(orgId)}/${doc.id}`, {
+      body,
+      ifMatch: ifMatch(doc.version),
+    }),
+  )
+
+export const deleteDocument = (orgId: number, doc: { id: number; version: number }) =>
+  apiRequest<null>('DELETE', `${docs(orgId)}/${doc.id}`, { ifMatch: ifMatch(doc.version) })
+
+export const postDocument = (
+  orgId: number,
+  doc: { id: number; version: number },
+  idempotencyKey: string,
+  creditOverride?: { reason: string },
+) =>
+  data(
+    apiRequest<Document>('POST', `${docs(orgId)}/${doc.id}/post`, {
+      body: creditOverride ? { creditOverride } : {},
+      ifMatch: ifMatch(doc.version),
+      idempotencyKey,
+    }),
+  )
+
+export const cancelDocument = (
+  orgId: number,
+  doc: { id: number; version: number },
+  reason: string,
+  idempotencyKey: string,
+) =>
+  data(
+    apiRequest<Document>('POST', `${docs(orgId)}/${doc.id}/cancel`, {
+      body: { reason },
+      ifMatch: ifMatch(doc.version),
+      idempotencyKey,
+    }),
+  )

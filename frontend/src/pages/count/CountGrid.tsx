@@ -187,6 +187,7 @@ export default function CountGrid({
       systemQty: t('col.system'),
       countedQty: t('col.counted'),
       difference: t('col.difference'),
+      unitCost: t('col.unitCost'),
       value: t('col.value'),
       countedBy: t('col.countedBy'),
     }),
@@ -303,6 +304,26 @@ export default function CountGrid({
         valueFormatter: (p) =>
           p.value === null || p.value === undefined ? '—' : formatQty(p.value, { sign: true }),
         cellClass: (p) => `fk-num ${signCls(p.value)}`,
+      },
+      {
+        colId: 'unitCost',
+        field: 'unitCost',
+        headerName: labels.unitCost,
+        flex: 0,
+        width: monoWidth(10),
+        sortable: false,
+        ...numCol,
+        valueFormatter: (p) =>
+          p.node?.rowPinned
+            ? ''
+            : p.value === null || p.value === undefined
+              ? '—'
+              : formatMoney(p.value),
+        tooltipValueGetter: (p) =>
+          p.data && !p.node?.rowPinned ? t(`costFrom.${p.data.costSource}`) : undefined,
+        cellClassRules: {
+          'fk-muted': (p) => !p.node?.rowPinned && p.data?.costSource !== 'LAST_PURCHASE',
+        },
       },
       {
         colId: 'value',

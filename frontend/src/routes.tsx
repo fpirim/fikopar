@@ -21,8 +21,10 @@ import PartPage from './pages/PartPage'
 import PriceImportPage from './pages/PriceImportPage'
 import StockCountsPage from './pages/StockCountsPage'
 import StockCountPage from './pages/StockCountPage'
+import DocumentsPage from './pages/DocumentsPage'
+import DocumentPage from './pages/DocumentPage'
 
-const LATER = ['/invoices', '/cheques', '/migration']
+const LATER = ['/cheques', '/migration']
 
 function AppRoutes() {
   return (
@@ -51,6 +53,8 @@ function AppRoutes() {
           <Route path="/parts/:partId" element={<PartPage />} />
           <Route path="/stock-counts" element={<StockCountsPage />} />
           <Route path="/stock-counts/:countId" element={<StockCountPage />} />
+          <Route path="/invoices" element={<DocumentsPage />} />
+          <Route path="/invoices/:documentId" element={<DocumentPage />} />
           {LATER.map((p) => (
             <Route key={p} path={p} element={<NotInBuildPage />} />
           ))}

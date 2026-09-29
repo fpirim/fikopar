@@ -15,6 +15,7 @@ export function AccountPicker({
   className,
   inputClassName,
   autoFocus,
+  hideLabel,
 }: Readonly<{
   orgId: number
   label: string
@@ -24,6 +25,7 @@ export function AccountPicker({
   className?: string
   inputClassName?: string
   autoFocus?: boolean
+  hideLabel?: boolean
 }>) {
   const listId = useId()
   const [q, setQ] = useState<string | null>(null)
@@ -57,7 +59,7 @@ export function AccountPicker({
 
   return (
     <label className={cn('relative flex min-w-0 flex-col gap-1 text-xs text-fk-muted', className)}>
-      {label}
+      {hideLabel ? <span className="sr-only">{label}</span> : label}
       <input
         role="combobox"
         aria-expanded={open}
