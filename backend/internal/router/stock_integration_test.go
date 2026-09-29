@@ -196,7 +196,7 @@ func TestTransfers_MoveBothSidesAtomicallyWithWarnings(t *testing.T) {
 		body, code string
 		status     int
 	}{
-		"same depot": {`{"fromDepotId":` + idStr(f.depot) + `,"toDepotId":` + idStr(f.depot) + `,"date":"2026-03-05","lines":[{"partId":` + idStr(a) + `,"qty":"1"}]}`, "ERR_SAME_DEPOT", 422},
+		"same depot":    {`{"fromDepotId":` + idStr(f.depot) + `,"toDepotId":` + idStr(f.depot) + `,"date":"2026-03-05","lines":[{"partId":` + idStr(a) + `,"qty":"1"}]}`, "ERR_SAME_DEPOT", 422},
 		"unknown depot": {`{"fromDepotId":` + idStr(f.depot) + `,"toDepotId":999999,"date":"2026-03-05","lines":[{"partId":` + idStr(a) + `,"qty":"1"}]}`, "ERR_DEPOT_NOT_FOUND", 422},
 		"unknown part":  {`{"fromDepotId":` + idStr(f.depot) + `,"toDepotId":` + idStr(f.depot2) + `,"date":"2026-03-05","lines":[{"partId":999999,"qty":"1"}]}`, "ERR_PART_NOT_FOUND", 422},
 		"inactive part": {`{"fromDepotId":` + idStr(f.depot) + `,"toDepotId":` + idStr(f.depot2) + `,"date":"2026-03-05","lines":[{"partId":` + idStr(inactive) + `,"qty":"1"}]}`, "ERR_PART_INACTIVE", 422},

@@ -188,7 +188,7 @@ type dashboardJSON struct {
 		Number string `json:"number"`
 		Amount string `json:"amount"`
 	} `json:"latest"`
-	DueThisWeek   []struct {
+	DueThisWeek []struct {
 		InstrumentNo string `json:"instrumentNo"`
 		DaysToDue    int    `json:"daysToDue"`
 	} `json:"dueThisWeek"`
