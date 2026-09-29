@@ -44,5 +44,8 @@
   "accountMenu": "Account menu",
   "demo": "DEMO",
   "selectCompany": "Select a company in the sidebar.",
-  "notInBuild": "Not in this build yet."
+  "notInBuild": "Not in this build yet.",
+  "findPart": {
+    "open": "open"
+  }
 }

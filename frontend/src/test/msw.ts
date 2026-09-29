@@ -8,7 +8,10 @@ export interface Captured {
 }
 
 // Records matching requests and lets them fall through to the default handlers.
-export function capture(method: 'get' | 'post' | 'put' | 'delete', path: string): Captured[] {
+export function capture(
+  method: 'get' | 'post' | 'put' | 'patch' | 'delete',
+  path: string,
+): Captured[] {
   const seen: Captured[] = []
   server.use(
     http[method](path, async ({ request }) => {

@@ -71,7 +71,7 @@ export default function GlobalSearch() {
         key: `p${p.partId}`,
         code: p.stockNo,
         label: p.name,
-        open: async () => '/parts',
+        open: async () => `/parts/${p.partId}`,
       })),
     ]
   }, [shown, orgId])

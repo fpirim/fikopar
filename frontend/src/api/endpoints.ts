@@ -520,3 +520,6 @@ export const discardPriceImport = (orgId: number, job: { id: number; version: nu
       safe: true,
     }),
   )
+
+export const exportPriceImportRows = (orgId: number, importId: number, body: ImportRowsRequest) =>
+  apiBlob('POST', `${cat(orgId)}/imports/${importId}/rows/grid`, XLSX, { body })

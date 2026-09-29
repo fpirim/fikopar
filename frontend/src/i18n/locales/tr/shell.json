@@ -44,5 +44,8 @@
   "accountMenu": "Hesap menüsü",
   "demo": "DEMO",
   "selectCompany": "Soldaki menüden bir şirket seçin.",
-  "notInBuild": "Bu sürümde henüz yok."
+  "notInBuild": "Bu sürümde henüz yok.",
+  "findPart": {
+    "open": "aç"
+  }
 }
