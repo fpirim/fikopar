@@ -308,3 +308,75 @@ func TestV13_EquivalentCodeFollowsTheLinkedStockNo(t *testing.T) {
 	r := f.search(t, "q=X9")
 	assert.Equal(t, []string{"B-1", "X-9"}, stockNos(r.Items))
 }
+
+func TestV13_SearchWithoutASCIILettersOrDigits(t *testing.T) {
+	f := newStock(t)
+	f.part(t, "L-1", "Çığ lambası", "")
+	f.part(t, "L-2", "Göö conta", "")
+	f.part(t, "L-3", "Kapak", "")
+	for q, want := range map[string][]string{"--": {}, "%%": {}, "çığ": {"L-1"}, "ÇIĞ": {"L-1"}, "öö": {"L-2"}, "öö --": {}} {
+		r := f.search(t, "q="+url.QueryEscape(q))
+		assert.Equal(t, want, stockNos(r.Items), q)
+		rec := f.do(t, http.MethodGet, f.path("/search?q="+url.QueryEscape(q)), f.token, "")
+		require.Equal(t, http.StatusOK, rec.Code, "%s: %s", q, rec.Body.String())
+		g := decode[struct {
+			Parts []hitJSON `json:"parts"`
+		}](t, rec)
+		assert.Equal(t, want, stockNos(g.Parts), "globalSearch "+q)
+	}
+}
+
+// Both companies hold the same parts; every match branch must stay inside the company in the path.
+func TestV13_SearchKeepsCompaniesApart(t *testing.T) {
+	f := newStock(t)
+	other := f.seedOrg(t, "search-other", f.userID)
+	seed := func(org uint) map[uint]bool {
+		rec := f.post(t, orgPath(org, "/catalog/catalogs"), f.token, `{"code":77,"name":"Same"}`)
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		cat := extractID(t, rec.Body.Bytes())
+		ids := map[uint]bool{}
+		for _, p := range []string{
+			`"stockNo":"SEP-4711","name":"Oil pump"`,
+			`"stockNo":"X-1","name":"Gasket","codes":[{"kind":"OEM","code":"OE-4711-B"},{"kind":"MANUFACTURER","code":"MF-88"}]`,
+		} {
+			rec := f.post(t, orgPath(org, "/catalog/parts"), f.token, `{"catalogId":`+idStr(cat)+`,`+p+`}`)
+			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+			ids[extractID(t, rec.Body.Bytes())] = true
+		}
+		return ids
+	}
+	mine, theirs := seed(f.org), seed(other)
+	for _, q := range []string{"SEP-4711", "SEP4", "4711", "MF-88", "MF", "E4711", "oil", "oil pump", "gasket 4711", "pump 47", "gasket mf"} {
+		r := f.search(t, "q="+url.QueryEscape(q))
+		require.NotEmpty(t, r.Items, q)
+		for _, h := range r.Items {
+			assert.True(t, mine[h.PartID], "%s: part %d", q, h.PartID)
+			assert.False(t, theirs[h.PartID], "%s: part %d of the other company", q, h.PartID)
+		}
+		assert.Equal(t, len(r.Items), r.Total, q)
+		rec := f.do(t, http.MethodGet, f.path("/search?q="+url.QueryEscape(q)), f.token, "")
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		for _, h := range decode[struct {
+			Parts []hitJSON `json:"parts"`
+		}](t, rec).Parts {
+			assert.True(t, mine[h.PartID], "globalSearch %s: part %d", q, h.PartID)
+		}
+	}
+}
+
+// Level rows are locked in (part, depot) order whatever the line order; movements are written in that order.
+func TestV13_TransferLocksLevelsInPartDepotOrder(t *testing.T) {
+	f := newStock(t)
+	a := f.part(t, "A", "A", "")
+	b := f.part(t, "B", "B", "")
+	require.Less(t, a, b)
+	require.Less(t, f.depot, f.depot2)
+	body := `{"fromDepotId":` + idStr(f.depot2) + `,"toDepotId":` + idStr(f.depot) + `,"date":"2026-04-01",
+		"lines":[{"partId":` + idStr(b) + `,"qty":"1"},{"partId":` + idStr(a) + `,"qty":"2"}]}`
+	rec := f.req(t, http.MethodPost, f.path("/stock/transfers"), f.token, body, map[string]string{"Idempotency-Key": uuid.NewString()})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	type pd struct{ Part, Depot uint }
+	var got []pd
+	require.NoError(t, testDB.Raw(`SELECT part_id AS part, depot_id AS depot FROM stock_movements WHERE org_id = ? ORDER BY id`, f.org).Scan(&got).Error)
+	assert.Equal(t, []pd{{a, f.depot}, {a, f.depot2}, {b, f.depot}, {b, f.depot2}}, got)
+}

@@ -224,3 +224,19 @@ func TestV12_OutboxTakesCompanyWideCatalogEvents(t *testing.T) {
 	require.NoError(t, testDB.Exec(`INSERT INTO outbox (id, org_id, depot_id, event_type, aggregate_type, aggregate_id, payload)
 		VALUES (gen_random_uuid(), ?, NULL, 'PriceListImported', 'price_import', '1', '{}')`, f.org).Error)
 }
+
+func TestV13_StockLevelsAreWrittenOnlyByTheProjection(t *testing.T) {
+	f := seedStock(t)
+	require.NoError(t, move(testDB, f, f.part, f.depot, "IN", "5", "2026-03-01"))
+	for _, stmt := range []string{
+		`UPDATE stock_levels SET on_hand = 100`,
+		fmt.Sprintf(`INSERT INTO stock_levels (org_id, part_id, depot_id, on_hand) VALUES (%d, %d, %d, 1)`, f.org, f.part2, f.depot),
+		`DELETE FROM stock_levels`,
+	} {
+		err := testDB.Exec(stmt).Error
+		require.Error(t, err, stmt)
+		assert.Regexp(t, `stock_levels`, err.Error(), stmt)
+	}
+	require.NoError(t, move(testDB, f, f.part, f.depot, "OUT", "2", "2026-03-02"))
+	assert.Equal(t, "3.0000", onHand(t, f.part, f.depot))
+}
