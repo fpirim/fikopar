@@ -26,12 +26,9 @@ type BalanceTotals struct {
 var balanceCols = map[string]GridCol{
 	"accountCode":  {"account_code", ColText},
 	"accountName":  {"account_name", ColText},
-	"name":         {"account_name", ColText},
 	"city":         {"city", ColText},
 	"sicilTipi":    {"sicil_tipi", ColText},
-	"debit":        {"debit_total", ColNumber},
 	"debitTotal":   {"debit_total", ColNumber},
-	"credit":       {"credit_total", ColNumber},
 	"creditTotal":  {"credit_total", ColNumber},
 	"balance":      {"balance", ColNumber},
 	"overdue":      {"overdue", ColNumber},
@@ -62,6 +59,9 @@ const balancesCTE = `WITH b AS (
 
 func (q *Q) Balances(orgID uint, in BalanceQuery) ([]models.BalanceRow, *BalanceTotals, error) {
 	cteArgs := []any{in.DepotID, in.AsOf, in.AsOf, in.AsOf, in.DepotID, in.DepotID, orgID, in.SicilTipi, in.SicilTipi}
+	if err := knownCols(in.Grid, balanceCols); err != nil {
+		return nil, nil, err
+	}
 	where, wargs, err := whereClause(in.Grid.FilterModel, balanceCols)
 	if err != nil {
 		return nil, nil, err

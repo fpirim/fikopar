@@ -26,7 +26,14 @@ type BalancePage struct {
 	Rows            []models.BalanceRow `json:"rows"`
 	TotalCount      int64               `json:"totalCount"`
 	UnfilteredCount int64               `json:"unfilteredCount"`
-	Totals          map[string]string   `json:"totals"`
+	Totals          BalanceTotals       `json:"totals"`
+}
+
+type BalanceTotals struct {
+	DebitTotal  models.Money `json:"debitTotal"`
+	CreditTotal models.Money `json:"creditTotal"`
+	Balance     models.Money `json:"balance"`
+	Overdue     models.Money `json:"overdue"`
 }
 
 // Balances is the as-of current-account list; all=true ignores paging (exports).
@@ -52,7 +59,7 @@ func (s *ReportService) Balances(ctx context.Context, orgID uint, in BalanceGrid
 	}
 	return &BalancePage{
 		Rows: rows, TotalCount: t.TotalCount, UnfilteredCount: t.UnfilteredCount,
-		Totals: map[string]string{"debit": t.Debit.String(), "credit": t.Credit.String(), "balance": t.Balance.String(), "overdue": t.Overdue.String()},
+		Totals: BalanceTotals{DebitTotal: t.Debit, CreditTotal: t.Credit, Balance: t.Balance, Overdue: t.Overdue},
 	}, nil
 }
 

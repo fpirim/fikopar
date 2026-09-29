@@ -31,7 +31,8 @@ func (h *LedgerHandler) ListAccounts(c echo.Context) error {
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	page, err := h.ledger.ListAccounts(c.Request().Context(), orgID(c), services.AccountQuery{
-		Type: c.QueryParam("type"), SicilID: sicilID, Limit: limit, Cursor: c.QueryParam("cursor"),
+		Type: c.QueryParam("type"), SicilID: sicilID, CodePrefix: c.QueryParam("codePrefix"), Role: c.QueryParam("role"),
+		Limit: limit, Cursor: c.QueryParam("cursor"),
 	})
 	if err != nil {
 		return apierror.Respond(c, err)

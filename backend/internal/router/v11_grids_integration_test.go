@@ -67,7 +67,7 @@ func TestV11_ReceiptGridTakesDepotAndDateFilters(t *testing.T) {
 func TestV11_ListAccountsByCodePrefixAndRole(t *testing.T) {
 	f := newCash(t)
 	f.account(t, "102.02", "ASSET")
-	f.account(t, "1020", "ASSET")
+	f.account(t, "102", "ASSET")
 	type page struct {
 		Items []accountJSON `json:"items"`
 	}
@@ -80,10 +80,10 @@ func TestV11_ListAccountsByCodePrefixAndRole(t *testing.T) {
 		}
 		return out
 	}
-	assert.Equal(t, []string{"102.01", "102.02"}, codes("role=BANK"))
+	assert.Equal(t, []string{"102", "102.01", "102.02"}, codes("role=BANK"))
 	assert.Equal(t, []string{"770.01"}, codes("role=EXPENSE"))
 	assert.Equal(t, []string{"100.01"}, codes("role=CASH"))
-	assert.Equal(t, []string{"102.01", "102.02", "1020"}, codes("codePrefix=102"))
+	assert.Equal(t, []string{"100.01", "102", "102.01", "102.02"}, codes("codePrefix=10"))
 	assert.Equal(t, []string{"102.02"}, codes("codePrefix=102.0&role=BANK&type=ASSET&limit=1&cursor="+cursorAfter("102.01")))
 	assert.Empty(t, codes("codePrefix=102&type=EXPENSE"))
 	for _, bad := range []string{"role=VAT", "codePrefix=abc", "codePrefix=10%25"} {

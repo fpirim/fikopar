@@ -178,7 +178,7 @@ func (h *ReportHandler) CashBookExport(c echo.Context, b *services.CashBook) err
 	return sendFile(c, mimePDF, name+".pdf", data, err)
 }
 
-func (h *ReportHandler) ReceiptGridXLSX(c echo.Context, req repository.GridRequest) error {
+func (h *ReportHandler) ReceiptGridXLSX(c echo.Context, req repository.ReceiptGridRequest) error {
 	req.StartRow, req.EndRow = 0, 0
 	resp, err := h.receipts.Grid(c.Request().Context(), orgID(c), req)
 	if err != nil {
@@ -187,7 +187,7 @@ func (h *ReportHandler) ReceiptGridXLSX(c echo.Context, req repository.GridReque
 	t := export.Table{Columns: []export.Column{{Title: "Number", Kind: export.Text}, {Title: "Date", Kind: export.DateCol},
 		{Title: "Kind", Kind: export.Text}, {Title: "Method", Kind: export.Text}, {Title: "Account", Kind: export.Text},
 		{Title: "Source", Kind: export.Text}, {Title: "Amount", Kind: export.MoneyCol}}}
-	for _, r := range *resp.Rows.(*[]models.Receipt) {
+	for _, r := range resp.Rows.([]models.Receipt) {
 		t.Rows = append(t.Rows, []any{r.ReceiptNo, r.Date, r.Kind, r.Method, r.SicilName, deref(r.InstrumentNo), r.Amount})
 	}
 	data, err := export.XLSX("Receipts", t)

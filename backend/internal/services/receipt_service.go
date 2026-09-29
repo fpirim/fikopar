@@ -251,6 +251,10 @@ func (s *ReceiptService) Void(ctx context.Context, orgID, id uint, reason string
 	return out, err
 }
 
-func (s *ReceiptService) Grid(ctx context.Context, orgID uint, req repository.GridRequest) (*repository.GridResponse, error) {
-	return s.store.Read(ctx).GridReceipts(orgID, req)
+func (s *ReceiptService) Grid(ctx context.Context, orgID uint, req repository.ReceiptGridRequest) (*repository.GridResponse, error) {
+	resp, err := s.store.Read(ctx).GridReceipts(orgID, req)
+	if repository.IsBadFilter(err) {
+		return nil, apierror.WithDetail(apierror.InvalidRequest, err.Error())
+	}
+	return resp, err
 }

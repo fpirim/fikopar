@@ -21,6 +21,8 @@ func NewLedgerService(store *repository.Store) *LedgerService { return &LedgerSe
 
 var (
 	accountCode  = regexp.MustCompile(`^[0-9]{3}(\.[0-9A-Za-z-]+)*$`)
+	codePrefix   = regexp.MustCompile(`^[0-9]{1,3}(\.[0-9A-Za-z-]*)*$`)
+	pickerRoles  = map[string]string{"CASH": "100", "BANK": "102", "CUSTOMER": "120", "SUPPLIER": "320", "EXPENSE": "770"}
 	accountRoles = map[string]bool{
 		"CASH": true, "SALES": true, "SALES_RETURNS": true, "PURCHASES": true, "PURCHASE_RETURNS": true,
 		"PRICE_DIFFERENCE": true, "OUTPUT_VAT": true, "INPUT_VAT": true, "RECEIVABLE_CHEQUES": true,
@@ -35,13 +37,29 @@ type AccountPage struct {
 }
 
 type AccountQuery struct {
-	Type    string
-	SicilID uint
-	Limit   int
-	Cursor  string
+	Type       string
+	SicilID    uint
+	CodePrefix string
+	Role       string
+	Limit      int
+	Cursor     string
 }
 
 func (s *LedgerService) ListAccounts(ctx context.Context, orgID uint, in AccountQuery) (*AccountPage, error) {
+	var prefixes []string
+	if in.CodePrefix != "" {
+		if !codePrefix.MatchString(in.CodePrefix) {
+			return nil, apierror.WithField(apierror.InvalidRequest, "codePrefix")
+		}
+		prefixes = append(prefixes, in.CodePrefix)
+	}
+	if in.Role != "" {
+		p, ok := pickerRoles[in.Role]
+		if !ok {
+			return nil, apierror.WithField(apierror.InvalidRequest, "role")
+		}
+		prefixes = append(prefixes, p)
+	}
 	limit := clampLimit(in.Limit)
 	after := ""
 	if in.Cursor != "" {
@@ -52,7 +70,7 @@ func (s *LedgerService) ListAccounts(ctx context.Context, orgID uint, in Account
 		after = string(b)
 	}
 	rows, err := s.store.Read(ctx).ListAccounts(orgID, repository.AccountFilter{
-		Type: in.Type, SicilID: in.SicilID, AfterCode: after, Limit: limit + 1,
+		Type: in.Type, SicilID: in.SicilID, CodePrefixes: prefixes, AfterCode: after, Limit: limit + 1,
 	})
 	if err != nil {
 		return nil, err
