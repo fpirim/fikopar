@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react'
 import type { ColDef } from 'ag-grid-community'
 import { useTranslation } from 'react-i18next'
-import api from '../lib/api'
+import { createSicil, updateSicil } from '../api/endpoints'
+import { errorText } from '../api/errorText'
+import type { Sicil } from '../api/types'
 import { formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
-import { useApiError } from '../hooks/useApiError'
 import { useOrganization } from '../context/OrganizationContext'
 import CrudGridPage from '../components/ui/CrudGridPage'
 import DialogShell from '../components/ui/DialogShell'
 import PhoneInput from '../components/ui/PhoneInput'
 import NumericInput from '../components/ui/NumericInput'
 import { Trash2, Plus } from 'lucide-react'
-import type { Sicil, SicilTipi, SicilTelefon, TelefonTipi } from '../types/sicil'
+import type { SicilTipi, SicilTelefon, TelefonTipi } from '../types/sicil'
 import { SICIL_TIPLERI, TELEFON_TIPLERI } from '../types/sicil'
 
 // Top-level component, not defined inside the parent (Sonar S6478).
@@ -38,7 +39,6 @@ function SicilDialog({
 }>) {
   const { t } = useTranslation(['sicil', 'common', 'errors'])
   const toast = useToast()
-  const apiError = useApiError()
 
   const [hesapNo, setHesapNo] = useState(card?.hesap_no || '')
   const [hesapAdi, setHesapAdi] = useState(card?.hesap_adi || '')
@@ -89,15 +89,12 @@ function SicilDialog({
         sicil_tipi: hesapTipi,
         telefonlar: cleanTelefonlar,
       }
-      if (card) {
-        await api.put(`/sicil/${card.id}`, payload)
-      } else {
-        await api.post('/sicil', { ...payload, organization_id: organizationId })
-      }
+      if (card) await updateSicil(organizationId, card, payload)
+      else await createSicil(organizationId, payload)
       toast.success(card ? t('sicil:updated') : t('sicil:created'))
       onSaved()
     } catch (err) {
-      const msg = apiError(err)
+      const msg = errorText(t, err)
       setError(msg)
       toast.error(msg)
     } finally {
@@ -333,7 +330,7 @@ export default function SicilPage() {
     [t],
   )
 
-  // No grid without an org: the datasource has no organization_id to send.
+  // No grid without an org: sicils live under /orgs/{orgId}.
   if (!selectedId) {
     return (
       <div className="flex h-full flex-col gap-4">
@@ -348,19 +345,18 @@ export default function SicilPage() {
     <CrudGridPage<Sicil>
       key={selectedId}
       title={t('sicil:title')}
-      gridPath="/sicil/grid"
-      deletePath={(id) => `/sicil/${id}`}
+      gridPath={`/orgs/${selectedId}/sicils/grid`}
+      deletePath={(id) => `/orgs/${selectedId}/sicils/${id}`}
       columnDefs={columnDefs}
-      extraBody={{ organization_id: selectedId }}
       printTitle={t('sicil:printTitle')}
       printColumns={[
         { header: t('sicil:grid.hesapNo'), value: (c) => c.hesap_no },
         { header: t('sicil:grid.hesapAdi'), value: (c) => c.hesap_adi },
         { header: t('sicil:grid.hesapTipi'), value: (c) => t(`sicil:hesapTipi.${c.sicil_tipi}`) },
-        { header: t('sicil:grid.ilce'), value: (c) => c.ilce },
-        { header: t('sicil:grid.sehir'), value: (c) => c.sehir },
-        { header: t('sicil:grid.tcNo'), value: (c) => c.tc_no },
-        { header: t('sicil:grid.vNo'), value: (c) => c.v_no },
+        { header: t('sicil:grid.ilce'), value: (c) => c.ilce ?? '' },
+        { header: t('sicil:grid.sehir'), value: (c) => c.sehir ?? '' },
+        { header: t('sicil:grid.tcNo'), value: (c) => c.tc_no ?? '' },
+        { header: t('sicil:grid.vNo'), value: (c) => c.v_no ?? '' },
         { header: t('sicil:grid.createdAt'), value: (c) => formatDate(c.created_at) },
       ]}
       messages={{
