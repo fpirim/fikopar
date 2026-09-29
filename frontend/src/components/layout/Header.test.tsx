@@ -25,9 +25,6 @@ vi.mock('../../hooks/useAuth', () => ({
     logout,
   }),
 }))
-vi.mock('../../context/ThemeContext', () => ({
-  useTheme: () => ({ theme: 'light', toggleTheme: vi.fn() }),
-}))
 vi.mock('../../context/OrganizationContext', () => ({
   useOrganization: () => ({
     organizations: state.orgs,

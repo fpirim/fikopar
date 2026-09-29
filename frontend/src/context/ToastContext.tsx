@@ -71,20 +71,20 @@ export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
 const STYLES = {
   success: {
     Icon: CheckCircle2,
-    icon: 'text-green-600 dark:text-green-400',
-    box: 'border-green-500/40 bg-green-50 text-green-900 dark:bg-green-950 dark:text-green-50',
+    icon: 'text-green-600',
+    box: 'border-green-500/40 bg-green-50 text-green-900',
     bar: 'bg-green-500',
   },
   error: {
     Icon: AlertCircle,
-    icon: 'text-red-600 dark:text-red-400',
-    box: 'border-red-500/40 bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-50',
+    icon: 'text-red-600',
+    box: 'border-red-500/40 bg-red-50 text-red-900',
     bar: 'bg-red-500',
   },
   info: {
     Icon: Info,
-    icon: 'text-blue-600 dark:text-blue-400',
-    box: 'border-blue-500/40 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-50',
+    icon: 'text-blue-600',
+    box: 'border-blue-500/40 bg-blue-50 text-blue-900',
     bar: 'bg-blue-500',
   },
 } as const

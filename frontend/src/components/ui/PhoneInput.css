@@ -1,4 +1,4 @@
-/* Dark-mode layer over react-phone-input-2, driven by the CSS variables behind Tailwind's `dark` class. */
+/* Aligns react-phone-input-2 with the theme variables. */
 
 .react-tel-input {
   color: hsl(var(--foreground));
@@ -81,7 +81,7 @@
   filter: grayscale(0.2);
 }
 
-/* Lower-contrast scrollbar (especially in dark mode) */
+/* Lower-contrast scrollbar */
 .react-tel-input .country-list::-webkit-scrollbar {
   width: 8px;
 }

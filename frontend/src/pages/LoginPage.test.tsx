@@ -10,9 +10,6 @@ vi.mock('react-router-dom', async (orig) => ({
   useNavigate: () => navigate,
 }))
 vi.mock('../hooks/useAuth', () => ({ useAuth: vi.fn() }))
-vi.mock('../context/ThemeContext', () => ({
-  useTheme: () => ({ theme: 'light', toggleTheme: vi.fn() }),
-}))
 
 const mockedUseAuth = vi.mocked(useAuth)
 

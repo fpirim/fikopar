@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { LogIn, Sun, Moon } from 'lucide-react'
+import { LogIn } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { useTheme } from '../context/ThemeContext'
 import { useApiError } from '../hooks/useApiError'
 import { APP_VERSION } from '../lib/version'
 import LanguageSwitcher from '../components/ui/LanguageSwitcher'
@@ -15,7 +14,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const { login } = useAuth()
-  const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,17 +31,6 @@ export default function LoginPage() {
     <div className="relative flex min-h-screen items-center justify-center bg-muted px-4">
       <div className="absolute right-4 top-4 flex items-center gap-2">
         <LanguageSwitcher />
-        <button
-          onClick={toggleTheme}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-secondary transition-all duration-200 hover:scale-105 hover:border-primary/50 hover:shadow-md active:scale-95"
-          aria-label={t('auth:toggleTheme')}
-        >
-          {theme === 'light' ? (
-            <Moon className="h-4 w-4 text-muted-foreground transition-colors hover:text-primary" />
-          ) : (
-            <Sun className="h-4 w-4 text-muted-foreground transition-colors hover:text-primary" />
-          )}
-        </button>
       </div>
 
       <form

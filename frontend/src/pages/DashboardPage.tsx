@@ -47,9 +47,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-4">
             <p className="text-sm text-muted-foreground">{t('dashboard:status')}</p>
-            <p className="text-xl font-semibold text-green-600 dark:text-green-400">
-              {t('common:active')}
-            </p>
+            <p className="text-xl font-semibold text-green-600">{t('common:active')}</p>
           </div>
         </div>
       </div>
