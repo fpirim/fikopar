@@ -73,7 +73,7 @@ export default function MappingStep({
 
   const row = (target: PriceImportTarget) => {
     const required = REQUIRED.includes(target)
-    const unmapped = required && (!picked[target] || job.unmappedTargets?.includes(target))
+    const unmapped = required && !picked[target]
     const label = t(`import.target.${target}`)
     const pos = job.mapping?.columns?.[target]
     return (

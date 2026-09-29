@@ -220,7 +220,7 @@ export default function CatalogSearch({
         </span>
       </div>
       <CommandPrimitive.List
-        aria-label={t('search.results')}
+        label={t('search.results')}
         className="max-h-[340px] overflow-y-auto overflow-x-hidden"
         onScroll={(e) => {
           const el = e.currentTarget

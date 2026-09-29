@@ -83,7 +83,7 @@ export default function PreviewStep({
       colId,
       headerName: t(`import.col.${colId}`),
       flex: 0,
-      width: monoWidth(12),
+      width: monoWidth(10),
       ...numCol,
       valueGetter: (p: { data?: PriceImportRow }) => (p.data ? get(p.data) : null),
       valueFormatter: (p: { value: unknown }) => (p.value ? formatMoney(p.value as string) : '—'),
@@ -94,7 +94,7 @@ export default function PreviewStep({
         field: 'rowNo',
         headerName: t('import.col.rowNo'),
         flex: 0,
-        width: monoWidth(6),
+        width: monoWidth(5),
         ...numCol,
         valueFormatter: (p) => (p.value === null || p.value === undefined ? '—' : String(p.value)),
       },
@@ -111,7 +111,7 @@ export default function PreviewStep({
         colId: 'description',
         headerName: t('import.col.description'),
         flex: 2,
-        minWidth: 180,
+        minWidth: 150,
         valueGetter: (p) => p.data?.file?.description ?? p.data?.current?.description ?? '',
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
       },
@@ -119,7 +119,7 @@ export default function PreviewStep({
         colId: 'brand',
         headerName: t('import.col.brand'),
         flex: 0,
-        width: 112,
+        width: 100,
         valueGetter: (p) => p.data?.file?.brand ?? p.data?.current?.brand ?? '',
       },
       money('price', (r) => r.file?.price),
@@ -154,10 +154,10 @@ export default function PreviewStep({
         colId: 'changes',
         headerName: t('import.col.changes'),
         flex: 0,
-        width: 158,
+        width: 120,
         sortable: false,
         cellRenderer: (p: ICellRendererParams<PriceImportRow>) => (
-          <span className="flex gap-1">
+          <span className="flex h-full items-center gap-1">
             {p.data?.changes.map((c) => (
               <Chip key={c} size="sm" tone={CHANGE_TONE[c]}>
                 {t(`import.change.${c}`)}
@@ -170,7 +170,7 @@ export default function PreviewStep({
         colId: 'errors',
         headerName: t('import.col.issues'),
         flex: 1.4,
-        minWidth: 180,
+        minWidth: 150,
         sortable: false,
         tooltipValueGetter: (p) =>
           p.data ? issueText([...p.data.errors, ...p.data.warnings]) : '',
