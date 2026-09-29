@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { server } from '../mocks/node'
+import { gridStockCountLines, setStockCountLine } from '../api/endpoints'
 
 const pinned = () => document.querySelector('.ag-floating-bottom') as HTMLElement
 const row = (no: string) => screen.getByText(no).closest('[role="row"]') as HTMLElement
@@ -61,7 +62,7 @@ describe('StockCountPage', () => {
     expect(saves[0].headers.get('If-Match')).toBe('"2"')
     await waitFor(() => expect(row('GS-4410')).toHaveTextContent('−1'))
     expect(await within(counted('GS-4410')).findByLabelText('Kaydedildi')).toBeInTheDocument()
-    await waitFor(() => expect(pinned()).toHaveTextContent('41'))
+    await waitFor(() => expect(pinned()).toHaveTextContent('43'))
   })
 
   it('restores the value on Esc without saving', async () => {
@@ -106,6 +107,13 @@ describe('StockCountPage', () => {
 
   it('posts differences with the header version and shows negative stock', async () => {
     const posts = capture('post', '/api/orgs/:orgId/stock/counts/:countId/finalize')
+    // HP-3774 sold 2 after the count started: counting 0 leaves −2.
+    const hp = await gridStockCountLines(1, 2, {
+      startRow: 0,
+      endRow: 1,
+      filterModel: { stockNo: { filterType: 'text', type: 'equals', filter: 'HP-3774' } },
+    })
+    await setStockCountLine(1, 2, hp.rows[0], { countedQty: '0' })
     renderApp('/stock-counts/2')
     await userEvent.click(await screen.findByRole('button', { name: 'Farkları işle' }))
     const dialog = await screen.findByRole('dialog')
@@ -121,6 +129,7 @@ describe('StockCountPage', () => {
       await within(dialog).findByText(/SAY-2026-1-000002 işlendi · \d+ düzeltme/),
     ).toBeVisible()
     expect(within(dialog).getByText('İşlemden sonra eksi stok')).toBeInTheDocument()
+    expect(within(dialog).getByText('HP-3774 · Depo 1: −2')).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Tamam' }))
     expect(await screen.findByText('KAPANDI')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Farkları işle' })).not.toBeInTheDocument()
@@ -167,6 +176,17 @@ describe('StockCountPage', () => {
     const pdf = calls.find((c) => c.headers.get('Accept') === 'application/pdf')!
     expect(pdf.url.searchParams.get('sheet')).toBe('BLIND')
     expect(pdf.url.searchParams.get('only')).toBe('NOT_COUNTED')
+  })
+
+  it('exports the filtered lines to Excel', async () => {
+    const blobs = captureDownloads()
+    const calls = capture('post', '/api/orgs/:orgId/stock/counts/:countId/lines/grid')
+    renderApp('/stock-counts/2?only=COUNTED')
+    await screen.findByText('HP-3702')
+    await userEvent.click(screen.getByRole('button', { name: 'Excel' }))
+    await waitFor(() => expect(blobs).toHaveLength(1))
+    const xlsx = calls.find((c) => c.headers.get('Accept')?.includes('spreadsheetml'))!
+    expect(xlsx.body).toMatchObject({ only: 'COUNTED' })
   })
 
   it('shows a finalized count read-only', async () => {
