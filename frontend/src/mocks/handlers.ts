@@ -424,9 +424,11 @@ export const handlers = [
         (!q.get('type') || a.type === q.get('type')) &&
         (!q.get('sicilId') || a.sicilId === Number(q.get('sicilId'))),
     )
+    const start = Number(q.get('cursor') ?? 0)
+    const end = start + Number(q.get('limit') ?? 50)
     return HttpResponse.json({
-      items: items.slice(0, Number(q.get('limit') ?? 50)),
-      nextCursor: null,
+      items: items.slice(start, end),
+      nextCursor: end < items.length ? String(end) : null,
     })
   }),
   http.get(`${O}/ledger/accounts/:accountId`, ({ params }) => {

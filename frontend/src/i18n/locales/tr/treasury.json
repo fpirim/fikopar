@@ -1,0 +1,105 @@
+{
+  "receipt": {
+    "title": "Yeni makbuz",
+    "kind": "Makbuz tipi",
+    "COLLECTION": "Tahsilat",
+    "PAYMENT": "Tediye",
+    "account": "Hesap",
+    "accountPlaceholder": "Kod veya ünvan",
+    "date": "Tarih",
+    "depot": "Depo",
+    "method": "Ödeme şekli",
+    "methods": {
+      "CASH": "Nakit",
+      "BANK_TRANSFER": "Havale / EFT",
+      "CHEQUE": "Çek",
+      "NOTE": "Senet",
+      "ENDORSEMENT": "Ciro edilen çek"
+    },
+    "cashHint": "Kasa defteri · Depo {{id}}",
+    "portfolioHint": "Portföye kaydedilir",
+    "bank": "Banka hesabı",
+    "amount": "Tutar",
+    "description": "Açıklama",
+    "cancel": "Vazgeç",
+    "post": "Kaydet ve yazdır",
+    "posting": "Kaydediliyor…",
+    "posted": "{{no}} kaydedildi",
+    "balance": "Bakiye",
+    "after": "Sonrası",
+    "overdue": "Vadesi geçen",
+    "statement": "Ekstre",
+    "noAccount": "Bakiyeyi görmek için bir hesap seçin.",
+    "recent": "Son makbuzlar",
+    "errors": {
+      "account": "Hesap seçin",
+      "amount": "Sıfırdan büyük bir tutar girin",
+      "bank": "Banka hesabı seçin"
+    },
+    "col": {
+      "no": "No",
+      "date": "Tarih",
+      "type": "Tip",
+      "method": "Ödeme şekli",
+      "account": "Hesap",
+      "source": "Kaynak",
+      "amount": "Tutar"
+    },
+    "chip": {
+      "COLLECTION": "TAHSİLAT",
+      "PAYMENT": "TEDİYE"
+    }
+  },
+  "cash": {
+    "title": "Kasa defteri",
+    "period": "{{depot}} · {{from}} – {{to}}",
+    "depotN": "Depo {{id}}",
+    "changePeriod": "Dönemi değiştir",
+    "from": "Başlangıç",
+    "to": "Bitiş",
+    "apply": "Uygula",
+    "expense": "Gider",
+    "deposit": "Bankaya yatır",
+    "count": "Kasa sayımı",
+    "opening": "Devir",
+    "in": "Giriş",
+    "out": "Çıkış",
+    "closing": "Kapanış",
+    "total": "Toplam",
+    "col": {
+      "date": "Tarih",
+      "document": "Belge",
+      "account": "Hesap",
+      "description": "Açıklama",
+      "in": "Giriş",
+      "out": "Çıkış",
+      "balance": "Bakiye"
+    },
+    "voucher": {
+      "expenseTitle": "Kasadan gider",
+      "depositTitle": "Kasa ile banka arası",
+      "kind": "Yön",
+      "BANK_DEPOSIT": "Kasa → banka",
+      "BANK_WITHDRAWAL": "Banka → kasa",
+      "expenseAccount": "Gider hesabı",
+      "bankAccount": "Banka hesabı",
+      "date": "Tarih",
+      "amount": "Tutar",
+      "description": "Açıklama",
+      "post": "Kaydet",
+      "posted": "{{no}} kaydedildi",
+      "number": "Kayıtta numara: {{no}}"
+    },
+    "countDialog": {
+      "title": "Kasa sayımı · Depo {{id}}",
+      "book": "Defter bakiyesi",
+      "counted": "Sayılan",
+      "difference": "Fark",
+      "postDifference": "Farkı kasa fazlası / eksiği hesabına kaydet",
+      "note": "Not",
+      "save": "Sayımı kaydet",
+      "saved": "Sayım kaydedildi, fark {{diff}}",
+      "last": "Son sayımlar"
+    }
+  }
+}

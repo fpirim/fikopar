@@ -69,6 +69,23 @@ export const listAccounts = (
   query: { type?: Account['type']; sicilId?: number; limit?: number; cursor?: string } = {},
 ) => data(apiRequest<AccountPage>('GET', `${org(orgId)}/ledger/accounts`, { query }))
 
+// listAccounts has no code filter; follow the cursor and filter here.
+export async function listAccountsByPrefix(
+  orgId: number,
+  type: Account['type'],
+  prefix: string,
+): Promise<Account[]> {
+  const out: Account[] = []
+  let cursor: string | undefined
+  for (let i = 0; i < 20; i++) {
+    const page = await listAccounts(orgId, { type, limit: 200, cursor })
+    out.push(...page.items.filter((a) => a.code.startsWith(prefix) && a.isActive))
+    if (!page.nextCursor) break
+    cursor = page.nextCursor
+  }
+  return out
+}
+
 export interface StatementQuery {
   from: string
   to: string
