@@ -50,7 +50,7 @@ flowchart LR
 
 ## 3. Entities
 
-**Sicil** `{hesap_no, hesap_adi, sicil_tipi: MUSTERI (customer) | FIRMA (supplier) | BANKA (bank), address, v_dairesi, v_no, tc_no, gun (payment term), iskonto, credit_limit?, sales_rep_user_id?, phones[], emails[], contacts[], version}`. `sales_rep_user_id` is a company member (v1.5).
+**Sicil** `{hesap_no, hesap_adi, sicil_tipi: MUSTERI (customer) | FIRMA (supplier) | BANKA (bank), address, v_dairesi, v_no, tc_no, gun (payment term), iskonto, iskonto2, credit_limit?, sales_rep_user_id?, phones[], emails[], contacts[], version}`. `sales_rep_user_id` is a company member (v1.5).
 `credit_limit`, `emails[]` and `contacts[]` are v1.1 API fields (`contacts[0]` is the statement card contact).
 `version` is the ETag; `updateSicil` needs `If-Match`.
 Each sicil gets a current account (`120.<hesapNo>` customer, `320.<hesapNo>` supplier, `102.<hesapNo>` bank).

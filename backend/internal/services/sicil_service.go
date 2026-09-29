@@ -52,7 +52,7 @@ func validateSicil(card *models.Sicil) error {
 	if !models.ValidSicilTipi(card.SicilTipi) {
 		return apierror.InvalidSicilTipi
 	}
-	if card.Iskonto < 0 || card.Iskonto > 100 {
+	if card.Iskonto < 0 || card.Iskonto > 100 || card.Iskonto2 < 0 || card.Iskonto2 > 100 {
 		return apierror.InvalidIskonto
 	}
 	if err := validateCardLists(card); err != nil {
@@ -154,6 +154,7 @@ var allowedSicilUpdateFields = map[string]bool{
 	"tc_no":      true,
 	"gun":        true,
 	"iskonto":    true,
+	"iskonto2":   true,
 	"sicil_tipi": true,
 }
 
@@ -323,6 +324,9 @@ func applySicilUpdates(card *models.Sicil, updates map[string]any) {
 	}
 	if v, ok := updates["iskonto"].(float64); ok {
 		card.Iskonto = v
+	}
+	if v, ok := updates["iskonto2"].(float64); ok {
+		card.Iskonto2 = v
 	}
 }
 
