@@ -26,7 +26,6 @@ type differ struct {
 	codes     map[uint][]models.PartCode
 	prices    map[uint][]repository.PricePoint
 	equiv     map[pricefile.Equivalent]*uint
-	inFile    map[string]bool
 }
 
 func newDiffer(q *repository.Q, orgID uint, cat catalogKey, m pricefile.Mapping, validFrom models.Date) (*differ, error) {

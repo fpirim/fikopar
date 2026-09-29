@@ -16,7 +16,6 @@ import (
 	"github.com/fpirim/fikopar/backend/internal/apierror"
 	"github.com/fpirim/fikopar/backend/internal/export"
 	"github.com/fpirim/fikopar/backend/internal/models"
-	"github.com/fpirim/fikopar/backend/internal/pricefile"
 	"github.com/fpirim/fikopar/backend/internal/services"
 
 	"github.com/google/uuid"
@@ -84,7 +83,7 @@ func parseUpload(contentType string, body []byte) (services.ImportCreate, error)
 		in.ValidFrom = &d
 	}
 	if v := value("mapping"); v != "" {
-		var m pricefile.Mapping
+		var m services.ImportMapping
 		if err := json.Unmarshal([]byte(v), &m); err != nil {
 			return in, apierror.WithField(apierror.InvalidRequest, "mapping")
 		}

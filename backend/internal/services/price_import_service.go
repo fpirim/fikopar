@@ -23,6 +23,9 @@ func NewPriceImportService(store *repository.Store) *PriceImportService {
 	return &PriceImportService{store: store}
 }
 
+// ImportMapping is the contract's PriceImportMapping.
+type ImportMapping = pricefile.Mapping
+
 // MaxImportFile is the upload limit (10 MiB).
 const MaxImportFile = 10 << 20
 

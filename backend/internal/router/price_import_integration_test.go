@@ -513,3 +513,43 @@ func TestPriceImport_LargeFile(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, 100_000, decode[importJSON](t, rec).Result["partsCreated"])
 }
+
+func TestPriceImport_AttributesCodesAndReactivation(t *testing.T) {
+	f := newStock(t)
+	a := f.part(t, "A-1", "A", `,"codes":[{"kind":"OEM","code":"OLD-OEM"},{"kind":"ALT","code":"KEEP-ALT"}]`)
+	off := f.part(t, "OFF-1", "Off", "")
+	rec := f.req(t, http.MethodPut, f.path("/catalog/parts/"+idStr(off)), f.token, `{"catalogId":`+idStr(f.catalog)+`,"stockNo":"OFF-1","name":"Off","isActive":false}`,
+		map[string]string{"If-Match": `"1"`})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	f.part(t, "KEEP-1", "Keep", "")
+	csv := "code;price;oem;manufacturerCode;packQty;vatPct;type\nA-1;1;N-1|N-2;M 9;6;10;Mil\nOFF-1;2;;;;;\n"
+	job := f.upload(t, "a.csv", csv, nil)
+	attrs := f.importRows(t, job.ID, `{"startRow":0,"endRow":50,"change":"ATTRIBUTES"}`)
+	require.Len(t, attrs.Rows, 1)
+	assert.ElementsMatch(t, []string{"price", "type", "manufacturerCode", "oem", "packQty", "vatPct"}, attrs.Rows[0].ChangedFields)
+	warn := f.importRows(t, job.ID, `{"startRow":0,"endRow":50,"change":"WARNING"}`)
+	require.Len(t, warn.Rows, 1)
+	assert.Equal(t, "INACTIVE_PART", warn.Rows[0].Warnings[0].Code)
+
+	assert.Equal(t, http.StatusBadRequest, f.apply(t, job, uuid.NewString(), `{"missing":"DROP"}`).Code)
+	rec = f.apply(t, job, uuid.NewString(), `{"missing":"KEEP"}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, 2, decode[importJSON](t, rec).Result["partsUpdated"])
+	p := decode[partJSON](t, f.do(t, http.MethodGet, f.path("/catalog/parts/"+idStr(a)), f.token, ""))
+	assert.Equal(t, 6, p.PackageQty)
+	assert.Equal(t, "10", p.VatPct)
+	var codes []string
+	for _, c := range p.Codes {
+		codes = append(codes, c.Kind+":"+c.Code)
+	}
+	assert.ElementsMatch(t, []string{"MANUFACTURER:M 9", "OEM:N-1", "OEM:N-2", "ALT:KEEP-ALT"}, codes)
+	assert.True(t, decode[partJSON](t, f.do(t, http.MethodGet, f.path("/catalog/parts/"+idStr(off)), f.token, "")).IsActive)
+
+	job2 := f.upload(t, "b.csv", "code;price;type\nA-1;1;Other\n", nil)
+	rec = f.apply(t, job2, uuid.NewString(), `{"applyAttributes":false}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, 0, decode[importJSON](t, rec).Result["partsUpdated"])
+	assert.Equal(t, "Mil", *decode[struct {
+		Type *string `json:"type"`
+	}](t, f.do(t, http.MethodGet, f.path("/catalog/parts/"+idStr(a)), f.token, "")).Type)
+}

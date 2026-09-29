@@ -19,7 +19,7 @@ func toCP857(t *testing.T, s string) []byte {
 	var b []byte
 	for _, r := range s {
 		if r < 0x80 {
-			b = append(b, byte(r))
+			b = append(b, byte(r&0x7f))
 			continue
 		}
 		found := false

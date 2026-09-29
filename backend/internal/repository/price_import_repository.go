@@ -285,11 +285,6 @@ func (q *Q) DeactivatePart(orgID, id uint) (bool, error) {
 	return res.RowsAffected == 1, res.Error
 }
 
-func (q *Q) AddPartCode(orgID, partID uint, kind, code string, equivalentPartID *uint) error {
-	return q.db.Exec(`INSERT INTO part_codes (org_id, part_id, kind, code, equivalent_part_id) VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (part_id, kind, normalized_code) DO NOTHING`, orgID, partID, kind, code, equivalentPartID).Error
-}
-
 // ImportGridRow is a preview row for the grid.
 type ImportGridRow struct {
 	ID             uint    `gorm:"column:id"`
