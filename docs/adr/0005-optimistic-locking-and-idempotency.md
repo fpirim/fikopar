@@ -12,8 +12,9 @@ require `If-Match` (428 if missing, 412 if stale) and run `UPDATE … WHERE vers
 require an `Idempotency-Key`; the key is stored per org with a hash of the request, and the response
 is replayed for an identical retry (422 if the body differs, 409 while the first attempt is in flight).
 
-Document, receipt and instrument numbers come from a per-(company, depot, kind, year) counter row
-updated with `UPDATE … RETURNING`, so concurrent posts never get the same number.
+Document, receipt and instrument numbers come from a per-(company, depot, prefix, year) counter row
+updated with an upsert `… RETURNING`, so concurrent posts never get the same number. Entries written by
+event consumers carry a derived key (`doc:SF-2026-1-000418:post`) instead of a client UUID.
 
 ## Consequences
 Lost updates become explicit conflicts the UI can resolve. Retries are safe end to end. Clients must
