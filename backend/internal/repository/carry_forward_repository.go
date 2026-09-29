@@ -190,3 +190,20 @@ func (q *Q) RoleAccountIDs(orgID uint, role string) ([]uint, error) {
 	err := q.db.Raw(`SELECT account_id FROM account_roles WHERE org_id = ? AND role = ?`, orgID, role).Scan(&ids).Error
 	return ids, err
 }
+
+// OpenCountsThrough lists OPEN stock counts dated on or before d.
+func (q *Q) OpenCountsThrough(orgID uint, d models.Date) ([]string, error) {
+	var nos []string
+	err := q.db.Raw(`SELECT count_no FROM stock_counts WHERE org_id = ? AND status = 'OPEN' AND count_date <= ? ORDER BY count_no`,
+		orgID, d).Scan(&nos).Error
+	return nos, err
+}
+
+// DepotsWithoutFinalizedCount lists depot codes that have no FINALIZED count dated in the year.
+func (q *Q) DepotsWithoutFinalizedCount(orgID uint, year int) ([]string, error) {
+	var codes []string
+	err := q.db.Raw(`SELECT d.code FROM depots d WHERE d.org_id = ? AND NOT EXISTS (
+		SELECT 1 FROM stock_counts c WHERE c.org_id = d.org_id AND c.depot_id = d.id AND c.status = 'FINALIZED' AND c.year = ?)
+		ORDER BY d.code`, orgID, year).Scan(&codes).Error
+	return codes, err
+}

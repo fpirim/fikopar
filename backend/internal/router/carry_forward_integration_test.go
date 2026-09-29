@@ -103,7 +103,7 @@ func TestCarryForward_PreviewOverridePostAndReopen(t *testing.T) {
 	assert.Equal(t, "PREVIEW", p.Status)
 	assert.Equal(t, 2027, p.Year)
 	for _, c := range p.Checks {
-		assert.True(t, c.OK, c.Code)
+		assert.Equal(t, c.Code != "YEAR_END_COUNTS", c.OK, c.Code+": no year-end counts is a warning")
 	}
 	a1 := p.row(t, f.accA, f.depot)
 	assert.Equal(t, "500.00", a1.ClosingBalance)

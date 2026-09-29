@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
 	"github.com/fpirim/fikopar/backend/internal/models"
@@ -30,6 +31,7 @@ type CashBookLine struct {
 	Income         models.Money `json:"income"`
 	Expense        models.Money `json:"expense"`
 	RunningBalance models.Money `json:"runningBalance"`
+	ResetsBalance  bool         `json:"resetsBalance"`
 }
 
 type CashBook struct {
@@ -77,16 +79,31 @@ func (s *CashService) Book(ctx context.Context, orgID, depotID uint, from, to *m
 		if err != nil {
 			return err
 		}
+		carried, err := q.ActiveRunYears(orgID, from.Year()+1, to.Year())
+		if err != nil {
+			return err
+		}
 		book = &CashBook{DepotID: depotID, From: *from, To: *to, OpeningBalance: opening, Lines: make([]CashBookLine, len(rows))}
 		run := opening
+		// A carried 1 January starts the books again (L6); its opening line, if any, sets the balance.
+		restart := func(d models.Date) {
+			for len(carried) > 0 && !d.Before(models.NewDate(carried[0], time.January, 1).Time) {
+				carried = carried[1:]
+				run = 0
+			}
+		}
 		for i, r := range rows {
+			restart(r.Date)
 			run += r.Income - r.Expense
-			book.TotalIn += r.Income
-			book.TotalOut += r.Expense
+			if !r.ResetsBalance {
+				book.TotalIn += r.Income
+				book.TotalOut += r.Expense
+			}
 			book.Lines[i] = CashBookLine{Date: r.Date, Kind: r.Kind, DocumentNo: r.DocumentNo, ReceiptID: r.ReceiptID,
 				VoucherID: r.VoucherID, JournalEntryID: r.JournalEntryID, SicilID: r.SicilID, SicilName: r.SicilName,
-				Description: r.Description, Income: r.Income, Expense: r.Expense, RunningBalance: run}
+				Description: r.Description, Income: r.Income, Expense: r.Expense, RunningBalance: run, ResetsBalance: r.ResetsBalance}
 		}
+		restart(*to)
 		book.ClosingBalance = run
 		return nil
 	})

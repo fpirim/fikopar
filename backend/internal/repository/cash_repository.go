@@ -45,14 +45,19 @@ type CashLine struct {
 	Description    string       `gorm:"column:description"`
 	Income         models.Money `gorm:"column:income"`
 	Expense        models.Money `gorm:"column:expense"`
+	ResetsBalance  bool         `gorm:"column:resets_balance"`
 }
 
+// CashLines lists cash postings in [from, to]. Openings dated `from` are in the opening balance; later active
+// openings (a carried 1 January) are OPENING lines that reset the running balance.
 func (q *Q) CashLines(orgID, accountID, depotID uint, from, to models.Date) ([]CashLine, error) {
 	return list[CashLine](q.db, `
 		SELECT e.entry_date, e.id AS journal_entry_id, e.description,
 		       coalesce(r.receipt_no, v.voucher_no, e.entry_no) AS document_no,
 		       CASE WHEN r.id IS NOT NULL THEN r.kind WHEN v.id IS NOT NULL THEN v.kind
-		            WHEN e.source_type = 'cash_count' THEN 'CASH_COUNT' ELSE 'OTHER' END AS kind,
+		            WHEN e.source_type = 'cash_count' THEN 'CASH_COUNT' WHEN e.source_type = 'opening' THEN 'OPENING'
+		            ELSE 'OTHER' END AS kind,
+		       e.source_type = 'opening' AS resets_balance,
 		       r.id AS receipt_id, v.id AS voucher_id, r.sicil_id, s.hesap_adi AS sicil_name,
 		       CASE p.side WHEN 'DEBIT' THEN p.amount ELSE 0 END AS income,
 		       CASE p.side WHEN 'CREDIT' THEN p.amount ELSE 0 END AS expense
@@ -62,8 +67,9 @@ func (q *Q) CashLines(orgID, accountID, depotID uint, from, to models.Date) ([]C
 		LEFT JOIN cash_vouchers v ON v.org_id = e.org_id AND e.id IN (v.journal_entry_id, v.voided_by_entry_id)
 		LEFT JOIN sicils s ON s.id = r.sicil_id
 		WHERE e.org_id = ? AND p.account_id = ? AND e.depot_id = ? AND e.entry_date BETWEEN ? AND ?
-		  AND NOT `+isOpening+`
-		ORDER BY e.entry_date, e.id, p.line_no`, orgID, accountID, depotID, from, to)
+		  AND (NOT `+isOpening+` OR (e.source_type = 'opening' AND e.entry_date > ?
+		       AND NOT EXISTS (SELECT 1 FROM journal_entries x WHERE x.reverses_entry_id = e.id)))
+		ORDER BY e.entry_date, resets_balance DESC, e.id, p.line_no`, orgID, accountID, depotID, from, to, from)
 }
 
 const voucherCols = `id, voucher_no, kind, depot_id, voucher_date, account_id, amount, description, journal_entry_id, voided_by_entry_id`
