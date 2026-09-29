@@ -81,20 +81,36 @@ interface KeyCtx {
   currencySymbol: string | undefined
   replaceNextDigitAt: { current: number | null }
   pendingCursor: { current: { pos: number; key: string } | null }
+  keySeq: { current: number }
+}
+
+// Caret moves are deferred a frame so they land after AutoNumeric's own. When keys arrive faster
+// than frames, a move computed for an earlier key must not land after a later one (it would put
+// "9" in front of "8": 1,234,567.98). Each keydown bumps the sequence; stale moves are dropped.
+function afterFrame(
+  el: HTMLInputElement,
+  anRef: { current: AutoNumeric | null },
+  keySeq: { current: number },
+  move: () => void,
+) {
+  const seq = keySeq.current
+  requestAnimationFrame(() => {
+    if (!anRef.current || keySeq.current !== seq) return
+    if (document.activeElement !== el) return
+    move()
+  })
 }
 
 // Module-level to keep call sites shallow (Sonar S2004).
 function queueCursor(
   el: HTMLInputElement,
   anRef: { current: AutoNumeric | null },
+  keySeq: { current: number },
   computePos: () => number | null,
 ) {
-  requestAnimationFrame(() => {
-    if (!anRef.current) return
-    if (document.activeElement !== el) return
+  afterFrame(el, anRef, keySeq, () => {
     const pos = computePos()
-    if (pos == null) return
-    el.setSelectionRange(pos, pos)
+    if (pos != null) el.setSelectionRange(pos, pos)
   })
 }
 
@@ -124,7 +140,7 @@ function tryLeadingZeroReplace(e: KeyboardEvent, ctx: KeyCtx): boolean {
 }
 
 function tryFreshZeroReplace(e: KeyboardEvent, ctx: KeyCtx): boolean {
-  const { el, a, anRef, decCh, replaceNextDigitAt } = ctx
+  const { el, a, anRef, decCh, replaceNextDigitAt, keySeq } = ctx
   if (replaceNextDigitAt.current == null || !isDigit(e.key)) return false
   const v = el.value
   const pos = replaceNextDigitAt.current
@@ -135,8 +151,7 @@ function tryFreshZeroReplace(e: KeyboardEvent, ctx: KeyCtx): boolean {
   const newDisplay = v.substring(0, pos) + e.key + v.substring(pos + 1)
   a.set(displayToNumeric(newDisplay, decCh))
   const targetCaret = pos + 1
-  requestAnimationFrame(() => {
-    if (!anRef.current) return
+  afterFrame(el, anRef, keySeq, () => {
     const newDec = el.value.indexOf(decCh)
     const oldDec = v.indexOf(decCh)
     const oldIntLen = oldDec >= 0 ? oldDec : v.length
@@ -324,6 +339,7 @@ function NumericInputCore({
   // Keeps AutoNumeric's keyup from overriding the caret set in keydown.
   const pendingCursorRef = useRef<{ pos: number; key: string } | null>(null)
   const replaceNextDigitAtRef = useRef<number | null>(null)
+  const keySeqRef = useRef(0)
   const decRef = useRef(decimalCharacter)
   decRef.current = decimalCharacter
 
@@ -448,9 +464,11 @@ function NumericInputCore({
       currencySymbol,
       replaceNextDigitAt: replaceNextDigitAtRef,
       pendingCursor: pendingCursorRef,
+      keySeq: keySeqRef,
     })
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      keySeqRef.current++
       const a = anRef.current
       if (!a) return
       const ctx = makeCtx(a)
@@ -475,10 +493,7 @@ function NumericInputCore({
       if (pendingCursorRef.current) {
         const { pos } = pendingCursorRef.current
         pendingCursorRef.current = null
-        requestAnimationFrame(() => {
-          if (!anRef.current) return
-          el.setSelectionRange(pos, pos)
-        })
+        afterFrame(el, anRef, keySeqRef, () => el.setSelectionRange(pos, pos))
         // Also set synchronously so it holds without waiting for rAF.
         el.setSelectionRange(pos, pos)
         return
@@ -486,7 +501,7 @@ function NumericInputCore({
 
       if (isDigit(e.key) || isSign(e.key)) {
         enforceExpectedDisplay()
-        queueCursor(el, anRef, () => {
+        queueCursor(el, anRef, keySeqRef, () => {
           const v = el.value
           const start = el.selectionStart ?? 0
           const end = el.selectionEnd ?? 0
@@ -496,7 +511,7 @@ function NumericInputCore({
           return null
         })
       } else if (e.key === decimalCharacter || e.key === '.' || e.key === ',') {
-        queueCursor(el, anRef, () => {
+        queueCursor(el, anRef, keySeqRef, () => {
           const dec = el.value.indexOf(decRef.current)
           return dec === -1 ? null : dec + 1
         })
