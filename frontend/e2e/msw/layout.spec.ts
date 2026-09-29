@@ -1,4 +1,4 @@
-import { test, expect, clipped, cutControls, cutHeaders, sideways } from './fixtures'
+import { test, expect, clipped, cutControls, cutHeaders, sideways, topbarClash } from './fixtures'
 
 // Document numbers, dates and amounts are never cut, in either language.
 const SCREENS = [
@@ -97,4 +97,26 @@ for (const lang of ['en', 'tr'] as const) {
       }
     })
   }
+}
+
+// The top bar keeps its parts apart on the widest screen and on a 1152 px laptop, on a deep page with a long crumb.
+for (const lang of ['en', 'tr'] as const) {
+  test.describe(`${lang} top bar`, () => {
+    test.use({ lang })
+    for (const width of [1440, 1152]) {
+      for (const url of ['/', '/invoices/new?type=PURCHASE_INVOICE', '/carry-forward/2026']) {
+        test(`nothing overlaps at ${width} on ${url}`, async ({ page }) => {
+          await page.setViewportSize({ width, height: 900 })
+          await page.goto(url)
+          await expect(
+            page
+              .getByRole('banner')
+              .getByRole('group', { name: lang === 'en' ? 'Depot' : 'Depo', exact: true }),
+          ).toBeVisible()
+          await page.waitForTimeout(300)
+          expect(await topbarClash(page)).toEqual([])
+        })
+      }
+    }
+  })
 }
