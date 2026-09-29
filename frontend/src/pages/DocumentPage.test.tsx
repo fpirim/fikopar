@@ -142,7 +142,7 @@ describe('DocumentPage', () => {
     expect(dialog).toHaveTextContent('Limit aşımı91.595,00')
     expect(dialog).toHaveTextContent('Bir yönetici gerekçe yazarak kaydedebilir')
     expect(within(dialog).queryByRole('button', { name: 'Yine de kaydet' })).toBeNull()
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Kapat' }))
+    await userEvent.click(within(dialog).getAllByRole('button', { name: 'Kapat' })[0])
     expect(screen.getByText('TASLAK')).toBeInTheDocument()
   })
 
