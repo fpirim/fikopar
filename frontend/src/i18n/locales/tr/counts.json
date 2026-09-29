@@ -124,5 +124,13 @@
   "stale": {
     "title": "Sayım değişti",
     "message": "Bu sayım başkası tarafından işlendi ya da iptal edildi. Görmek için yenileyin."
+  },
+  "add": {
+    "button": "Parça ekle",
+    "title": "{{no}} sayımına parça ekle",
+    "part": "Stok no ya da kod",
+    "counted": "Sayılan",
+    "submit": "Ekle",
+    "added": "{{no}} sayıma eklendi"
   }
 }

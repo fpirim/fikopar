@@ -124,5 +124,13 @@
   "stale": {
     "title": "The count changed",
     "message": "Someone posted or cancelled this count. Reload to see it."
+  },
+  "add": {
+    "button": "Add part",
+    "title": "Add a part to {{no}}",
+    "part": "Stock no or code",
+    "counted": "Counted",
+    "submit": "Add",
+    "added": "{{no}} added to the count"
   }
 }

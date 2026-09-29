@@ -24,6 +24,7 @@ import { Panel } from '../components/ui/panel'
 import ConflictDialog from '../components/ConflictDialog'
 import SelectCompany from '../components/layout/SelectCompany'
 import CountGrid, { type Scope } from './count/CountGrid'
+import AddLineDialog from './count/AddLineDialog'
 import CancelDialog from './count/CancelDialog'
 import PostDialog from './count/PostDialog'
 import { STATUS_TONE } from './count/status'
@@ -52,7 +53,8 @@ function Count({ orgId, countId }: Readonly<{ orgId: number; countId: number }>)
   const depots = useDepots()
   const download = useDownload()
   const [params, setParams] = useSearchParams()
-  const [dialog, setDialog] = useState<'post' | 'cancel' | 'stale' | null>(null)
+  const [dialog, setDialog] = useState<'post' | 'cancel' | 'stale' | 'add' | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
   const head = useApi(() => getStockCount(orgId, countId), [orgId, countId])
   const requestRef = useRef<(() => GridRequest) | null>(null)
   const count = head.data
@@ -186,6 +188,11 @@ function Count({ orgId, countId }: Readonly<{ orgId: number; countId: number }>)
           onCommit={(v) => setParam('shelfFrom', v)}
         />
         <ShelfInput label={t('shelfTo')} value={shelfTo} onCommit={(v) => setParam('shelfTo', v)} />
+        {open && (
+          <Button variant="outline" size="sm" onClick={() => setDialog('add')}>
+            {t('add.button')}
+          </Button>
+        )}
         <div className="flex-1" />
         {open && (
           <span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-fk-muted">
@@ -201,6 +208,7 @@ function Count({ orgId, countId }: Readonly<{ orgId: number; countId: number }>)
           scope={scope}
           onSaved={head.reload}
           requestRef={requestRef}
+          refreshKey={refreshKey}
         />
       </Panel>
       {dialog === 'post' && (
@@ -223,6 +231,19 @@ function Count({ orgId, countId }: Readonly<{ orgId: number; countId: number }>)
             settle(c)
           }}
           onConflict={() => setDialog('stale')}
+        />
+      )}
+      {dialog === 'add' && (
+        <AddLineDialog
+          orgId={orgId}
+          count={count}
+          onClose={() => setDialog(null)}
+          onAdded={(no) => {
+            toast.success(t('add.added', { no }))
+            setDialog(null)
+            setRefreshKey((k) => k + 1)
+            head.reload()
+          }}
         />
       )}
       {dialog === 'stale' && (

@@ -96,6 +96,7 @@ export default function CountGrid({
   scope,
   onSaved,
   requestRef,
+  refreshKey,
 }: Readonly<{
   orgId: number
   count: StockCount
@@ -103,6 +104,7 @@ export default function CountGrid({
   onSaved: () => void
   // The current filters and sort, for the Excel export.
   requestRef: { current: (() => GridRequest) | null }
+  refreshKey: number
 }>) {
   const { t, i18n } = useTranslation(['counts', 'grid', 'errors'])
   const gridRef = useRef<AgGridReact>(null)
@@ -120,7 +122,7 @@ export default function CountGrid({
     (req: GridRequest) => gridStockCountLines(orgId, count.id, { ...req, ...scope }),
     [orgId, count.id, scope],
   )
-  const grid = useInfiniteGrid<Row>(fetchPage, [orgId, count.id, scope, open])
+  const grid = useInfiniteGrid<Row>(fetchPage, [orgId, count.id, scope, open, refreshKey])
   useEffect(() => {
     requestRef.current = grid.request
   }, [requestRef, grid.request])
@@ -210,8 +212,10 @@ export default function CountGrid({
         colId: 'shelf',
         field: 'shelf',
         headerName: labels.shelf,
+        sort: 'asc',
+        sortIndex: 0,
         flex: 0,
-        width: monoWidth(8),
+        width: monoWidth(11),
         cellClass: 'font-mono',
         colSpan: (p) => (p.node?.rowPinned ? 3 : 1),
         ...exprFilter({ kind: 'text', placeholder: 'A-04', defaultOp: 'startsWith' }),
@@ -222,6 +226,8 @@ export default function CountGrid({
         colId: 'stockNo',
         field: 'stockNo',
         headerName: labels.stockNo,
+        sort: 'asc',
+        sortIndex: 1,
         flex: 0,
         width: monoWidth(10),
         cellClass: 'font-mono',
