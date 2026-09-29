@@ -138,8 +138,9 @@ func (m *SicilRepository) GetByID(organizationID, id uint) (*models.Sicil, error
 	return nil, args.Error(1)
 }
 
-func (m *SicilRepository) UpdateFields(organizationID, id uint, fields map[string]any) error {
-	return m.Called(organizationID, id, fields).Error(0)
+func (m *SicilRepository) Update(organizationID, id uint, version int, fields map[string]any, telefonlar *[]models.SicilTelefon) (bool, error) {
+	args := m.Called(organizationID, id, version, fields, telefonlar)
+	return args.Bool(0), args.Error(1)
 }
 
 func (m *SicilRepository) Delete(organizationID, id uint) error {
@@ -152,8 +153,4 @@ func (m *SicilRepository) ListForGrid(req repository.GridRequest, organizationID
 		return r, args.Error(1)
 	}
 	return nil, args.Error(1)
-}
-
-func (m *SicilRepository) ReplaceTelefonlar(sicilID uint, telefonlar []models.SicilTelefon) error {
-	return m.Called(sicilID, telefonlar).Error(0)
 }
