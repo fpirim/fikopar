@@ -13,6 +13,8 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     css: false,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Grid pages take 3–7 s under v8 coverage on a loaded machine; one waitFor alone may use asyncUtilTimeout (5 s).
+    testTimeout: 20_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
