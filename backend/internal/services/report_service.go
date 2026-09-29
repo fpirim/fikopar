@@ -123,7 +123,7 @@ func (s *ReportService) Statement(ctx context.Context, orgID, accountID uint, fr
 			runs[d.ID] = bf
 			line.RunningBalance = sum()
 			st.BroughtForward = append(st.BroughtForward, line)
-			totals[d.ID] = &models.DepotTotal{DepotID: d.ID, Debit: line.Debit, Credit: line.Credit}
+			totals[d.ID] = &models.DepotTotal{DepotID: d.ID}
 		}
 		lines, err := q.StatementLines(orgID, acc.ID, depotID, *from, *to)
 		if err != nil {
