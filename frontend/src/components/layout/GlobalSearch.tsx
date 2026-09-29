@@ -108,7 +108,7 @@ export default function GlobalSearch() {
   return (
     <div
       ref={boxRef}
-      className="relative w-[280px] shrink"
+      className="relative w-[280px] min-w-[160px] max-w-full"
       onBlur={(e) => {
         if (!boxRef.current?.contains(e.relatedTarget as Node)) setOpen(false)
       }}
