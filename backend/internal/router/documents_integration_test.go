@@ -707,6 +707,15 @@ func TestDocuments_SweeperReleasesExpiredReservations(t *testing.T) {
 	assert.Equal(t, "0", g.Lines[0].ReservedQty)
 	assert.Len(t, g.warnings("STOCK_SHORT"), 1)
 
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		f.app.Sweeper.Run(ctx, time.Hour)
+		close(done)
+	}()
+	cancel()
+	<-done
+
 	p := f.postDoc(t, g)
 	assert.Equal(t, "6", f.onHand(t, f.p1, f.depot), "a post after expiry just moves the stock")
 	assert.Len(t, outboxPayloads(t, "StockReleased", p.ID), 1, "nothing left to release")
