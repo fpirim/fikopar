@@ -20,6 +20,7 @@ const (
 	MoneyCol
 	DateCol
 	Int
+	Number
 )
 
 type Column struct {
@@ -27,7 +28,7 @@ type Column struct {
 	Kind  Kind
 }
 
-// Table cells are string, models.Money, models.Date, *models.Date, int, uint or nil.
+// Table cells are string, models.Money, models.Date, *models.Date, models.Dec4, *models.Dec4, int, uint or nil.
 type Table struct {
 	Heading string
 	Columns []Column
@@ -131,6 +132,12 @@ func writeRow(b *strings.Builder, row int, cells []any, total bool) {
 		case *models.Date:
 			if x != nil {
 				fmt.Fprintf(b, `<c r="%s" s="%d"><v>%d</v></c>`, ref, styleDate, excelSerial(*x))
+			}
+		case models.Dec4:
+			fmt.Fprintf(b, `<c r="%s"><v>%s</v></c>`, ref, x.String())
+		case *models.Dec4:
+			if x != nil {
+				fmt.Fprintf(b, `<c r="%s"><v>%s</v></c>`, ref, x.String())
 			}
 		case int:
 			fmt.Fprintf(b, `<c r="%s"><v>%d</v></c>`, ref, x)
