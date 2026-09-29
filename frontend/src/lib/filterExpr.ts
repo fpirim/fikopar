@@ -57,7 +57,8 @@ export function parseCondition(
   if (!text) return null
   if (kind === 'text') {
     if (text.startsWith('=')) return { filterType: 'text', type: 'equals', filter: text.slice(1) }
-    if (text.startsWith('!')) return { filterType: 'text', type: 'notContains', filter: text.slice(1) }
+    if (text.startsWith('!'))
+      return { filterType: 'text', type: 'notContains', filter: text.slice(1) }
     return { filterType: 'text', type: defaultOp, filter: text }
   }
   const range = text.split('..')
@@ -82,7 +83,10 @@ export function parseCondition(
   return { filterType: 'date', type: op ?? 'equals', dateFrom: d, dateTo: null }
 }
 
-export function describeCondition(c: Condition | null | undefined, defaultOp: Op = 'contains'): string {
+export function describeCondition(
+  c: Condition | null | undefined,
+  defaultOp: Op = 'contains',
+): string {
   if (!c) return ''
   if (c.filterType === 'text') {
     const v = String(c.filter ?? '')

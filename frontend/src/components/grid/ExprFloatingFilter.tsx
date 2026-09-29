@@ -1,6 +1,11 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import type { IFloatingFilterParams, IFilter } from 'ag-grid-community'
-import { describeCondition, parseCondition, type Condition, type FilterKind } from '@/lib/filterExpr'
+import {
+  describeCondition,
+  parseCondition,
+  type Condition,
+  type FilterKind,
+} from '@/lib/filterExpr'
 import { cn } from '@/lib/utils'
 
 export interface ExprFilterParams {
@@ -54,7 +59,9 @@ const ExprFloatingFilter = forwardRef<unknown, Props>(function ExprFloatingFilte
         value={text}
         onChange={(e) => {
           setText(e.target.value)
-          apply(e.target.value ? { filterType: 'text', type: 'equals', filter: e.target.value } : null)
+          apply(
+            e.target.value ? { filterType: 'text', type: 'equals', filter: e.target.value } : null,
+          )
         }}
         className={cn(inputCls, !text && 'text-fk-faint')}
       >
@@ -83,7 +90,10 @@ const ExprFloatingFilter = forwardRef<unknown, Props>(function ExprFloatingFilte
           if (model !== undefined) apply(model)
         }
       }}
-      className={cn(inputCls, invalid && 'border-fk-negative focus:border-fk-negative focus:ring-fk-negative')}
+      className={cn(
+        inputCls,
+        invalid && 'border-fk-negative focus:border-fk-negative focus:ring-fk-negative',
+      )}
     />
   )
 })

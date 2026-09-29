@@ -12,8 +12,11 @@ const cell = (v: string, sep: string) =>
 export function toCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
   const sep = numberSeparators().decimal === ',' ? ';' : ','
   const line = (cells: string[]) => cells.map((c) => cell(c, sep)).join(sep)
-  const out = [line(columns.map((c) => c.header)), ...rows.map((r) => line(columns.map((c) => c.value(r))))]
-  return `﻿${out.join('\r\n')}\r\n`
+  const out = [
+    line(columns.map((c) => c.header)),
+    ...rows.map((r) => line(columns.map((c) => c.value(r)))),
+  ]
+  return `\uFEFF${out.join('\r\n')}\r\n`
 }
 
 export function saveBlob(blob: Blob, filename: string): void {

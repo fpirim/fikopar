@@ -22,7 +22,11 @@ function toApiFilter(model: Record<string, FilterModel[string]>): FilterModel {
   for (const [col, c] of Object.entries(model ?? {})) {
     out[col] =
       c.filterType === 'date'
-        ? { ...c, dateFrom: c.dateFrom?.slice(0, 10) ?? null, dateTo: c.dateTo?.slice(0, 10) ?? null }
+        ? {
+            ...c,
+            dateFrom: c.dateFrom?.slice(0, 10) ?? null,
+            dateTo: c.dateTo?.slice(0, 10) ?? null,
+          }
         : c
   }
   return out

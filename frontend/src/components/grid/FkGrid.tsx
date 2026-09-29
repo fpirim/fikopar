@@ -17,7 +17,11 @@ const ICONS = {
   filter: svg('<path d="M3 5h18l-7 8v6l-4-2v-4z" fill="currentColor"/>'),
 }
 
-const FILTER = { text: 'agTextColumnFilter', number: 'agNumberColumnFilter', date: 'agDateColumnFilter' }
+const FILTER = {
+  text: 'agTextColumnFilter',
+  number: 'agNumberColumnFilter',
+  date: 'agDateColumnFilter',
+}
 
 // Client-side date columns hold 'yyyy-mm-dd' strings.
 const dateComparator = (midnight: Date, cell: string | null) => {
@@ -27,7 +31,16 @@ const dateComparator = (midnight: Date, cell: string | null) => {
   return t === midnight.getTime() ? 0 : t < midnight.getTime() ? -1 : 1
 }
 
-export function exprFilter(params: ExprFilterParams): Partial<ColDef> {
+type FilterProps = Pick<
+  ColDef,
+  | 'filter'
+  | 'filterParams'
+  | 'floatingFilter'
+  | 'floatingFilterComponent'
+  | 'floatingFilterComponentParams'
+>
+
+export function exprFilter(params: ExprFilterParams): FilterProps {
   const kind = params.kind === 'enum' ? 'text' : params.kind
   return {
     filter: FILTER[kind],
@@ -38,7 +51,7 @@ export function exprFilter(params: ExprFilterParams): Partial<ColDef> {
   }
 }
 
-export const numCol: Partial<ColDef> = {
+export const numCol: Pick<ColDef, 'type' | 'cellClass'> = {
   type: 'rightAligned',
   cellClass: 'fk-num',
 }

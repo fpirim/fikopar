@@ -15,11 +15,11 @@ describe('toCsv', () => {
   it('quotes cells and uses the list separator of the language', async () => {
     await i18n.changeLanguage('en')
     expect(toCsv([{ a: '120.1', b: 'Kaya, "Ziraat"' }], cols)).toBe(
-      '﻿Account,Name\r\n120.1,"Kaya, ""Ziraat"""\r\n',
+      '\uFEFFAccount,Name\r\n120.1,"Kaya, ""Ziraat"""\r\n',
     )
     await i18n.changeLanguage('tr')
     expect(toCsv([{ a: '120.1', b: 'Kaya; Ziraat' }], cols)).toBe(
-      '﻿Account;Name\r\n120.1;"Kaya; Ziraat"\r\n',
+      '\uFEFFAccount;Name\r\n120.1;"Kaya; Ziraat"\r\n',
     )
   })
 })
