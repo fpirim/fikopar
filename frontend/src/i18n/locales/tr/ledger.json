@@ -117,5 +117,68 @@
       "post": "Kaydet",
       "done": "{{year}} cari devri kaydedildi"
     }
+  },
+  "journal": {
+    "title": "Yevmiye",
+    "search": "Kayıt veya belge no",
+    "loadMore": "Daha fazla",
+    "empty": "Kayıt yok",
+    "status": {
+      "POSTED": "KAYITLI",
+      "REVERSED": "TERS KAYITLI"
+    },
+    "sum": "Σ {{value}}",
+    "reverse": "Ters kayıt…",
+    "posted": "Kayıt",
+    "source": "Kaynak",
+    "sourceType": {
+      "manual": "elle kayıt",
+      "document": "belge",
+      "receipt": "makbuz",
+      "instrument": "çek / senet",
+      "cash_voucher": "kasa fişi",
+      "cash_count": "kasa sayımı",
+      "opening": "açılış",
+      "reversal": "ters kayıt",
+      "legacy_import": "eski sistemden aktarım"
+    },
+    "idempotency": "Tekrar anahtarı",
+    "depot": "Depo",
+    "description": "Açıklama",
+    "reverses": "Ters kaydı",
+    "reversedBy": "Ters kaydı yapan",
+    "col": {
+      "no": "#",
+      "account": "Muhasebe hesabı",
+      "debit": "Borç",
+      "credit": "Alacak",
+      "entry": "Kayıt",
+      "date": "Tarih",
+      "type": "Tip",
+      "amount": "Tutar"
+    },
+    "trail": "İz",
+    "trailKind": {
+      "AUDIT": "Denetim · {{label}}",
+      "OUTBOX": "Olay {{label}}",
+      "DELIVERY": "İşlendi · {{label}}",
+      "STOCK": "Stok · {{label}}"
+    },
+    "trailRef": {
+      "AUDIT": "kullanıcı {{user}} · {{ref}}",
+      "OUTBOX": "outbox {{ref}}",
+      "DELIVERY": "teslim {{ref}}",
+      "STOCK": "{{ref}}"
+    },
+    "reverseDialog": {
+      "title": "{{no}} ters kaydı",
+      "body": "Borç ve alacak tarafları yer değiştirmiş yeni bir kayıt bugünün tarihiyle atılır. Asıl kayıt olduğu gibi kalır.",
+      "owned": "Bu kayıt {{source}} tarafından oluşturuldu. Belge, makbuz, çek veya fişe ait kayıtlar kaynaklarının iptaliyle ters çevrilir.",
+      "reason": "Gerekçe",
+      "reasonShort": "Gerekçe yazın (en az 3 karakter)",
+      "submit": "Ters kaydı at",
+      "done": "Ters kayıt {{no}} atıldı"
+    },
+    "postings": "Kayıt satırları"
   }
 }

@@ -117,5 +117,68 @@
       "post": "Post",
       "done": "Carry forward {{year}} posted"
     }
+  },
+  "journal": {
+    "title": "Journal",
+    "search": "Entry or document no.",
+    "loadMore": "Load more",
+    "empty": "No entries",
+    "status": {
+      "POSTED": "POSTED",
+      "REVERSED": "REVERSED"
+    },
+    "sum": "Σ {{value}}",
+    "reverse": "Reverse…",
+    "posted": "Posted",
+    "source": "Source",
+    "sourceType": {
+      "manual": "manual entry",
+      "document": "document",
+      "receipt": "receipt",
+      "instrument": "cheque / note",
+      "cash_voucher": "cash voucher",
+      "cash_count": "till count",
+      "opening": "opening",
+      "reversal": "reversal",
+      "legacy_import": "legacy import"
+    },
+    "idempotency": "Idempotency key",
+    "depot": "Depot",
+    "description": "Description",
+    "reverses": "Reverses",
+    "reversedBy": "Reversed by",
+    "col": {
+      "no": "#",
+      "account": "Ledger account",
+      "debit": "Debit",
+      "credit": "Credit",
+      "entry": "Entry",
+      "date": "Date",
+      "type": "Type",
+      "amount": "Amount"
+    },
+    "trail": "Trail",
+    "trailKind": {
+      "AUDIT": "Audit · {{label}}",
+      "OUTBOX": "Event {{label}}",
+      "DELIVERY": "Posted · {{label}}",
+      "STOCK": "Stock · {{label}}"
+    },
+    "trailRef": {
+      "AUDIT": "user {{user}} · {{ref}}",
+      "OUTBOX": "outbox {{ref}}",
+      "DELIVERY": "delivery {{ref}}",
+      "STOCK": "{{ref}}"
+    },
+    "reverseDialog": {
+      "title": "Reverse {{no}}",
+      "body": "A new entry with the debit and credit sides swapped is posted today. The original stays as it is.",
+      "owned": "This entry was created by {{source}}. Entries owned by a document, receipt, cheque or voucher are reversed by cancelling their source.",
+      "reason": "Reason",
+      "reasonShort": "Give a reason (3+ characters)",
+      "submit": "Post reversal",
+      "done": "{{no}} posted as the reversal"
+    },
+    "postings": "Postings"
   }
 }
