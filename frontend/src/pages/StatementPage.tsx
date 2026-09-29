@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { ColDef, ICellRendererParams } from 'ag-grid-community'
@@ -19,12 +19,11 @@ import { formatBalance, formatDay, formatMoney, todayIso } from '../lib/format'
 import { AccountPicker } from '../components/AccountPicker'
 import { Button } from '../components/ui/button'
 import { Chip, type ChipTone } from '../components/ui/chip'
-import { DateField } from '../components/ui/date-field'
 import { KeyValue, Panel } from '../components/ui/panel'
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover'
 import { FkGrid, exprFilter, numCol } from '../components/grid/FkGrid'
 import SelectCompany from '../components/layout/SelectCompany'
 import EditCardDialog from './statement/EditCardDialog'
+import PeriodButton from '../components/PeriodButton'
 import { docTone, dash } from './statement/docType'
 
 const SUBTYPES = [
@@ -267,52 +266,6 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
         </aside>
       </div>
     </div>
-  )
-}
-
-function PeriodButton({
-  from,
-  to,
-  onApply,
-}: Readonly<{ from: string; to: string; onApply: (from: string, to: string) => void }>) {
-  const { t } = useTranslation('ledger')
-  const [open, setOpen] = useState(false)
-  // DateField commits on blur, which runs before the Apply click; the ref sees it at once.
-  const draft = useRef({ from, to })
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o)
-        if (o) draft.current = { from, to }
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button variant="outline">{t('statement.changePeriod')}</Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="flex w-auto items-end gap-2 p-3">
-        <DateField
-          label={t('statement.from')}
-          value={from}
-          onChange={(v) => (draft.current = { ...draft.current, from: v })}
-          inputClassName="w-[118px]"
-        />
-        <DateField
-          label={t('statement.to')}
-          value={to}
-          onChange={(v) => (draft.current = { ...draft.current, to: v })}
-          inputClassName="w-[118px]"
-        />
-        <Button
-          onClick={() => {
-            setOpen(false)
-            onApply(draft.current.from, draft.current.to)
-          }}
-        >
-          {t('statement.apply')}
-        </Button>
-      </PopoverContent>
-    </Popover>
   )
 }
 

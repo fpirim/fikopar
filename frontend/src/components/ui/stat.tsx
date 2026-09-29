@@ -7,7 +7,11 @@ export function Stat({
   tone,
 }: Readonly<{ label: string; value: ReactNode; tone?: 'in' | 'out' }>) {
   return (
-    <div className="min-w-0 rounded-lg border border-fk-border bg-fk-surface px-4 py-3.5">
+    <div
+      role="group"
+      aria-label={label}
+      className="min-w-0 rounded-lg border border-fk-border bg-fk-surface px-4 py-3.5"
+    >
       <div className="text-13 text-fk-muted">{label}</div>
       <div
         className={cn(

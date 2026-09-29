@@ -12,9 +12,10 @@ import NotInBuildPage from './pages/NotInBuildPage'
 import BalancesPage from './pages/BalancesPage'
 import StatementPage from './pages/StatementPage'
 import ReceiptPage from './pages/ReceiptPage'
+import CashBookPage from './pages/CashBookPage'
 
 const LATER = ['/invoices', '/cheques', '/parts', '/stock-counts', '/migration']
-const F1 = ['/cash-book', '/carry-forward', '/journal/*']
+const F1 = ['/carry-forward', '/journal/*']
 
 function AppRoutes() {
   return (
@@ -30,6 +31,7 @@ function AppRoutes() {
           <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />
           <Route path="/balances" element={<BalancesPage />} />
           <Route path="/receipts" element={<ReceiptPage />} />
+          <Route path="/cash-book" element={<CashBookPage />} />
           <Route path="/statements" element={<StatementPage />} />
           <Route path="/statements/:accountId" element={<StatementPage />} />
           {[...LATER, ...F1].map((p) => (
