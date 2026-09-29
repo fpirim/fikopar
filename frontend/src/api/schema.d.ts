@@ -195,7 +195,7 @@ export interface paths {
     }
     /** Get sicil */
     get: operations['getSicil']
-    /** Partial update (whitelisted fields); `telefonlar`, when present, replaces all phones */
+    /** Partial update (whitelisted fields); `telefonlar`, `emails` and `contacts`, when present, replace the list */
     put: operations['updateSicil']
     post?: never
     /** Delete sicil */
@@ -538,6 +538,13 @@ export interface paths {
     /**
      * Statement (ekstre) with brought-forward row, running balance and per-depot totals
      * @description `from` and `to` are inclusive. Excel or PDF via the Accept header.
+     *     Balances follow the ledger start: the balance as of D is the opening entries of the latest carried-forward
+     *     year Y ≤ D plus postings from 1 January Y to D. `broughtForward` is that balance as of `from − 1` per depot
+     *     (opening entries of `from`'s year are folded in). When the range crosses 1 January of a carried-forward
+     *     year, that year's opening entries appear as lines with `sourceType: opening` and `resetsBalance: true`: the
+     *     running balance restarts at the opening amount instead of adding it, and `depotTotals` debit/credit leave
+     *     them out. Without an override the restart equals the previous closing; with one the difference is visible
+     *     on that line. `closingBalance` always equals the balance as of `to`.
      */
     get: operations['getAccountStatement']
     put?: never
@@ -562,8 +569,9 @@ export interface paths {
     put?: never
     /**
      * Current-account balances as of a date (cari toplam); end date inclusive
-     * @description Columns: accountCode, name, city, sicilTipi, debit, credit, balance, overdue, lastMoveDate; all filterable.
-     *     `totals` sums the filtered rows (pinned row). XLSX via Accept.
+     * @description `colId` in `sortModel` / `filterModel` is a `BalanceColId` (the `BalanceRow` property names); others answer
+     *     400 ERR_INVALID_REQUEST. `totals` sums the filtered rows (pinned row) with the keys of `BalanceTotals`.
+     *     XLSX via Accept.
      */
     post: operations['gridBalances']
     delete?: never
@@ -666,7 +674,8 @@ export interface paths {
     }
     /**
      * Preview opening entries for `year` from closing balances of `year - 1`; PDF via Accept
-     * @description One row per (account, depot) with a non-zero closing balance or an override.
+     * @description One row per (account, depot) with a non-zero closing balance or an override. `ETag` is the preview
+     *     version; it changes with every override, post and reopen.
      */
     get: operations['getCarryForward']
     put?: never
@@ -693,10 +702,15 @@ export interface paths {
     /**
      * Edit one opening amount before posting (admin); the row shows EDITED
      * @description `debit` and `credit` both "0.00" skips the row. Removing an override restores the computed amount.
+     *     `previewDepotId` restricts the returned preview like `depotId` on `getCarryForward`.
+     *     409 ERR_ALREADY_CARRIED_FORWARD while the year is POSTED.
      */
     put: operations['setCarryForwardOverride']
     post?: never
-    /** Remove an override */
+    /**
+     * Remove an override
+     * @description `accountId` and `depotId` name the row; `previewDepotId` restricts the returned preview.
+     */
     delete: operations['deleteCarryForwardOverride']
     options?: never
     head?: never
@@ -720,9 +734,38 @@ export interface paths {
     /**
      * Post all opening entries of `year` in one transaction (admin)
      * @description Blocking checks must pass (422 ERR_CARRY_FORWARD_BLOCKED). One entry per (account, depot) dated 1 January,
-     *     counter-account OPENING. A repeat returns 409 ERR_ALREADY_CARRIED_FORWARD.
+     *     counter-account OPENING. A repeat returns 409 ERR_ALREADY_CARRIED_FORWARD. Posting closes `year − 1`
+     *     (409 ERR_YEAR_CLOSED for later postings dated in it). Allowed again after `reopenCarryForward`.
      */
     post: operations['postCarryForward']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/orgs/{orgId}/ledger/carry-forwards/{year}/reopen': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        /** @description Calendar year being opened */
+        year: components['parameters']['Year']
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Void the posted carry-forward of `year` so it can be edited and posted again (admin)
+     * @description Reverses every opening entry of the active run (reversal entries dated 1 January, `sourceType: reversal`),
+     *     marks the run REOPENED and opens `year − 1` for posting. Overrides are kept. Status becomes REOPENED
+     *     (behaves like PREVIEW). 409 ERR_NOT_CARRIED_FORWARD when the year has no active run;
+     *     409 ERR_YEAR_CLOSED while `year + 1` is carried forward (reopen that first).
+     */
+    post: operations['reopenCarryForward']
     delete?: never
     options?: never
     head?: never
@@ -765,7 +808,8 @@ export interface paths {
     put?: never
     /**
      * Post a balanced manual journal entry
-     * @description `422 ERR_ENTRY_UNBALANCED` unless Σ debit = Σ credit with at least two lines.
+     * @description `422 ERR_ENTRY_UNBALANCED` unless Σ debit = Σ credit with at least two lines. Every line is TRY
+     *     (422 ERR_CURRENCY_MISMATCH for an account in another currency). 409 ERR_YEAR_CLOSED for `entryDate` in a closed year.
      */
     post: operations['postJournalEntry']
     delete?: never
@@ -831,7 +875,8 @@ export interface paths {
     put?: never
     /**
      * Reverse a manual entry
-     * @description Entries owned by a document, receipt, instrument or cash voucher return 409 ERR_ENTRY_OWNED_BY_SOURCE; reverse them through the owner.
+     * @description Entries owned by a document, receipt, instrument or cash voucher return 409 ERR_ENTRY_OWNED_BY_SOURCE with
+     *     `owner`; reverse them through the owner. The reversal is dated today; 409 ERR_YEAR_CLOSED if that year is closed.
      */
     post: operations['reverseJournalEntry']
     delete?: never
@@ -987,6 +1032,8 @@ export interface paths {
      * Issue a collection (tahsilat) or payment (tediye) receipt
      * @description CASH posts to the depot's cash book, BANK_TRANSFER to `bankAccountId`. CHEQUE and NOTE register the
      *     instrument in `instrument` in the same transaction (the receipt then belongs to it).
+     *     Until F4 CHEQUE and NOTE answer 400 ERR_METHOD_NOT_AVAILABLE with `field: method`.
+     *     409 ERR_YEAR_CLOSED for `date` in a closed year.
      */
     post: operations['createReceipt']
     delete?: never
@@ -1047,7 +1094,11 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Cash book (kasa defteri) of one depot with opening row, in/out totals and running balance */
+    /**
+     * Cash book (kasa defteri) of one depot with opening row, in/out totals and running balance
+     * @description One till per depot, so `depotId` is required; there is no combined book. With "All depots" in the top bar
+     *     the client asks the user to pick a depot. Missing `depotId` answers 400 ERR_DEPOT_REQUIRED.
+     */
     get: operations['getCashBook']
     put?: never
     post?: never
@@ -1792,6 +1843,14 @@ export interface components {
       field?: string
       /** @description Request ID (X-Request-Id) */
       traceId?: string
+      owner?: components['schemas']['EntryOwner']
+    }
+    /** @description Set only with ERR_ENTRY_OWNED_BY_SOURCE; the document, receipt, instrument or voucher that owns the entry. */
+    EntryOwner: {
+      sourceType: components['schemas']['SourceType']
+      sourceId: string
+      /** @example SF-2026-1-000418 */
+      sourceNo?: string | null
     }
     /**
      * @description Language-agnostic code; translated by the client. The first group exists today.
@@ -1834,6 +1893,8 @@ export interface components {
       | 'ERR_INVALID_STATE_TRANSITION'
       | 'ERR_DEPOT_NOT_FOUND'
       | 'ERR_DEPOT_REQUIRED'
+      | 'ERR_DEPOT_CODE_EXISTS'
+      | 'ERR_NUMBER_SERIES_NOT_FOUND'
       | 'ERR_NUMBER_SERIES_BACKWARDS'
       | 'ERR_ACCOUNT_NOT_FOUND'
       | 'ERR_ACCOUNT_CODE_EXISTS'
@@ -1845,6 +1906,8 @@ export interface components {
       | 'ERR_ENTRY_ALREADY_REVERSED'
       | 'ERR_ENTRY_OWNED_BY_SOURCE'
       | 'ERR_ALREADY_CARRIED_FORWARD'
+      | 'ERR_NOT_CARRIED_FORWARD'
+      | 'ERR_YEAR_CLOSED'
       | 'ERR_INVALID_AMOUNT'
       | 'ERR_PART_NOT_FOUND'
       | 'ERR_PART_CODE_EXISTS'
@@ -1868,6 +1931,7 @@ export interface components {
       | 'ERR_SICIL_HAS_POSTINGS'
       | 'ERR_BANK_ACCOUNT_REQUIRED'
       | 'ERR_INSTRUMENT_REQUIRED'
+      | 'ERR_METHOD_NOT_AVAILABLE'
       | 'ERR_AMOUNT_EXCEEDS_REMAINING'
       | 'ERR_ENDORSEE_REQUIRED'
       | 'ERR_ACCOUNT_ROLE_MISSING'
@@ -1895,8 +1959,12 @@ export interface components {
     Quantity: string
     /** @example 18 */
     Percent: string
-    /** @default TRY */
-    Currency: string
+    /**
+     * @description One currency per journal entry; v1.1 accepts TRY only.
+     * @default TRY
+     * @enum {string}
+     */
+    Currency: 'TRY'
     /** @description One block of the AG Grid Community infinite row model, plus column filters. */
     GridRequest: {
       startRow?: number
@@ -1927,9 +1995,9 @@ export interface components {
             | 'inRange'
           filter?: string | number
           filterTo?: string | number
-          /** @description yyyy-mm-dd */
+          /** @description yyyy-mm-dd; a time part is ignored */
           dateFrom?: string | null
-          /** @description yyyy-mm-dd, inclusive */
+          /** @description yyyy-mm-dd, inclusive; a time part is ignored */
           dateTo?: string | null
         }
       }
@@ -2027,28 +2095,30 @@ export interface components {
       iskonto?: number
       sicil_tipi: components['schemas']['SicilTipi']
       telefonlar?: components['schemas']['SicilTelefon'][]
-      /** @description Planned */
-      credit_limit?: components['schemas']['Money']
+      /** @description Null = no limit */
+      credit_limit?: components['schemas']['Money'] | null
+      contacts?: components['schemas']['SicilContact'][]
+      emails?: string[]
       /** @description Second cascaded discount percent (planned) */
       iskonto2?: number
       /** @description Planned */
       sales_rep_user_id?: number | null
-      /** @description Planned; contact people with their own phones and emails */
-      contacts?: {
-        name: string
-        role?: string
-        phone?: string
-        /** Format: email */
-        email?: string
-      }[]
-      /** @description Planned */
-      emails?: string[]
       /** @description Current account (120 / 320 / 102), planned */
       account_id?: number | null
+      /** @description Also sent as ETag; updates need If-Match */
+      version: number
       /** Format: date-time */
       created_at?: string
       /** Format: date-time */
       updated_at?: string
+    }
+    /** @description Contact person; the first one is shown on the statement card. */
+    SicilContact: {
+      name: string
+      role?: string
+      phone?: string
+      /** Format: email */
+      email?: string
     }
     SicilCreate: {
       hesap_no: string
@@ -2063,6 +2133,9 @@ export interface components {
       iskonto?: number
       sicil_tipi?: components['schemas']['SicilTipi']
       telefonlar?: components['schemas']['SicilTelefon'][]
+      credit_limit?: components['schemas']['Money'] | null
+      contacts?: components['schemas']['SicilContact'][]
+      emails?: string[]
     }
     /** @description Partial update; unknown fields are ignored, organization_id cannot change. */
     SicilUpdate: {
@@ -2078,6 +2151,9 @@ export interface components {
       iskonto?: number
       sicil_tipi?: components['schemas']['SicilTipi']
       telefonlar?: components['schemas']['SicilTelefon'][]
+      credit_limit?: components['schemas']['Money'] | null
+      contacts?: components['schemas']['SicilContact'][]
+      emails?: string[]
     }
     SicilSummary: {
       sicilId: number
@@ -2157,6 +2233,8 @@ export interface components {
     SearchResult: {
       accounts: {
         sicilId: number
+        /** @description Current account (120 / 320 / 102) for the statement; null if none */
+        accountId: number | null
         hesapNo: string
         hesapAdi: string
       }[]
@@ -2211,6 +2289,11 @@ export interface components {
       | 'J'
     /** @enum {string} */
     AccountType: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'EXPENSE'
+    /**
+     * @description Code prefix 100 / 102 / 120 / 320 / 770
+     * @enum {string}
+     */
+    AccountPickerRole: 'CASH' | 'BANK' | 'CUSTOMER' | 'SUPPLIER' | 'EXPENSE'
     /** @enum {string} */
     Side: 'DEBIT' | 'CREDIT'
     /** @enum {string} */
@@ -2266,6 +2349,27 @@ export interface components {
       /** Format: date */
       lastMoveDate?: string | null
     }
+    /**
+     * @description `colId` values accepted by `gridBalances`
+     * @enum {string}
+     */
+    BalanceColId:
+      | 'accountCode'
+      | 'accountName'
+      | 'city'
+      | 'sicilTipi'
+      | 'debitTotal'
+      | 'creditTotal'
+      | 'balance'
+      | 'overdue'
+      | 'lastMoveDate'
+    /** @description Pinned total row of `gridBalances` over all filtered rows */
+    BalanceTotals: {
+      debitTotal: components['schemas']['Money']
+      creditTotal: components['schemas']['Money']
+      balance: components['schemas']['Money']
+      overdue: components['schemas']['Money']
+    }
     AccountSelection: {
       accountIds: number[]
       /**
@@ -2295,9 +2399,40 @@ export interface components {
     }
     CarryForward: {
       year: number
-      /** @enum {string} */
-      status: 'PREVIEW' | 'POSTED'
-      /** @description Close previous-year documents, stock counts posted, balances, open the year */
+      /**
+       * @description REOPENED = a posted run was voided by `reopenCarryForward`; editable and postable like PREVIEW
+       * @enum {string}
+       */
+      status: 'PREVIEW' | 'POSTED' | 'REOPENED'
+      /** @description Preview version; also the ETag */
+      version: number
+      /**
+       * Format: date-time
+       * @description Active run
+       */
+      postedAt?: string | null
+      /**
+       * Format: date-time
+       * @description Last reopened run
+       */
+      reopenedAt?: string | null
+      reopenReason?: string | null
+      /**
+       * @description The four steps of the screen, in order. CLOSE_DOCUMENTS ← NO_DRAFT_DOCUMENTS, STOCK_COUNTS ←
+       *     STOCK_COUNTS_POSTED, ACCOUNT_BALANCES ← LEDGER_BALANCED, OPEN_YEAR ← YEAR_NOT_OPENED and the post.
+       *     A failing blocking check makes its step BLOCKED; the first step not DONE is CURRENT; all four are
+       *     DONE when status is POSTED.
+       */
+      steps: {
+        /** @enum {string} */
+        code: 'CLOSE_DOCUMENTS' | 'STOCK_COUNTS' | 'ACCOUNT_BALANCES' | 'OPEN_YEAR'
+        /** @enum {string} */
+        status: 'DONE' | 'CURRENT' | 'TODO' | 'BLOCKED'
+      }[]
+      /**
+       * @description Close previous-year documents, stock counts posted, balances, open the year.
+       *     NO_DRAFT_DOCUMENTS and STOCK_COUNTS_POSTED are always ok until documents (F2) and stock (F3) exist.
+       */
       checks: {
         /** @enum {string} */
         code: 'NO_DRAFT_DOCUMENTS' | 'STOCK_COUNTS_POSTED' | 'LEDGER_BALANCED' | 'YEAR_NOT_OPENED'
@@ -2369,6 +2504,11 @@ export interface components {
       /** @description Outbox id, If-Match version, depot … */
       ref?: string | null
       actorUserId?: number | null
+      /**
+       * @description Login shown in the UI (email local part)
+       * @example a.kaya
+       */
+      actorLogin?: string | null
     }
     OpeningBalance: {
       accountId: number
@@ -2414,7 +2554,11 @@ export interface components {
       sourceType: components['schemas']['SourceType']
       sourceId?: string | null
       reversesEntryId?: number | null
+      /** @example J-2026-1-000118 */
+      reversesEntryNo?: string | null
       reversedByEntryId?: number | null
+      reversedByEntryNo?: string | null
+      currency?: components['schemas']['Currency']
       /** @description Number of the owning document, receipt, instrument or voucher */
       sourceNo?: string | null
       idempotencyKey?: string | null
@@ -2444,6 +2588,11 @@ export interface components {
       debit: components['schemas']['Money']
       credit: components['schemas']['Money']
       runningBalance: components['schemas']['Money']
+      /**
+       * @description Opening line of a carried-forward year inside the range: runningBalance restarts at its amount
+       * @default false
+       */
+      resetsBalance: boolean
     }
     Statement: {
       accountId: number
@@ -2457,6 +2606,7 @@ export interface components {
       /** @description One row per depot, dated `from`; opening entries of `from`'s year are folded in */
       broughtForward: components['schemas']['StatementLine'][]
       lines: components['schemas']['StatementLine'][]
+      /** @description Debit and credit of `lines` per depot, without `resetsBalance` lines; balance = closing balance of the depot */
       depotTotals: {
         depotId: number
         debit: components['schemas']['Money']
@@ -2651,7 +2801,7 @@ export interface components {
     Receipt: components['schemas']['ReceiptCreate'] & {
       id: number
       orgId: number
-      /** @example TAH20261000042 */
+      /** @example TAH-2026-1-000042 */
       receiptNo: string
       /**
        * @description INSTRUMENT receipts are read-only; change them through the instrument
@@ -3157,7 +3307,7 @@ export interface components {
     }
   }
   responses: {
-    /** @description Invalid input (ERR_INVALID_REQUEST, ERR_INVALID_ID, field validation codes) */
+    /** @description Invalid input (ERR_INVALID_REQUEST, ERR_INVALID_ID, ERR_METHOD_NOT_AVAILABLE, field validation codes) */
     BadRequest: {
       headers: {
         [name: string]: unknown
@@ -3193,7 +3343,7 @@ export interface components {
         'application/json': components['schemas']['Error']
       }
     }
-    /** @description Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS) */
+    /** @description Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_ENTRY_OWNED_BY_SOURCE with `owner`) */
     Conflict: {
       headers: {
         [name: string]: unknown
@@ -3220,7 +3370,7 @@ export interface components {
         'application/json': components['schemas']['Error']
       }
     }
-    /** @description Business rule violated (ERR_ENTRY_UNBALANCED, ERR_INSUFFICIENT_STOCK, ERR_IDEMPOTENCY_KEY_REUSED, …) */
+    /** @description Business rule violated or unknown id in the body (ERR_ENTRY_UNBALANCED, ERR_INSUFFICIENT_STOCK, ERR_IDEMPOTENCY_KEY_REUSED, ERR_*_NOT_FOUND, …) */
     Unprocessable: {
       headers: {
         [name: string]: unknown
@@ -3361,6 +3511,8 @@ export interface components {
     CountId: number
     InstrumentId: number
     Filename: string
+    /** @description Restrict the returned carry-forward preview to one depot; omitted means all depots. */
+    PreviewDepotId: number
     Limit: number
     /** @description Opaque keyset cursor from a previous `nextCursor`. */
     Cursor: string
@@ -3655,6 +3807,7 @@ export interface operations {
       /** @description Created */
       201: {
         headers: {
+          ETag: components['headers']['ETag']
           [name: string]: unknown
         }
         content: {
@@ -3683,6 +3836,7 @@ export interface operations {
       /** @description Account card */
       200: {
         headers: {
+          ETag: components['headers']['ETag']
           [name: string]: unknown
         }
         content: {
@@ -3697,7 +3851,10 @@ export interface operations {
   updateSicil: {
     parameters: {
       query?: never
-      header?: never
+      header: {
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
       path: {
         /** @description Tenant. Caller must be a member (or admin). */
         orgId: components['parameters']['OrgId']
@@ -3714,6 +3871,7 @@ export interface operations {
       /** @description Updated card */
       200: {
         headers: {
+          ETag: components['headers']['ETag']
           [name: string]: unknown
         }
         content: {
@@ -3725,6 +3883,8 @@ export interface operations {
       403: components['responses']['Forbidden']
       404: components['responses']['NotFound']
       409: components['responses']['Conflict']
+      412: components['responses']['PreconditionFailed']
+      428: components['responses']['PreconditionRequired']
     }
   }
   deleteSicil: {
@@ -4203,9 +4363,18 @@ export interface operations {
           'application/json': components['schemas']['Depot']
         }
       }
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
       403: components['responses']['Forbidden']
-      409: components['responses']['Conflict']
+      /** @description Depot code already used in this company (ERR_DEPOT_CODE_EXISTS) */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
     }
   }
   listNumberSeries: {
@@ -4271,10 +4440,21 @@ export interface operations {
           'application/json': components['schemas']['NumberSeries']
         }
       }
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
       403: components['responses']['Forbidden']
+      /** @description No such series in this company (ERR_NUMBER_SERIES_NOT_FOUND) */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       412: components['responses']['PreconditionFailed']
       422: components['responses']['Unprocessable']
+      428: components['responses']['PreconditionRequired']
     }
   }
   listAccounts: {
@@ -4285,6 +4465,10 @@ export interface operations {
         cursor?: components['parameters']['Cursor']
         type?: components['schemas']['AccountType']
         sicilId?: number
+        /** @description Code starts with this value, e.g. `102` or `120.10`. AND-combined with the other filters. */
+        codePrefix?: string
+        /** @description Picker shortcut: CASH = 100, BANK = 102, CUSTOMER = 120, SUPPLIER = 320, EXPENSE = 770 (code prefix). */
+        role?: components['schemas']['AccountPickerRole']
       }
       header?: never
       path: {
@@ -4434,6 +4618,10 @@ export interface operations {
           /** Format: date */
           asOf: string
           depotId?: number | null
+          sortModel?: {
+            colId?: components['schemas']['BalanceColId']
+          }[]
+          filterModel?: Record<string, never>
           sicilTipi?: components['schemas']['SicilTipi'] | null
         }
       }
@@ -4447,6 +4635,7 @@ export interface operations {
         content: {
           'application/json': components['schemas']['GridResponse'] & {
             rows?: components['schemas']['BalanceRow'][]
+            totals: components['schemas']['BalanceTotals']
           }
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': components['schemas']['Xlsx']
         }
@@ -4589,6 +4778,7 @@ export interface operations {
       /** @description Preview, or the posted result */
       200: {
         headers: {
+          ETag: components['headers']['ETag']
           [name: string]: unknown
         }
         content: {
@@ -4602,8 +4792,14 @@ export interface operations {
   }
   setCarryForwardOverride: {
     parameters: {
-      query?: never
-      header?: never
+      query?: {
+        /** @description Restrict the returned carry-forward preview to one depot; omitted means all depots. */
+        previewDepotId?: components['parameters']['PreviewDepotId']
+      }
+      header: {
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
       path: {
         /** @description Tenant. Caller must be a member (or admin). */
         orgId: components['parameters']['OrgId']
@@ -4621,15 +4817,28 @@ export interface operations {
       /** @description Updated preview */
       200: {
         headers: {
+          ETag: components['headers']['ETag']
           [name: string]: unknown
         }
         content: {
           'application/json': components['schemas']['CarryForward']
         }
       }
+      /** @description Invalid amounts or reason (ERR_INVALID_AMOUNT, ERR_INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Error']
+        }
+      }
       401: components['responses']['Unauthorized']
       403: components['responses']['Forbidden']
       409: components['responses']['Conflict']
+      412: components['responses']['PreconditionFailed']
+      422: components['responses']['Unprocessable']
+      428: components['responses']['PreconditionRequired']
     }
   }
   deleteCarryForwardOverride: {
@@ -4637,8 +4846,13 @@ export interface operations {
       query: {
         accountId: number
         depotId: number
+        /** @description Restrict the returned carry-forward preview to one depot; omitted means all depots. */
+        previewDepotId?: components['parameters']['PreviewDepotId']
       }
-      header?: never
+      header: {
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
       path: {
         /** @description Tenant. Caller must be a member (or admin). */
         orgId: components['parameters']['OrgId']
@@ -4652,6 +4866,7 @@ export interface operations {
       /** @description Updated preview */
       200: {
         headers: {
+          ETag: components['headers']['ETag']
           [name: string]: unknown
         }
         content: {
@@ -4659,7 +4874,10 @@ export interface operations {
         }
       }
       401: components['responses']['Unauthorized']
+      403: components['responses']['Forbidden']
       409: components['responses']['Conflict']
+      412: components['responses']['PreconditionFailed']
+      428: components['responses']['PreconditionRequired']
     }
   }
   postCarryForward: {
@@ -4685,6 +4903,7 @@ export interface operations {
       /** @description Posted */
       201: {
         headers: {
+          ETag: components['headers']['ETag']
           [name: string]: unknown
         }
         content: {
@@ -4695,6 +4914,45 @@ export interface operations {
       403: components['responses']['Forbidden']
       409: components['responses']['Conflict']
       422: components['responses']['Unprocessable']
+    }
+  }
+  reopenCarryForward: {
+    parameters: {
+      query?: never
+      header: {
+        /**
+         * @description Client-generated UUID. Unique per (org, key) for 24 h. Same key + same body replays the stored
+         *     response; same key + different body → 422 ERR_IDEMPOTENCY_KEY_REUSED; in-flight → 409 ERR_IDEMPOTENCY_IN_PROGRESS.
+         */
+        'Idempotency-Key': components['parameters']['IdempotencyKey']
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        /** @description Calendar year being opened */
+        year: components['parameters']['Year']
+      }
+      cookie?: never
+    }
+    requestBody: components['requestBodies']['Reason']
+    responses: {
+      /** @description Reopened preview */
+      200: {
+        headers: {
+          ETag: components['headers']['ETag']
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CarryForward']
+        }
+      }
+      401: components['responses']['Unauthorized']
+      403: components['responses']['Forbidden']
+      409: components['responses']['Conflict']
+      412: components['responses']['PreconditionFailed']
+      428: components['responses']['PreconditionRequired']
     }
   }
   listAccountRoles: {
@@ -4813,6 +5071,7 @@ export interface operations {
       400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
       403: components['responses']['Forbidden']
+      409: components['responses']['Conflict']
       422: components['responses']['Unprocessable']
     }
   }
@@ -5068,7 +5327,10 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['GridRequest']
+        'application/json': components['schemas']['GridRequest'] & {
+          /** @description Top-bar depot; null = all depots */
+          depotId?: number | null
+        }
       }
     }
     responses: {
@@ -5112,6 +5374,7 @@ export interface operations {
       201: components['responses']['ReceiptResponse']
       400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
+      409: components['responses']['Conflict']
       422: components['responses']['Unprocessable']
     }
   }
@@ -5193,6 +5456,7 @@ export interface operations {
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': components['schemas']['Xlsx']
         }
       }
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
     }
   }
@@ -5228,6 +5492,7 @@ export interface operations {
         }
       }
       401: components['responses']['Unauthorized']
+      409: components['responses']['Conflict']
       422: components['responses']['Unprocessable']
     }
   }
@@ -5327,6 +5592,7 @@ export interface operations {
         }
       }
       401: components['responses']['Unauthorized']
+      409: components['responses']['Conflict']
       422: components['responses']['Unprocessable']
     }
   }

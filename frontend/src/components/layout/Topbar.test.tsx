@@ -3,6 +3,8 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from '../../i18n'
 import { renderApp } from '../../test/renderApp'
+import { http, HttpResponse } from 'msw'
+import { server } from '../../mocks/node'
 
 const location = () => screen.getByTestId('location').textContent
 
@@ -46,6 +48,11 @@ describe('Topbar', () => {
   })
 
   it('searches accounts and opens the statement', async () => {
+    server.use(
+      http.get('/api/orgs/:orgId/sicils/:sicilId/summary', () =>
+        HttpResponse.json({ code: 'ERR_INTERNAL' }, { status: 500 }),
+      ),
+    )
     renderApp('/balances')
     const box = await screen.findByRole('searchbox', { name: 'Ara' })
     await userEvent.type(box, 'Yılmaz')

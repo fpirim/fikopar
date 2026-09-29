@@ -13,6 +13,7 @@ import {
 import type { Sicil, SicilSummary, StatementLine } from '../api/types'
 import { useApi } from '../hooks/useApi'
 import { useDepot, withDepot } from '../hooks/useDepot'
+import { useDepots } from '../hooks/useDepots'
 import { useDownload } from '../hooks/useDownload'
 import { useOrgId } from '../hooks/useOrgId'
 import { formatBalance, formatDay, formatMoney, todayIso } from '../lib/format'
@@ -21,7 +22,7 @@ import { Button } from '../components/ui/button'
 import { Chip, type ChipTone } from '../components/ui/chip'
 import { KeyValue, Panel } from '../components/ui/panel'
 import { FkGrid } from '../components/grid/FkGrid'
-import { exprFilter, numCol } from '../components/grid/columns'
+import { DOC_NO_CHARS, exprFilter, fitMono, monoWidth, numCol } from '../components/grid/columns'
 import SelectCompany from '../components/layout/SelectCompany'
 import EditCardDialog from './statement/EditCardDialog'
 import PeriodButton from '../components/PeriodButton'
@@ -54,6 +55,7 @@ function StatementPicker({ orgId }: Readonly<{ orgId: number }>) {
   const { t } = useTranslation('ledger')
   const navigate = useNavigate()
   const { depotId } = useDepot()
+  const [none, setNone] = useState(false)
   return (
     <div className="flex max-w-xl flex-col gap-3">
       <h1 className="text-2xl font-semibold">{t('statement.title')}</h1>
@@ -62,11 +64,16 @@ function StatementPicker({ orgId }: Readonly<{ orgId: number }>) {
         orgId={orgId}
         label={t('statement.account')}
         autoFocus
-        onPick={async (h) => {
-          const s = await getSicilSummary(orgId, h.sicilId)
-          navigate(withDepot(`/statements/${s.accountId}`, depotId))
+        onPick={(h) => {
+          setNone(!h.accountId)
+          if (h.accountId) navigate(withDepot(`/statements/${h.accountId}`, depotId))
         }}
       />
+      {none && (
+        <p role="status" className="text-sm text-fk-muted">
+          {t('statement.noAccount')}
+        </p>
+      )}
     </div>
   )
 }
@@ -95,13 +102,43 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
   ).data
 
   const lang = i18n.language
+  const depots = useDepots()
+  const depotCodes = useMemo(() => depots.map((d) => String(d.id)), [depots])
+  const rows = useMemo(
+    () => [...(statement?.broughtForward ?? []), ...(statement?.lines ?? [])],
+    [statement],
+  )
+
+  // Sized to the widest value, so numbers, dates and amounts are never cut.
+  const widths = useMemo(() => {
+    const amount = (k: 'debit' | 'credit' | 'runningBalance') =>
+      Math.max(
+        100,
+        fitMono(
+          rows.map((r) => formatMoney(r[k])),
+          10,
+          true,
+        ),
+      )
+    return {
+      date: monoWidth(10, true),
+      doc: fitMono(
+        rows.map((r) => r.documentNo),
+        DOC_NO_CHARS,
+        true,
+      ),
+      debit: amount('debit'),
+      credit: amount('credit'),
+      runningBalance: amount('runningBalance'),
+    }
+  }, [rows])
 
   const columnDefs = useMemo<ColDef<StatementLine>[]>(() => {
     const money = (field: 'debit' | 'credit'): ColDef<StatementLine> => ({
       field,
       headerName: t(`statement.col.${field}`),
       flex: 0,
-      width: 100,
+      width: widths[field],
       ...numCol,
       ...exprFilter({ kind: 'number', placeholder: t('grid:fk.positive') }),
       valueGetter: (p) => Number(p.data?.[field] ?? 0),
@@ -114,7 +151,7 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
         headerName: t('statement.col.date'),
         sort: 'asc',
         flex: 0,
-        width: 98,
+        width: widths.date,
         cellClass: 'font-mono',
         ...exprFilter({ kind: 'date', placeholder: t('grid:fk.range_hint') }),
         valueFormatter: (p) => formatDay(p.value),
@@ -122,7 +159,7 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
       {
         field: 'documentNo',
         headerName: t('statement.col.document'),
-        minWidth: 150,
+        minWidth: widths.doc,
         cellClass: 'font-mono',
         colSpan: (p) => (p.node?.rowPinned ? 3 : 1),
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
@@ -141,14 +178,16 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
         field: 'subtype',
         headerName: t('statement.col.type'),
         flex: 0,
-        width: 124,
+        width: 120,
         ...exprFilter({
           kind: 'enum',
           anyLabel: t('grid:fk.any'),
           options: SUBTYPES.map((s) => ({ value: s, label: t(`docType.${s}`) })),
         }),
         cellRenderer: (p: ICellRendererParams<StatementLine>) =>
-          p.value && !p.node.rowPinned ? (
+          p.data?.resetsBalance && !p.node.rowPinned ? (
+            <Chip tone="grey">{t('statement.opening')}</Chip>
+          ) : p.value && !p.node.rowPinned ? (
             <Chip tone={docTone(p.value)}>
               {t(`docType.${p.value}`, { defaultValue: p.value })}
             </Chip>
@@ -158,7 +197,7 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
         field: 'dueDate',
         headerName: t('statement.col.due'),
         flex: 0,
-        width: 98,
+        width: widths.date,
         cellClass: 'font-mono',
         ...exprFilter({ kind: 'date', placeholder: t('grid:fk.before') }),
         valueFormatter: (p) => formatDay(p.value),
@@ -167,13 +206,13 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
         colId: 'depotId',
         headerName: t('statement.col.depot'),
         flex: 0,
-        width: 46,
+        width: 72,
         cellClass: 'font-mono',
         valueGetter: (p) => (p.data?.depotId ? String(p.data.depotId) : ''),
         ...exprFilter({
           kind: 'enum',
           anyLabel: t('grid:fk.all'),
-          options: ['1', '2'].map((d) => ({ value: d, label: d })),
+          options: depotCodes.map((d) => ({ value: d, label: d })),
         }),
       },
       money('debit'),
@@ -182,14 +221,14 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
         field: 'runningBalance',
         headerName: t('statement.col.balance'),
         flex: 0,
-        width: 100,
+        width: widths.runningBalance,
         sortable: false,
         ...numCol,
         valueFormatter: (p) => formatMoney(p.value),
       },
     ]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, lang, depotId])
+  }, [t, lang, depotId, widths, depotCodes])
 
   const setPeriod = (f: string, tt: string) =>
     setParams((p) => {
@@ -255,14 +294,21 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
             columnDefs={columnDefs}
             rowData={statement?.lines ?? []}
             pinnedTopRowData={statement?.broughtForward ?? []}
-            getRowClass={(p) => (p.node.rowPinned ? 'fk-row-bf' : undefined)}
+            getRowClass={(p) =>
+              p.node.rowPinned ? 'fk-row-bf' : p.data?.resetsBalance ? 'fk-row-reset' : undefined
+            }
           />
           <DepotTotals totals={statement?.depotTotals ?? []} />
         </Panel>
-        <aside className="flex w-[300px] shrink-0 flex-col gap-3.5">
-          <CreditPanel summary={summary} />
+        <aside className="flex w-[264px] shrink-0 flex-col gap-3.5">
+          <CreditPanel summary={summary} limit={sicil.data?.credit_limit ?? null} />
           {sicil.data && (
-            <CardPanel orgId={orgId} sicil={sicil.data} onSaved={(s) => sicil.setData(s)} />
+            <CardPanel
+              orgId={orgId}
+              sicil={sicil.data}
+              onSaved={(s) => sicil.setData(s)}
+              onReload={sicil.reload}
+            />
           )}
         </aside>
       </div>
@@ -298,17 +344,18 @@ function DepotTotals({
   )
 }
 
-function CreditPanel({ summary }: Readonly<{ summary: SicilSummary | undefined }>) {
+function CreditPanel({
+  summary,
+  limit,
+}: Readonly<{ summary: SicilSummary | undefined; limit: string | null }>) {
   const { t } = useTranslation('ledger')
-  const pct = summary?.creditUsedPct ?? null
+  const pct = summary && limit ? Math.round((Number(summary.balance) / Number(limit)) * 100) : null
   return (
     <Panel aria-labelledby="credit-h" className="flex flex-col gap-2.5 p-4">
       <h2 id="credit-h" className="text-15 font-semibold">
         {t('statement.credit')}
       </h2>
-      <KeyValue label={t('statement.limit')}>
-        {summary?.creditLimit ? formatMoney(summary.creditLimit) : '—'}
-      </KeyValue>
+      <KeyValue label={t('statement.limit')}>{limit ? formatMoney(limit) : '—'}</KeyValue>
       <div
         role="progressbar"
         aria-label={t('statement.used')}
@@ -343,7 +390,13 @@ function CardPanel({
   orgId,
   sicil,
   onSaved,
-}: Readonly<{ orgId: number; sicil: Sicil; onSaved: (s: Sicil) => void }>) {
+  onReload,
+}: Readonly<{
+  orgId: number
+  sicil: Sicil
+  onSaved: (s: Sicil) => void
+  onReload: () => void
+}>) {
   const { t } = useTranslation('ledger')
   const [editing, setEditing] = useState(false)
   const contact = sicil.contacts?.[0]
@@ -359,6 +412,7 @@ function CardPanel({
           {p.numara}
         </div>
       ))}
+      {sicil.emails?.[0] && <div className="break-all text-13">{sicil.emails[0]}</div>}
       {place && <div className="text-fk-muted">{place}</div>}
       {(sicil.v_dairesi || sicil.v_no) && (
         <div className="font-mono text-13 text-fk-muted">
@@ -376,6 +430,10 @@ function CardPanel({
           onSaved={(s) => {
             onSaved(s)
             setEditing(false)
+          }}
+          onReload={() => {
+            setEditing(false)
+            onReload()
           }}
         />
       )}

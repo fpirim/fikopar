@@ -97,12 +97,12 @@ function Entry({ orgId, entryId }: Readonly<{ orgId: number; entryId: number }>)
               </Row>
               {entry.reversesEntryId && (
                 <Row label={t('journal.reverses')}>
-                  {link(entry.reversesEntryId, entry.sourceNo ?? String(entry.reversesEntryId))}
+                  {link(entry.reversesEntryId, entry.reversesEntryNo ?? '—')}
                 </Row>
               )}
               {entry.reversedByEntryId && (
                 <Row label={t('journal.reversedBy')}>
-                  {link(entry.reversedByEntryId, entryNo(entry, entry.reversedByEntryId))}
+                  {link(entry.reversedByEntryId, entry.reversedByEntryNo ?? '—')}
                 </Row>
               )}
             </dl>
@@ -136,11 +136,6 @@ function Entry({ orgId, entryId }: Readonly<{ orgId: number; entryId: number }>)
       )}
     </div>
   )
-}
-
-// Entry numbers are J-YEAR-NNNNNN with the id as counter in this build.
-function entryNo(entry: JournalEntry, id: number) {
-  return `${entry.entryNo.slice(0, 7)}${String(id).padStart(6, '0')}`
 }
 
 function Row({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
@@ -221,7 +216,7 @@ function TrailRow({ item }: Readonly<{ item: TrailItem }>) {
         <div className="font-mono text-xs text-fk-muted">
           {[
             formatTime(item.at),
-            item.actorUserId ? t('journal.trailUser', { user: item.actorUserId }) : null,
+            item.actorLogin ?? null,
             item.ref ? t(`journal.trailRef.${item.kind}`, { ref: item.ref }) : null,
           ]
             .filter(Boolean)

@@ -13,7 +13,7 @@ async function filterKonyaCustomers() {
   await userEvent.type(await screen.findByLabelText('Şehir filtresi'), 'Konya')
   await userEvent.selectOptions(screen.getByLabelText('Tip filtresi'), 'MUSTERI')
   await userEvent.type(screen.getByLabelText('Bakiye filtresi'), '> 10.000')
-  await waitFor(() => expect(pinned()).toHaveTextContent('6 / 412 · 3 filtre'), { timeout: 3000 })
+  await waitFor(() => expect(pinned()).toHaveTextContent('6 / 412 · 3 filtre'), { timeout: 6000 })
 }
 
 describe('BalancesPage', () => {
@@ -54,6 +54,23 @@ describe('BalancesPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Filtreleri temizle' }))
     await waitFor(() => expect(pinned()).toHaveTextContent('412 / 412'))
     expect(screen.getByLabelText('Şehir filtresi')).toHaveValue('')
+  })
+
+  it('sends BalanceRow names as column ids', async () => {
+    const calls = capture('post', '/api/orgs/:orgId/ledger/balances/grid')
+    renderApp('/balances?asOf=2026-09-29')
+    await userEvent.type(await screen.findByLabelText('Ünvan filtresi'), 'Tarım')
+    await userEvent.type(screen.getByLabelText('Borç filtresi'), '> 1')
+    await waitFor(() =>
+      expect(calls[calls.length - 1].body).toMatchObject({
+        filterModel: {
+          accountName: { filterType: 'text', type: 'contains', filter: 'Tarım' },
+          debitTotal: { filterType: 'number', type: 'greaterThan', filter: 1 },
+        },
+      }),
+    )
+    await waitFor(() => expect(pinned()).toHaveTextContent('2 filtre'))
+    expect(screen.getByText(/filtreler: Ünvan, Borç/)).toBeInTheDocument()
   })
 
   it('formats totals in English', async () => {

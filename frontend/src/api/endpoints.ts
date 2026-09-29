@@ -1,7 +1,8 @@
-import { apiBlob, apiRequest, PDF, XLSX } from './client'
+import { apiBlob, apiRequest, ifMatch, PDF, XLSX } from './client'
 import type {
   Account,
   AccountPage,
+  AccountPickerRole,
   AccountSelection,
   BalanceRow,
   BalancesRequest,
@@ -13,13 +14,13 @@ import type {
   CashVoucher,
   CashVoucherCreate,
   Depot,
-  GridRequest,
   GridResponse,
   JournalEntry,
   JournalEntryPage,
   NumberSeries,
   Receipt,
   ReceiptCreate,
+  ReceiptsRequest,
   SearchResult,
   Sicil,
   SicilSummary,
@@ -60,27 +61,12 @@ export const printReminderLetters = (orgId: number, body: AccountSelection) =>
 export const getAccount = (orgId: number, accountId: number) =>
   data(apiRequest<Account>('GET', `${org(orgId)}/ledger/accounts/${accountId}`))
 
-const listAccounts = (
-  orgId: number,
-  query: { type?: Account['type']; sicilId?: number; limit?: number; cursor?: string } = {},
-) => data(apiRequest<AccountPage>('GET', `${org(orgId)}/ledger/accounts`, { query }))
-
-// listAccounts has no code filter; follow the cursor and filter here.
-export async function listAccountsByPrefix(
-  orgId: number,
-  type: Account['type'],
-  prefix: string,
-): Promise<Account[]> {
-  const out: Account[] = []
-  let cursor: string | undefined
-  for (let i = 0; i < 20; i++) {
-    const page = await listAccounts(orgId, { type, limit: 200, cursor })
-    out.push(...page.items.filter((a) => a.code.startsWith(prefix) && a.isActive))
-    if (!page.nextCursor) break
-    cursor = page.nextCursor
-  }
-  return out
-}
+export const listAccountsByRole = (orgId: number, role: AccountPickerRole) =>
+  data(
+    apiRequest<AccountPage>('GET', `${org(orgId)}/ledger/accounts`, {
+      query: { role, limit: 200 },
+    }),
+  ).then((p) => p.items.filter((a) => a.isActive))
 
 export interface StatementQuery {
   from: string
@@ -108,8 +94,13 @@ export const exportAccountStatement = (
 export const getSicil = (orgId: number, sicilId: number) =>
   data(apiRequest<Sicil>('GET', `${org(orgId)}/sicils/${sicilId}`))
 
-export const updateSicil = (orgId: number, sicilId: number, body: SicilUpdate) =>
-  data(apiRequest<Sicil>('PUT', `${org(orgId)}/sicils/${sicilId}`, { body }))
+export const updateSicil = (orgId: number, sicil: Sicil, body: SicilUpdate) =>
+  data(
+    apiRequest<Sicil>('PUT', `${org(orgId)}/sicils/${sicil.id}`, {
+      body,
+      ifMatch: ifMatch(sicil.version),
+    }),
+  )
 
 export const getSicilSummary = (orgId: number, sicilId: number, depotId?: number | null) =>
   data(
@@ -123,7 +114,7 @@ export const listNumberSeries = (
   query: { year?: number; prefix?: string; depotId?: number | null },
 ) => data(apiRequest<NumberSeries[]>('GET', `${org(orgId)}/number-series`, { query }))
 
-export const gridReceipts = (orgId: number, body: GridRequest) =>
+export const gridReceipts = (orgId: number, body: ReceiptsRequest) =>
   data(
     apiRequest<GridResponse<Receipt>>('POST', `${org(orgId)}/receipts/grid`, { body, safe: true }),
   )
@@ -160,18 +151,51 @@ export const getCarryForward = (orgId: number, year: number, depotId?: number | 
 export const exportCarryForward = (orgId: number, year: number, depotId?: number | null) =>
   apiBlob('GET', cf(orgId, year), PDF, { query: { depotId } })
 
-export const setCarryForwardOverride = (orgId: number, year: number, body: CarryForwardOverride) =>
-  data(apiRequest<CarryForward>('PUT', `${cf(orgId, year)}/overrides`, { body }))
+// The preview a write answers with: its version, and the depot the screen shows.
+export interface PreviewRef {
+  version: number
+  depotId: number | null
+}
+
+export const setCarryForwardOverride = (
+  orgId: number,
+  year: number,
+  body: CarryForwardOverride,
+  preview: PreviewRef,
+) =>
+  data(
+    apiRequest<CarryForward>('PUT', `${cf(orgId, year)}/overrides`, {
+      body,
+      query: { previewDepotId: preview.depotId },
+      ifMatch: ifMatch(preview.version),
+    }),
+  )
 
 export const deleteCarryForwardOverride = (
   orgId: number,
   year: number,
-  accountId: number,
-  depotId: number,
+  row: { accountId: number; depotId: number },
+  preview: PreviewRef,
 ) =>
   data(
     apiRequest<CarryForward>('DELETE', `${cf(orgId, year)}/overrides`, {
-      query: { accountId, depotId },
+      query: { accountId: row.accountId, depotId: row.depotId, previewDepotId: preview.depotId },
+      ifMatch: ifMatch(preview.version),
+    }),
+  )
+
+export const reopenCarryForward = (
+  orgId: number,
+  year: number,
+  reason: string,
+  version: number,
+  idempotencyKey: string,
+) =>
+  data(
+    apiRequest<CarryForward>('POST', `${cf(orgId, year)}/reopen`, {
+      body: { reason },
+      ifMatch: ifMatch(version),
+      idempotencyKey,
     }),
   )
 

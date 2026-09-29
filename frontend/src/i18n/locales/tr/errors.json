@@ -52,5 +52,13 @@
   "ERR_CREDIT_LIMIT_EXCEEDED": "Kredi limiti aşıldı",
   "ERR_CASH_VOUCHER_NOT_FOUND": "Kasa fişi bulunamadı",
   "ERR_ACCOUNT_ROLE_MISSING": "Muhasebe hesabı tanımlı değil",
-  "ERR_RATE_LIMITED": "Çok fazla istek; biraz bekleyin"
+  "ERR_RATE_LIMITED": "Çok fazla istek; biraz bekleyin",
+  "ERR_YEAR_CLOSED": "Yıl kapalı; önce devrini yeniden açın",
+  "ERR_NOT_CARRIED_FORWARD": "Bu yılın kayıtlı devri yok",
+  "ERR_METHOD_NOT_AVAILABLE": "Bu ödeme şekli henüz kullanılamıyor",
+  "ERR_DEPOT_CODE_EXISTS": "Bu depo kodu zaten kullanılıyor",
+  "ERR_NUMBER_SERIES_NOT_FOUND": "Numara serisi bulunamadı",
+  "ERR_CURRENCY_MISMATCH": "Yalnız TRY kaydedilebilir",
+  "yearClosed": "{{year}} yılı kapalı; önce {{next}} devrini yeniden açın",
+  "ownedBy": "Bu kayıt {{no}} kaydına ait; ters kaydı oradan yapın"
 }

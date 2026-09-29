@@ -110,6 +110,12 @@
   font-weight: 500;
 }
 
+/* Opening line of a carried-forward year: the running balance restarts here. */
+.ag-theme-alpine.fk-grid .ag-row.fk-row-reset {
+  background-color: var(--fk-surface-sunken);
+  border-top: 2px solid var(--fk-border);
+}
+
 .ag-theme-alpine.fk-grid .ag-cell.fk-muted {
   color: var(--fk-text-faint);
 }

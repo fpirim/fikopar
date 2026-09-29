@@ -52,5 +52,13 @@
   "ERR_CREDIT_LIMIT_EXCEEDED": "Credit limit exceeded",
   "ERR_CASH_VOUCHER_NOT_FOUND": "Cash voucher not found",
   "ERR_ACCOUNT_ROLE_MISSING": "A posting account is not configured",
-  "ERR_RATE_LIMITED": "Too many requests; wait a moment"
+  "ERR_RATE_LIMITED": "Too many requests; wait a moment",
+  "ERR_YEAR_CLOSED": "The year is closed; reopen its carry-forward first",
+  "ERR_NOT_CARRIED_FORWARD": "This year has no posted carry-forward",
+  "ERR_METHOD_NOT_AVAILABLE": "This payment method is not available yet",
+  "ERR_DEPOT_CODE_EXISTS": "This depot code is already used",
+  "ERR_NUMBER_SERIES_NOT_FOUND": "Number series not found",
+  "ERR_CURRENCY_MISMATCH": "Only TRY can be posted",
+  "yearClosed": "{{year}} is closed; reopen the {{next}} carry-forward first",
+  "ownedBy": "This entry belongs to {{no}}; reverse it there"
 }

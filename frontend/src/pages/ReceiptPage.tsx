@@ -8,10 +8,11 @@ import {
   createReceipt,
   getSicilSummary,
   gridReceipts,
-  listAccountsByPrefix,
+  listAccountsByRole,
   listNumberSeries,
   printReceipt,
 } from '../api/endpoints'
+import { errorText } from '../api/errorText'
 import type { GridRequest, PaymentMethod, Receipt, ReceiptCreate } from '../api/types'
 import { useToast } from '../context/ToastContext'
 import { useApi } from '../hooks/useApi'
@@ -33,7 +34,7 @@ import { MoneyInput } from '../components/ui/money-input'
 import { Segmented } from '../components/ui/segmented'
 import { TextField } from '../components/ui/text-field'
 import { FkGrid } from '../components/grid/FkGrid'
-import { exprFilter, numCol } from '../components/grid/columns'
+import { DOC_NO_CHARS, exprFilter, monoWidth, numCol } from '../components/grid/columns'
 import SelectCompany from '../components/layout/SelectCompany'
 import { cn } from '@/lib/utils'
 
@@ -81,6 +82,7 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
   const [touched, setTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [methodError, setMethodError] = useState(false)
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }))
 
   const prefix = form.kind === 'COLLECTION' ? 'TAH' : 'TED'
@@ -92,7 +94,7 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
   const depotCode = depots.find((d) => d.id === form.depotId)?.code ?? String(form.depotId)
   const nextNo = series.data?.[0] ? formatNumber(series.data[0], depotCode) : ''
 
-  const banks = useApi(() => listAccountsByPrefix(orgId, 'ASSET', '102.'), [orgId]).data ?? []
+  const banks = useApi(() => listAccountsByRole(orgId, 'BANK'), [orgId]).data ?? []
   const bankAccountId = form.bankAccountId ?? banks[0]?.id ?? null
   const sicilId = form.account?.sicilId ?? null
   const summary = useApi(sicilId ? () => getSicilSummary(orgId, sicilId, form.depotId) : null, [
@@ -110,16 +112,7 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
 
   const gridApi = useRef<AgGridReact>(null)
   const fetchPage = useCallback(
-    (req: GridRequest) =>
-      gridReceipts(orgId, {
-        ...req,
-        filterModel: {
-          ...req.filterModel,
-          ...(topDepot
-            ? { depotId: { filterType: 'number', type: 'equals', filter: topDepot } }
-            : {}),
-        },
-      }),
+    (req: GridRequest) => gridReceipts(orgId, { ...req, depotId: topDepot }),
     [orgId, topDepot],
   )
   const recent = useInfiniteGrid<Receipt>(fetchPage, [orgId, topDepot])
@@ -127,6 +120,7 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
   async function post() {
     setTouched(true)
     setError('')
+    setMethodError(false)
     if (errors.account || errors.amount || errors.bank) return
     const body: ReceiptCreate = {
       kind: form.kind,
@@ -150,7 +144,8 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
       recent.apiRef.current?.purgeInfiniteCache()
       saveBlob(await printReceipt(orgId, receipt.id), `${receipt.receiptNo}.pdf`)
     } catch (e) {
-      setError(t(`errors:${e instanceof ApiError ? e.code : 'ERR_UNKNOWN'}`))
+      setMethodError(e instanceof ApiError && e.field === 'method')
+      setError(errorText(t, e, { date: form.date }))
     } finally {
       setBusy(false)
     }
@@ -222,7 +217,11 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
             value={form.method}
             depotId={form.depotId}
             bankCode={banks.find((b) => b.id === bankAccountId)?.code}
-            onChange={(m) => set('method', m)}
+            invalid={methodError}
+            onChange={(m) => {
+              setMethodError(false)
+              set('method', m)
+            }}
           />
           {form.method === 'BANK_TRANSFER' && (
             <div className="grid grid-cols-4 gap-3">
@@ -287,9 +286,9 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
                   {summary.data ? formatMoney(summary.data.overdue) : '—'}
                 </span>
               </KeyValue>
-              {summary.data && (
+              {form.account.accountId && (
                 <Link
-                  to={withDepot(`/statements/${summary.data.accountId}`, topDepot)}
+                  to={withDepot(`/statements/${form.account.accountId}`, topDepot)}
                   className="mt-1 text-sm text-fk-accent hover:text-fk-accent-hover"
                 >
                   {t('receipt.statement')}
@@ -340,11 +339,13 @@ function MethodPicker({
   value,
   depotId,
   bankCode,
+  invalid,
   onChange,
 }: Readonly<{
   value: PaymentMethod
   depotId: number
   bankCode?: string
+  invalid?: boolean
   onChange: (m: PaymentMethod) => void
 }>) {
   const { t } = useTranslation('treasury')
@@ -367,7 +368,11 @@ function MethodPicker({
       <div
         role="radiogroup"
         aria-labelledby="rc-method"
-        className="grid grid-cols-4 gap-2.5"
+        aria-invalid={invalid || undefined}
+        className={cn(
+          'grid grid-cols-4 gap-2.5 rounded-lg',
+          invalid && 'ring-1 ring-fk-negative ring-offset-2',
+        )}
         onKeyDown={(e) => {
           if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
             e.preventDefault()
@@ -424,7 +429,7 @@ function RecentReceipts({
         sort: 'desc',
         sortIndex: 1,
         cellClass: 'font-mono',
-        minWidth: 170,
+        minWidth: monoWidth(DOC_NO_CHARS),
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
       },
       {
@@ -480,6 +485,7 @@ function RecentReceipts({
       {
         field: 'instrumentNo',
         headerName: t('receipt.col.source'),
+        minWidth: monoWidth(DOC_NO_CHARS),
         cellClass: 'font-mono',
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
         cellRenderer: (p: ICellRendererParams<Receipt>) =>

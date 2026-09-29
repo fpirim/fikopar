@@ -60,9 +60,16 @@
       "district": "İlçe",
       "taxOffice": "Vergi dairesi",
       "taxNo": "Vergi no",
-      "term": "Vade (gün)"
+      "term": "Vade (gün)",
+      "creditLimit": "Kredi limiti",
+      "email": "E-posta",
+      "contact": "Yetkili"
     },
-    "depotTotals": "Depo toplamları"
+    "depotTotals": "Depo toplamları",
+    "conflictTitle": "Kart değişti",
+    "conflict": "Başka biri bu kartı değiştirdi — yeniden yükleyin",
+    "noAccount": "Bu kartın henüz cari hesabı yok",
+    "opening": "DEVİR"
   },
   "carryForward": {
     "title": "Cari devir {{from}} → {{to}}",
@@ -72,10 +79,10 @@
     "posted": "Kaydedildi",
     "steps": "Yıl sonu adımları",
     "step": {
-      "NO_DRAFT_DOCUMENTS": "{{year}} belgelerini kapat",
-      "STOCK_COUNTS_POSTED": "Stok sayımı kaydedildi",
-      "LEDGER_BALANCED": "Cari bakiyeler",
-      "YEAR_NOT_OPENED": "{{year}} yılını aç"
+      "CLOSE_DOCUMENTS": "{{year}} belgelerini kapat",
+      "STOCK_COUNTS": "Stok sayımı kaydedildi",
+      "ACCOUNT_BALANCES": "Cari bakiyeler",
+      "OPEN_YEAR": "{{year}} yılını aç"
     },
     "blocked": "Engelli: {{detail}}",
     "kpi": {
@@ -116,7 +123,20 @@
       "body": "01.01.{{year}} tarihli {{count}} kayıt tek işlemde kaydedilir. Sonradan düzenlenemez; düzeltmeler ters kayıtla yapılır.",
       "post": "Kaydet",
       "done": "{{year}} cari devri kaydedildi"
-    }
+    },
+    "reopen": "Yeniden aç…",
+    "reopened": "Yeniden açıldı",
+    "reopenedNote": "Yeniden açıldı {{at}} · {{reason}}",
+    "reopenDialog": {
+      "title": "{{year}} devrini yeniden aç",
+      "body": "Açılış kayıtları 1 Ocak tarihli ters kayıtla iptal edilir; {{prev}} yeniden kayda açılır. Düzeltmeler korunur.",
+      "reason": "Gerekçe",
+      "reasonShort": "Gerekçe yazın (en az 3 karakter)",
+      "submit": "Yeniden aç",
+      "done": "{{year}} cari devri yeniden açıldı"
+    },
+    "conflictTitle": "Önizleme değişti",
+    "conflict": "Başka biri önizlemeyi değiştirdi — yeniden yükleyin"
   },
   "journal": {
     "title": "Yevmiye",
@@ -179,7 +199,6 @@
       "submit": "Ters kaydı at",
       "done": "Ters kayıt {{no}} atıldı"
     },
-    "postings": "Kayıt satırları",
-    "trailUser": "kullanıcı {{user}}"
+    "postings": "Kayıt satırları"
   }
 }

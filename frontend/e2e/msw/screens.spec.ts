@@ -26,6 +26,15 @@ test('04 statement', async ({ page }) => {
   await page.screenshot({ path: shot('04-statement'), animations: 'disabled' })
 })
 
+test('04b statement across a carried-forward year', async ({ page }) => {
+  await page.goto('/statements/5000?from=2025-12-01&to=2026-09-29&depot=1')
+  await expect(grid(page)).toContainText('CARRIED')
+  await page.screenshot({ path: shot('04b-statement-carried-year'), animations: 'disabled' })
+  await page.getByRole('button', { name: 'Edit card' }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.screenshot({ path: shot('04c-statement-edit-card'), animations: 'disabled' })
+})
+
 test('06 receipt', async ({ page }) => {
   await page.goto('/receipts')
   await page.getByRole('combobox', { name: 'Account' }).fill('Kaya')
@@ -38,7 +47,7 @@ test('06 receipt', async ({ page }) => {
 })
 
 test('08 cash book', async ({ page }) => {
-  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29')
+  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29&depot=1')
   await expect(pinnedBottom(page)).toContainText('46,815.50')
   await page.screenshot({ path: shot('08-cash-book'), animations: 'disabled' })
   await page.getByRole('button', { name: 'Expense' }).click()
@@ -52,6 +61,13 @@ test('08 cash book', async ({ page }) => {
   await page.getByRole('button', { name: 'Count cash' }).click()
   await page.getByRole('dialog').getByLabel('Counted').fill('46,800')
   await page.screenshot({ path: shot('08d-cash-book-count'), animations: 'disabled' })
+})
+
+test('08e cash book asks for a depot', async ({ page }) => {
+  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29')
+  await expect(page.getByRole('region', { name: 'Choose a depot' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Depot 2' }).last()).toBeVisible()
+  await page.screenshot({ path: shot('08e-cash-book-pick-depot'), animations: 'disabled' })
 })
 
 test('11 carry forward', async ({ page }) => {
@@ -79,10 +95,26 @@ test('12 journal entry', async ({ page }) => {
 
 test('12c journal list and TR shell', async ({ page }) => {
   await page.goto('/journal')
-  await expect(page.getByRole('link', { name: 'J-2026-004833' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'J-2026-1-004833' })).toBeVisible()
   await page.screenshot({ path: shot('12c-journal-list'), animations: 'disabled' })
   await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'TR' }).click()
   await page.goto('/balances?asOf=2026-09-29&depot=1')
   await expect(pinnedBottom(page)).toContainText('412 / 412')
   await page.screenshot({ path: shot('03b-balances-tr-depot1'), animations: 'disabled' })
+})
+
+test.describe('admin', () => {
+  test.use({ admin: true })
+
+  test('11c carry forward reopen', async ({ page }) => {
+    await page.goto('/carry-forward/2025')
+    await expect(page.getByText('Posted', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Reopen…' }).click()
+    await page.getByRole('dialog').getByLabel('Reason').fill('Late supplier invoice')
+    await page.screenshot({ path: shot('11c-carry-forward-reopen'), animations: 'disabled' })
+    await page.getByRole('dialog').getByRole('button', { name: 'Reopen' }).click()
+    await expect(page.getByText('Reopened', { exact: true })).toBeVisible()
+    await page.mouse.move(0, 0)
+    await page.screenshot({ path: shot('11d-carry-forward-reopened'), animations: 'disabled' })
+  })
 })

@@ -14,7 +14,7 @@ import {
   printReminderLetters,
   printStatements,
 } from '../api/endpoints'
-import type { BalanceRow, GridRequest, SicilTipi } from '../api/types'
+import type { BalanceColId, BalanceRow, BalanceTotals, GridRequest, SicilTipi } from '../api/types'
 import { useDepot, withDepot } from '../hooks/useDepot'
 import { useDownload } from '../hooks/useDownload'
 import { useInfiniteGrid } from '../hooks/useInfiniteGrid'
@@ -37,6 +37,7 @@ const TONE: Record<SicilTipi, ChipTone> = { MUSTERI: 'blue', FIRMA: 'grey', BANK
 const MAX_BODY = 14
 
 type Row = BalanceRow & { label?: string }
+type Money = Extract<BalanceColId, 'debitTotal' | 'creditTotal' | 'balance' | 'overdue'>
 
 function SelectHeader(props: IHeaderParams & { ariaLabel: string }) {
   const [, force] = useState(0)
@@ -103,16 +104,12 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
   )
   const grid = useInfiniteGrid<BalanceRow>(fetchPage, [orgId, asOf, depotId, tipi])
 
-  const money = (
-    field: keyof BalanceRow,
-    colId: string,
-    neg?: (n: number) => boolean,
-  ): ColDef<Row> => ({
-    colId,
-    headerName: t(`col.${colId}`),
+  const money = (field: Money, label: string, neg?: (n: number) => boolean): ColDef<Row> => ({
+    colId: field,
+    headerName: t(`col.${label}`),
     field,
     flex: 0,
-    width: colId === 'overdue' ? 108 : 136,
+    width: 136,
     ...numCol,
     ...exprFilter({ kind: 'number', placeholder: t('grid:fk.positive') }),
     valueFormatter: (p) => formatMoney(p.value),
@@ -152,7 +149,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
           ) : null,
       },
       {
-        colId: 'name',
+        colId: 'accountName',
         field: 'accountName',
         headerName: t('col.name'),
         flex: 2,
@@ -217,14 +214,15 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
     const label = grid.filtered.length
       ? `${shown} · ${t('grid:fk.filters', { count: grid.filtered.length })}`
       : shown
+    const totals = info.totals as BalanceTotals | null
     return [
       {
         accountId: 0,
         label,
-        debitTotal: info.totals?.debit ?? '',
-        creditTotal: info.totals?.credit ?? '',
-        balance: info.totals?.balance ?? '',
-        overdue: info.totals?.overdue ?? '',
+        debitTotal: totals?.debitTotal ?? '',
+        creditTotal: totals?.creditTotal ?? '',
+        balance: totals?.balance ?? '',
+        overdue: totals?.overdue ?? '',
       },
     ]
   }, [grid.info, grid.filtered, t])
@@ -240,11 +238,11 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
 
   const csvColumns = [
     { header: labels.accountCode, value: (r: BalanceRow) => r.accountCode ?? '' },
-    { header: labels.name, value: (r: BalanceRow) => r.accountName ?? '' },
+    { header: labels.accountName, value: (r: BalanceRow) => r.accountName ?? '' },
     { header: labels.city, value: (r: BalanceRow) => r.city ?? '' },
     { header: labels.sicilTipi, value: (r: BalanceRow) => r.sicilTipi ?? '' },
-    { header: labels.debit, value: (r: BalanceRow) => r.debitTotal },
-    { header: labels.credit, value: (r: BalanceRow) => r.creditTotal },
+    { header: labels.debitTotal, value: (r: BalanceRow) => r.debitTotal },
+    { header: labels.creditTotal, value: (r: BalanceRow) => r.creditTotal },
     { header: labels.balance, value: (r: BalanceRow) => r.balance },
     { header: labels.overdue, value: (r: BalanceRow) => r.overdue ?? '' },
     { header: labels.lastMoveDate, value: (r: BalanceRow) => r.lastMoveDate ?? '' },

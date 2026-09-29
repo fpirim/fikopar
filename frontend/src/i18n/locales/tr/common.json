@@ -28,5 +28,6 @@
     "admin": "Admin",
     "user": "Kullanıcı"
   },
-  "noResult": "Sonuç yok"
+  "noResult": "Sonuç yok",
+  "reload": "Yeniden yükle"
 }

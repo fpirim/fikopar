@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ApiError } from '../../api/client'
-import { createCashVoucher, listAccountsByPrefix, listNumberSeries } from '../../api/endpoints'
+import { errorText } from '../../api/errorText'
+import { createCashVoucher, listAccountsByRole, listNumberSeries } from '../../api/endpoints'
 import type { CashVoucherCreate } from '../../api/types'
 import { useToast } from '../../context/ToastContext'
 import { useApi } from '../../hooks/useApi'
@@ -58,8 +58,8 @@ export default function VoucherDialog({
     useApi(
       () =>
         mode === 'expense'
-          ? listAccountsByPrefix(orgId, 'EXPENSE', '770.')
-          : listAccountsByPrefix(orgId, 'ASSET', '102.'),
+          ? listAccountsByRole(orgId, 'EXPENSE')
+          : listAccountsByRole(orgId, 'BANK'),
       [orgId, mode],
     ).data ?? []
   const series = useApi(
@@ -91,7 +91,7 @@ export default function VoucherDialog({
       toast.success(t('cash.voucher.posted', { no: v.voucherNo }))
       onPosted()
     } catch (err) {
-      setError(t(`errors:${err instanceof ApiError ? err.code : 'ERR_UNKNOWN'}`))
+      setError(errorText(t, err, { date }))
     } finally {
       setBusy(false)
     }

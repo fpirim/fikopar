@@ -1,5 +1,6 @@
 import { http, HttpResponse, type JsonBodyType } from 'msw'
 import type {
+  BalanceColId,
   BalancesRequest,
   CarryForward,
   CarryForwardOverride,
@@ -12,6 +13,7 @@ import type {
   Receipt,
   ReceiptCreate,
   SearchResult,
+  Sicil,
   Statement,
   StatementLine,
 } from '../api/types'
@@ -24,13 +26,16 @@ import {
   ORG_ID,
   organizations,
   TODAY,
+  type CarryForwardRun,
   type CashLine,
   type Db,
 } from './data'
 
 const m = (n: number) => n.toFixed(2)
 const O = '/api/orgs/:orgId'
-const err = (status: number, code: string) => HttpResponse.json({ code }, { status })
+const err = (status: number, code: string, extra: Record<string, unknown> = {}) =>
+  HttpResponse.json({ code, ...extra }, { status })
+const etag = (version: number) => ({ ETag: `"${version}"` })
 
 const db: { current: Db } = { current: createDb() }
 
@@ -78,18 +83,21 @@ function balancesGrid(req: BalancesRequest) {
   const all = db.current.ledger.parties
     .filter((p) => !req.sicilTipi || p.tipi === req.sicilTipi)
     .map((p) => balanceRow(p, depotId))
-  const cols = {
-    accountCode: (r: (typeof all)[number]) => r.accountCode,
-    name: (r: (typeof all)[number]) => r.accountName,
-    city: (r: (typeof all)[number]) => r.city,
-    sicilTipi: (r: (typeof all)[number]) => r.sicilTipi,
-    debit: (r: (typeof all)[number]) => Number(r.debitTotal),
-    credit: (r: (typeof all)[number]) => Number(r.creditTotal),
-    balance: (r: (typeof all)[number]) => Number(r.balance),
-    overdue: (r: (typeof all)[number]) => Number(r.overdue),
-    lastMoveDate: (r: (typeof all)[number]) => r.lastMoveDate,
+  type R = (typeof all)[number]
+  const cols: Record<BalanceColId, (r: R) => string | number | null | undefined> = {
+    accountCode: (r) => r.accountCode,
+    accountName: (r) => r.accountName,
+    city: (r) => r.city,
+    sicilTipi: (r) => r.sicilTipi,
+    debitTotal: (r) => Number(r.debitTotal),
+    creditTotal: (r) => Number(r.creditTotal),
+    balance: (r) => Number(r.balance),
+    overdue: (r) => Number(r.overdue),
+    lastMoveDate: (r) => r.lastMoveDate,
   }
-  const { rows, filtered } = applyGrid(all, req, cols, ['accountCode', 'name', 'city'])
+  const used = [...Object.keys(req.filterModel ?? {}), ...(req.sortModel ?? []).map((x) => x.colId)]
+  if (used.some((c) => !c || !(c in cols))) return null
+  const { rows, filtered } = applyGrid(all, req, cols, ['accountCode', 'accountName', 'city'])
   const sum = (k: 'debitTotal' | 'creditTotal' | 'balance' | 'overdue') =>
     m(filtered.reduce((s, r) => s + Number(r[k] ?? 0), 0))
   return {
@@ -97,8 +105,8 @@ function balancesGrid(req: BalancesRequest) {
     totalCount: filtered.length,
     unfilteredCount: all.length,
     totals: {
-      debit: sum('debitTotal'),
-      credit: sum('creditTotal'),
+      debitTotal: sum('debitTotal'),
+      creditTotal: sum('creditTotal'),
       balance: sum('balance'),
       overdue: sum('overdue'),
     },
@@ -112,14 +120,15 @@ function statement(accountId: number, from: string, to: string, depotId: number 
   const depotIds = depotId ? [depotId] : depots.map((d) => d.id!)
   const folded = (l: StatementLine) =>
     l.entryDate < from || (l.sourceType === 'opening' && l.entryDate <= from)
-  let running = 0
+  const perDepot = new Map<number, number>()
+  const running = () => [...perDepot.values()].reduce((s, v) => s + v, 0)
   const broughtForward: StatementLine[] = []
   for (const d of depotIds) {
     const bf = all
       .filter((l) => l.depotId === d && folded(l))
       .reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0)
     if (bf === 0) continue
-    running += bf
+    perDepot.set(d, bf)
     broughtForward.push({
       entryId: null,
       entryDate: from,
@@ -129,24 +138,33 @@ function statement(accountId: number, from: string, to: string, depotId: number 
       description: 'Brought forward',
       debit: m(Math.max(bf, 0)),
       credit: m(Math.max(-bf, 0)),
-      runningBalance: m(running),
+      runningBalance: m(running()),
+      resetsBalance: false,
     })
   }
   const lines = all
     .filter((l) => !folded(l) && l.entryDate <= to)
     .sort((a, b) => a.entryDate.localeCompare(b.entryDate))
     .map((l, i) => {
-      running += Number(l.debit) - Number(l.credit)
+      const amount = Number(l.debit) - Number(l.credit)
+      const resets = l.sourceType === 'opening'
+      const d = l.depotId ?? 0
+      perDepot.set(d, resets ? amount : (perDepot.get(d) ?? 0) + amount)
       const { accountId, ...rest } = l
-      return { ...rest, entryId: l.entryId ?? accountId * 100 + i, runningBalance: m(running) }
+      return {
+        ...rest,
+        entryId: l.entryId ?? accountId * 100 + i,
+        runningBalance: m(running()),
+        resetsBalance: resets,
+      }
     })
   const depotTotals = depotIds.map((d) => {
-    const rows = [...broughtForward, ...lines].filter((l) => l.depotId === d)
+    const rows = lines.filter((l) => l.depotId === d && !l.resetsBalance)
     const debit = rows.reduce((s, l) => s + Number(l.debit), 0)
     const credit = rows.reduce((s, l) => s + Number(l.credit), 0)
-    return { depotId: d, debit: m(debit), credit: m(credit), balance: m(debit - credit) }
+    return { depotId: d, debit: m(debit), credit: m(credit), balance: m(perDepot.get(d) ?? 0) }
   })
-  return { accountId, from, to, broughtForward, lines, depotTotals, closingBalance: m(running) }
+  return { accountId, from, to, broughtForward, lines, depotTotals, closingBalance: m(running()) }
 }
 
 function cashBook(depotId: number, from: string, to: string): CashBook {
@@ -176,25 +194,69 @@ function cashBook(depotId: number, from: string, to: string): CashBook {
   }
 }
 
+// Posting the carry-forward into Y closes Y − 1 and every earlier year.
+function yearClosed(date: string): boolean {
+  const year = Number(date.slice(0, 4))
+  return Object.entries(db.current.cf).some(([y, r]) => r.status === 'POSTED' && year < Number(y))
+}
+
+function run(year: number): CarryForwardRun {
+  db.current.cf[year] ??= {
+    status: 'PREVIEW',
+    version: 1,
+    rows: [],
+    postedAt: null,
+    reopenedAt: null,
+    reopenReason: null,
+  }
+  return db.current.cf[year]
+}
+
 function carryForward(year: number, depotId: number | null): CarryForward {
-  const rows = db.current.cfRows.filter((r) => !depotId || r.depotId === depotId)
-  const live = rows.filter((r) => r.status !== 'SKIP')
-  const posted = db.current.cfPosted
+  const r = run(year)
+  const rows = r.rows.filter((x) => !depotId || x.depotId === depotId)
+  const live = rows.filter((x) => x.status !== 'SKIP')
+  const posted = r.status === 'POSTED'
   return {
     year,
-    status: posted ? 'POSTED' : 'PREVIEW',
+    status: r.status,
+    version: r.version,
+    postedAt: r.postedAt,
+    reopenedAt: r.reopenedAt,
+    reopenReason: r.reopenReason,
     checks: [
       { code: 'NO_DRAFT_DOCUMENTS', ok: true, blocking: true },
       { code: 'STOCK_COUNTS_POSTED', ok: true, blocking: true },
       { code: 'LEDGER_BALANCED', ok: true, blocking: true },
       { code: 'YEAR_NOT_OPENED', ok: !posted, blocking: true },
     ],
-    accountCount: new Set(live.map((r) => r.accountId)).size,
+    steps: [
+      { code: 'CLOSE_DOCUMENTS', status: 'DONE' },
+      { code: 'STOCK_COUNTS', status: 'DONE' },
+      { code: 'ACCOUNT_BALANCES', status: posted ? 'DONE' : 'CURRENT' },
+      { code: 'OPEN_YEAR', status: posted ? 'DONE' : 'TODO' },
+    ],
+    accountCount: new Set(live.map((x) => x.accountId)).size,
     entryCount: live.length,
-    totalDebit: m(live.reduce((s, r) => s + Number(r.openingDebit), 0)),
-    totalCredit: m(live.reduce((s, r) => s + Number(r.openingCredit), 0)),
+    totalDebit: m(live.reduce((s, x) => s + Number(x.openingDebit), 0)),
+    totalCredit: m(live.reduce((s, x) => s + Number(x.openingCredit), 0)),
     rows,
   }
+}
+
+// If-Match against the preview version: 428 without, 412 when stale.
+function precondition(request: Request, version: number): Response | null {
+  const want = request.headers.get('If-Match')
+  if (!want) return err(428, 'ERR_PRECONDITION_REQUIRED')
+  if (want.replace(/^W\//, '').replace(/"/g, '') !== String(version)) {
+    return err(412, 'ERR_VERSION_CONFLICT')
+  }
+  return null
+}
+
+const cfJson = (year: number, depotId: number | null, status = 200) => {
+  const body = carryForward(year, depotId)
+  return HttpResponse.json(body, { status, headers: etag(body.version) })
 }
 
 function addCash(line: CashLine) {
@@ -203,14 +265,15 @@ function addCash(line: CashLine) {
 
 function createReceipt(body: ReceiptCreate): { status: number; body: JsonBodyType } {
   const p = party(body.sicilId)
-  if (!p) return { status: 404, body: { code: 'ERR_SICIL_NOT_FOUND' } }
+  if (!p) return { status: 422, body: { code: 'ERR_SICIL_NOT_FOUND', field: 'sicilId' } }
   if (!(Number(body.amount) > 0)) return { status: 422, body: { code: 'ERR_INVALID_AMOUNT' } }
+  if (body.method === 'CHEQUE' || body.method === 'NOTE') {
+    return { status: 400, body: { code: 'ERR_METHOD_NOT_AVAILABLE', field: 'method' } }
+  }
   if (body.method === 'BANK_TRANSFER' && !body.bankAccountId) {
     return { status: 422, body: { code: 'ERR_BANK_ACCOUNT_REQUIRED' } }
   }
-  if (body.method === 'CHEQUE' || body.method === 'NOTE') {
-    return { status: 422, body: { code: 'ERR_INSTRUMENT_REQUIRED' } }
-  }
+  if (yearClosed(body.date)) return { status: 409, body: { code: 'ERR_YEAR_CLOSED' } }
   const collection = body.kind === 'COLLECTION'
   const receiptNo = nextNumber(collection ? 'TAH' : 'TED', body.depotId)
   const amount = Number(body.amount)
@@ -231,6 +294,7 @@ function createReceipt(body: ReceiptCreate): { status: number; body: JsonBodyTyp
     debit: m(collection ? 0 : amount),
     credit: m(collection ? amount : 0),
     runningBalance: '0.00',
+    resetsBalance: false,
   })
   if (body.method === 'CASH') {
     addCash({
@@ -266,7 +330,8 @@ function createReceipt(body: ReceiptCreate): { status: number; body: JsonBodyTyp
 function createVoucher(body: CashVoucherCreate): { status: number; body: JsonBodyType } {
   if (!(Number(body.amount) > 0)) return { status: 422, body: { code: 'ERR_INVALID_AMOUNT' } }
   const account = db.current.ledger.accounts.find((a) => a.id === body.accountId)
-  if (!account) return { status: 422, body: { code: 'ERR_ACCOUNT_NOT_FOUND' } }
+  if (!account) return { status: 422, body: { code: 'ERR_ACCOUNT_NOT_FOUND', field: 'accountId' } }
+  if (yearClosed(body.date)) return { status: 409, body: { code: 'ERR_YEAR_CLOSED' } }
   const voucherNo = nextNumber(body.kind === 'EXPENSE' ? 'GDR' : 'VRM', body.depotId)
   const entryId = nextEntryId()
   const out = body.kind !== 'BANK_WITHDRAWAL'
@@ -288,6 +353,7 @@ function createVoucher(body: CashVoucherCreate): { status: number; body: JsonBod
 }
 
 function createCount(body: CashCountCreate): { status: number; body: JsonBodyType } {
+  if (yearClosed(TODAY)) return { status: 409, body: { code: 'ERR_YEAR_CLOSED' } }
   const book = Number(cashBook(body.depotId, '2000-01-01', '2999-12-31').closingBalance)
   const difference = Number(body.countedAmount) - book
   let journalEntryId: number | null = null
@@ -325,22 +391,33 @@ function reverse(entry: JournalEntry): { status: number; body: JsonBodyType } {
   if (entry.sourceType !== 'manual') {
     return {
       status: 409,
-      body: { code: 'ERR_ENTRY_OWNED_BY_SOURCE', detail: entry.sourceNo ?? '' },
+      body: {
+        code: 'ERR_ENTRY_OWNED_BY_SOURCE',
+        owner: {
+          sourceType: entry.sourceType,
+          sourceId: entry.sourceId ?? String(entry.id),
+          sourceNo: entry.sourceNo ?? null,
+        },
+      },
     }
   }
   if (entry.reversedByEntryId) return { status: 409, body: { code: 'ERR_ENTRY_ALREADY_REVERSED' } }
+  if (yearClosed(TODAY)) return { status: 409, body: { code: 'ERR_YEAR_CLOSED' } }
   const id = nextEntryId()
+  const entryNo = nextNumber('J', entry.depotId)
   const reversal: JournalEntry = {
     ...entry,
     id,
-    entryNo: `J-2026-${String(id).padStart(6, '0')}`,
+    entryNo,
     entryDate: TODAY,
     description: `Reversal of ${entry.entryNo}`,
     sourceType: 'reversal',
     sourceId: String(entry.id),
-    sourceNo: entry.entryNo,
+    sourceNo: null,
     reversesEntryId: entry.id,
+    reversesEntryNo: entry.entryNo,
     reversedByEntryId: null,
+    reversedByEntryNo: null,
     idempotencyKey: null,
     createdAt: `${TODAY}T10:00:00`,
     postings: entry.postings.map((p) => ({
@@ -350,6 +427,7 @@ function reverse(entry: JournalEntry): { status: number; body: JsonBodyType } {
     })),
   }
   entry.reversedByEntryId = id
+  entry.reversedByEntryNo = entryNo
   db.current.entries.unshift(reversal)
   return { status: 201, body: reversal }
 }
@@ -361,7 +439,12 @@ function search(q: string): SearchResult {
   const accounts = db.current.ledger.parties
     .filter((p) => fold(p.name).includes(f) || p.code.includes(f))
     .slice(0, 5)
-    .map((p) => ({ sicilId: p.sicilId, hesapNo: p.code, hesapAdi: p.name }))
+    .map((p) => ({
+      sicilId: p.sicilId,
+      accountId: p.accountId,
+      hesapNo: p.code,
+      hesapAdi: p.name,
+    }))
   const documents = [
     ...db.current.activity,
     ...db.current.receipts.map((r) => ({
@@ -382,6 +465,13 @@ function search(q: string): SearchResult {
 }
 
 const num = (v: string | null) => (v ? Number(v) : null)
+const ROLE_PREFIX: Record<string, string> = {
+  CASH: '100',
+  BANK: '102',
+  CUSTOMER: '120',
+  SUPPLIER: '320',
+  EXPENSE: '770',
+}
 
 export const handlers = [
   http.get('/healthz', () => HttpResponse.json({ status: 'ok', version: '3.0.0+4f2c91a' })),
@@ -393,7 +483,13 @@ export const handlers = [
   http.post('/api/auth/demo', () =>
     HttpResponse.json({ token: 'msw-token', user: demoUser, resetAt: `${TODAY}T23:00:00Z` }),
   ),
-  http.get('/api/users/me', () => HttpResponse.json(demoUser)),
+  http.get('/api/users/me', ({ request }) =>
+    HttpResponse.json(
+      request.headers.get('Authorization') === 'Bearer msw-admin'
+        ? { ...demoUser, role: 'admin' }
+        : demoUser,
+    ),
+  ),
   http.get('/api/admin/organizations', () => HttpResponse.json(organizations)),
   http.get(`${O}/depots`, () => HttpResponse.json(depots)),
   http.get(`${O}/search`, ({ request }) =>
@@ -407,7 +503,8 @@ export const handlers = [
         headers: { 'Content-Type': request.headers.get('Accept')! },
       })
     }
-    return HttpResponse.json(balancesGrid(body))
+    const res = balancesGrid(body)
+    return res ? HttpResponse.json(res) : err(400, 'ERR_INVALID_REQUEST', { field: 'colId' })
   }),
   http.post(
     `${O}/ledger/statements/print`,
@@ -419,10 +516,12 @@ export const handlers = [
   ),
   http.get(`${O}/ledger/accounts`, ({ request }) => {
     const q = new URL(request.url).searchParams
+    const prefix = q.get('codePrefix') ?? ROLE_PREFIX[q.get('role') ?? ''] ?? ''
     const items = db.current.ledger.accounts.filter(
       (a) =>
         (!q.get('type') || a.type === q.get('type')) &&
-        (!q.get('sicilId') || a.sicilId === Number(q.get('sicilId'))),
+        (!q.get('sicilId') || a.sicilId === Number(q.get('sicilId'))) &&
+        a.code.startsWith(prefix),
     )
     const start = Number(q.get('cursor') ?? 0)
     const end = start + Number(q.get('limit') ?? 50)
@@ -447,13 +546,20 @@ export const handlers = [
   }),
   http.get(`${O}/sicils/:sicilId`, ({ params }) => {
     const s = db.current.ledger.sicils.find((x) => x.id === Number(params.sicilId))
-    return s ? HttpResponse.json(s) : err(404, 'ERR_SICIL_NOT_FOUND')
+    return s ? HttpResponse.json(s, { headers: etag(s.version) }) : err(404, 'ERR_SICIL_NOT_FOUND')
   }),
   http.put(`${O}/sicils/:sicilId`, async ({ params, request }) => {
     const s = db.current.ledger.sicils.find((x) => x.id === Number(params.sicilId))
     if (!s) return err(404, 'ERR_SICIL_NOT_FOUND')
-    Object.assign(s, (await request.json()) as object)
-    return HttpResponse.json(s)
+    const stale = precondition(request, s.version)
+    if (stale) return stale
+    const patch = (await request.json()) as Partial<Sicil>
+    Object.assign(s, patch, {
+      id: s.id,
+      organization_id: s.organization_id,
+      version: s.version + 1,
+    })
+    return HttpResponse.json(s, { headers: etag(s.version) })
   }),
   http.get(`${O}/sicils/:sicilId/summary`, ({ params, request }) => {
     const p = party(Number(params.sicilId))
@@ -489,10 +595,11 @@ export const handlers = [
   }),
 
   http.post(`${O}/receipts/grid`, async ({ request }) => {
-    const body = (await request.json()) as GridRequest
+    const body = (await request.json()) as GridRequest & { depotId?: number | null }
     type R = Receipt
+    const scoped = db.current.receipts.filter((r) => !body.depotId || r.depotId === body.depotId)
     const { rows, filtered } = applyGrid(
-      db.current.receipts,
+      scoped,
       body,
       {
         receiptNo: (r: R) => r.receiptNo,
@@ -502,14 +609,13 @@ export const handlers = [
         sicilName: (r: R) => r.sicilName,
         instrumentNo: (r: R) => r.instrumentNo,
         amount: (r: R) => Number(r.amount),
-        depotId: (r: R) => r.depotId,
       },
       ['receiptNo', 'sicilName'],
     )
     return HttpResponse.json({
       rows,
       totalCount: filtered.length,
-      unfilteredCount: db.current.receipts.length,
+      unfilteredCount: scoped.length,
     })
   }),
   http.post(`${O}/receipts`, async ({ request }) => {
@@ -527,6 +633,7 @@ export const handlers = [
     const accept = request.headers.get('Accept') ?? ''
     if (!accept.includes('json'))
       return new HttpResponse('binary', { headers: { 'Content-Type': accept } })
+    if (!q.get('depotId')) return err(400, 'ERR_DEPOT_REQUIRED', { field: 'depotId' })
     return HttpResponse.json(cashBook(Number(q.get('depotId')), q.get('from')!, q.get('to')!))
   }),
   http.post(`${O}/cash-vouchers`, async ({ request }) => {
@@ -543,26 +650,36 @@ export const handlers = [
     if (accept.includes('pdf')) {
       return new HttpResponse('%PDF-1.7', { headers: { 'Content-Type': 'application/pdf' } })
     }
-    const depotId = num(new URL(request.url).searchParams.get('depotId'))
-    return HttpResponse.json(carryForward(Number(params.year), depotId))
+    return cfJson(Number(params.year), num(new URL(request.url).searchParams.get('depotId')))
   }),
   http.put(`${O}/ledger/carry-forwards/:year/overrides`, async ({ params, request }) => {
+    const year = Number(params.year)
+    const r = run(year)
     const body = (await request.json()) as CarryForwardOverride
-    if (db.current.cfPosted) return err(409, 'ERR_ALREADY_CARRIED_FORWARD')
-    const row = db.current.cfRows.find(
-      (r) => r.accountId === body.accountId && r.depotId === body.depotId,
-    )
-    if (!row) return err(404, 'ERR_ACCOUNT_NOT_FOUND')
+    if (r.status === 'POSTED') return err(409, 'ERR_ALREADY_CARRIED_FORWARD')
+    const stale = precondition(request, r.version)
+    if (stale) return stale
+    if (!body.reason || body.reason.trim().length < 3) {
+      return err(400, 'ERR_INVALID_REQUEST', { field: 'reason' })
+    }
+    const row = r.rows.find((x) => x.accountId === body.accountId && x.depotId === body.depotId)
+    if (!row) return err(422, 'ERR_ACCOUNT_NOT_FOUND', { field: 'accountId' })
     row.openingDebit = body.debit
     row.openingCredit = body.credit
     row.overrideReason = body.reason
     row.status = Number(body.debit) === 0 && Number(body.credit) === 0 ? 'SKIP' : 'EDITED'
-    return HttpResponse.json(carryForward(Number(params.year), null))
+    r.version += 1
+    return cfJson(year, num(new URL(request.url).searchParams.get('previewDepotId')))
   }),
   http.delete(`${O}/ledger/carry-forwards/:year/overrides`, ({ params, request }) => {
+    const year = Number(params.year)
+    const r = run(year)
+    if (r.status === 'POSTED') return err(409, 'ERR_ALREADY_CARRIED_FORWARD')
+    const stale = precondition(request, r.version)
+    if (stale) return stale
     const q = new URL(request.url).searchParams
-    const row = db.current.cfRows.find(
-      (r) => r.accountId === Number(q.get('accountId')) && r.depotId === Number(q.get('depotId')),
+    const row = r.rows.find(
+      (x) => x.accountId === Number(q.get('accountId')) && x.depotId === Number(q.get('depotId')),
     )
     if (row) {
       const c = Number(row.closingBalance)
@@ -570,25 +687,54 @@ export const handlers = [
       row.openingCredit = m(Math.max(-c, 0))
       row.overrideReason = null
       row.status = c === 0 ? 'SKIP' : 'READY'
+      r.version += 1
     }
-    return HttpResponse.json(carryForward(Number(params.year), null))
+    return cfJson(year, num(q.get('previewDepotId')))
   }),
   http.post(`${O}/ledger/carry-forwards/:year/post`, ({ params, request }) =>
     idempotent(request, () => {
-      if (db.current.cfPosted) return { status: 409, body: { code: 'ERR_ALREADY_CARRIED_FORWARD' } }
-      db.current.cfPosted = true
+      const year = Number(params.year)
+      const r = run(year)
+      if (r.status === 'POSTED')
+        return { status: 409, body: { code: 'ERR_ALREADY_CARRIED_FORWARD' } }
+      r.status = 'POSTED'
+      r.postedAt = `${TODAY}T10:00:00Z`
+      r.version += 1
       let id = 6000
-      for (const r of db.current.cfRows) {
-        if (r.status === 'SKIP') continue
-        r.status = 'POSTED'
-        r.journalEntryId = id++
+      for (const x of r.rows) {
+        if (x.status === 'SKIP') continue
+        x.status = 'POSTED'
+        x.journalEntryId = id++
       }
-      return {
-        status: 201,
-        body: carryForward(Number(params.year), null) as unknown as JsonBodyType,
-      }
+      return { status: 201, body: carryForward(year, null) as unknown as JsonBodyType }
     }),
   ),
+  http.post(`${O}/ledger/carry-forwards/:year/reopen`, async ({ params, request }) => {
+    const year = Number(params.year)
+    const r = run(year)
+    const stale = precondition(request, r.version)
+    if (stale) return stale
+    const body = (await request.json()) as { reason?: string }
+    if (!body.reason || body.reason.trim().length < 3) {
+      return err(400, 'ERR_INVALID_REQUEST', { field: 'reason' })
+    }
+    return idempotent(request, () => {
+      if (r.status !== 'POSTED') return { status: 409, body: { code: 'ERR_NOT_CARRIED_FORWARD' } }
+      if (db.current.cf[year + 1]?.status === 'POSTED') {
+        return { status: 409, body: { code: 'ERR_YEAR_CLOSED' } }
+      }
+      r.status = 'REOPENED'
+      r.reopenedAt = `${TODAY}T10:00:00Z`
+      r.reopenReason = body.reason!.trim()
+      r.version += 1
+      for (const x of r.rows) {
+        if (x.status !== 'POSTED') continue
+        x.status = x.overrideReason ? 'EDITED' : 'READY'
+        x.journalEntryId = null
+      }
+      return { status: 200, body: carryForward(year, null) as unknown as JsonBodyType }
+    })
+  }),
 
   http.get(`${O}/ledger/entries`, ({ request }) => {
     const q = new URL(request.url).searchParams
@@ -615,6 +761,7 @@ export const handlers = [
           label: 'ledger.entry.posted',
           ref: null,
           actorUserId: 12,
+          actorLogin: 'demo',
         },
         { at: e.createdAt, kind: 'DELIVERY', label: 'ledger', ref: '1', actorUserId: null },
       ],

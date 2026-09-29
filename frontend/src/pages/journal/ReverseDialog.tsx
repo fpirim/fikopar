@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ApiError } from '../../api/client'
 import { reverseJournalEntry } from '../../api/endpoints'
+import { errorText } from '../../api/errorText'
+import { todayIso } from '../../lib/format'
 import type { JournalEntry } from '../../api/types'
 import { useIdempotencyKey } from '../../hooks/useIdempotencyKey'
 import { Button } from '../../components/ui/button'
@@ -45,7 +46,7 @@ export default function ReverseDialog({
     try {
       onReversed(await reverseJournalEntry(orgId, entry.id, body.reason, idem.keyFor(body)))
     } catch (err) {
-      setError(t(`errors:${err instanceof ApiError ? err.code : 'ERR_UNKNOWN'}`))
+      setError(errorText(t, err, { date: todayIso() }))
     } finally {
       setBusy(false)
     }
