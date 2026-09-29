@@ -21,6 +21,7 @@ components:
   services: { in: internal/services }
   middleware: { in: internal/middleware }
   handlers: { in: internal/handlers }
+  export: { in: internal/export }
   router: { in: internal/router }
   testutil: { in: internal/testutil }
 
@@ -36,7 +37,7 @@ deps:
   router:
     mayDependOn: [config, services, middleware, handlers]
   handlers:
-    mayDependOn: [services, repository]
+    mayDependOn: [services, repository, export]
   middleware:
     mayDependOn: [services]
   services:

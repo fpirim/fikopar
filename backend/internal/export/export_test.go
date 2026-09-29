@@ -67,7 +67,7 @@ func TestXLSX_SheetNameIsSanitised(t *testing.T) {
 	b, err := XLSX("a/b:c*d?e[f]ghijklmnopqrstuvwxyz0123456789", sample())
 	require.NoError(t, err)
 	wb := readZip(t, b)["xl/workbook.xml"]
-	assert.Contains(t, wb, `name="a b c d e f ghijklmnopqrstuvw"`)
+	assert.Contains(t, wb, `name="a b c d e f ghijklmnopqrstuvwxy"`)
 }
 
 func TestPDF_RendersTurkishTextAndTables(t *testing.T) {

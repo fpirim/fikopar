@@ -17,10 +17,11 @@ type ReceiptHandler struct {
 	receipts *services.ReceiptService
 	cash     *services.CashService
 	idem     *services.IdempotencyService
+	exports  *ReportHandler
 }
 
-func NewReceiptHandler(receipts *services.ReceiptService, cash *services.CashService, idem *services.IdempotencyService) *ReceiptHandler {
-	return &ReceiptHandler{receipts: receipts, cash: cash, idem: idem}
+func NewReceiptHandler(receipts *services.ReceiptService, cash *services.CashService, idem *services.IdempotencyService, exports *ReportHandler) *ReceiptHandler {
+	return &ReceiptHandler{receipts: receipts, cash: cash, idem: idem, exports: exports}
 }
 
 func decodeInto[T any](body []byte) (T, error) {
@@ -51,6 +52,9 @@ func (h *ReceiptHandler) Get(c echo.Context) error {
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
+	if accepts(c, mimePDF) {
+		return h.exports.ReceiptPDF(c, r)
+	}
 	return c.JSON(http.StatusOK, r)
 }
 
@@ -73,6 +77,9 @@ func (h *ReceiptHandler) Grid(c echo.Context) error {
 	var req repository.GridRequest
 	if err := bindJSON(c, &req); err != nil {
 		return apierror.Respond(c, err)
+	}
+	if accepts(c, mimeXLSX) {
+		return h.exports.ReceiptGridXLSX(c, req)
 	}
 	resp, err := h.receipts.Grid(c.Request().Context(), orgID(c), req)
 	if err != nil {
@@ -97,6 +104,9 @@ func (h *ReceiptHandler) CashBook(c echo.Context) error {
 	book, err := h.cash.Book(c.Request().Context(), orgID(c), depotID, from, to)
 	if err != nil {
 		return apierror.Respond(c, err)
+	}
+	if accepts(c, mimePDF) || accepts(c, mimeXLSX) {
+		return h.exports.CashBookExport(c, book)
 	}
 	return c.JSON(http.StatusOK, book)
 }

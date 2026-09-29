@@ -12,11 +12,12 @@ import (
 )
 
 type SicilHandler struct {
-	svc *services.SicilService
+	svc     *services.SicilService
+	exports *ReportHandler
 }
 
-func NewSicilHandler(svc *services.SicilService) *SicilHandler {
-	return &SicilHandler{svc: svc}
+func NewSicilHandler(svc *services.SicilService, exports *ReportHandler) *SicilHandler {
+	return &SicilHandler{svc: svc, exports: exports}
 }
 
 type telefonPayload struct {
@@ -43,6 +44,9 @@ func (h *SicilHandler) Grid(c echo.Context) error {
 	var req repository.GridRequest
 	if err := c.Bind(&req); err != nil {
 		return apierror.Respond(c, apierror.InvalidRequest)
+	}
+	if accepts(c, mimeXLSX) {
+		return h.exports.SicilGridXLSX(c, req)
 	}
 	resp, err := h.svc.ListForGrid(orgID(c), req)
 	if err != nil {

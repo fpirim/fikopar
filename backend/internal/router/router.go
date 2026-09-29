@@ -26,6 +26,7 @@ type Handlers struct {
 	Depot   *handlers.DepotHandler
 	Ledger  *handlers.LedgerHandler
 	Receipt *handlers.ReceiptHandler
+	Report  *handlers.ReportHandler
 }
 
 type Services struct {
@@ -100,6 +101,8 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.GET("/ledger/accounts", h.Ledger.ListAccounts)
 	org.POST("/ledger/accounts", h.Ledger.CreateAccount)
 	org.GET(accountPath, h.Ledger.GetAccount)
+	org.GET(accountPath+"/statement", h.Report.Statement)
+	org.POST("/ledger/balances/grid", h.Report.Balances)
 	org.PATCH(accountPath, h.Ledger.UpdateAccount)
 	org.GET("/ledger/account-roles", h.Ledger.ListAccountRoles)
 	org.PUT("/ledger/account-roles", h.Ledger.SetAccountRoles, orgAdmin)
