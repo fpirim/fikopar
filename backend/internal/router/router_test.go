@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/fpirim/fikopar/backend/internal/config"
-	"github.com/fpirim/fikopar/backend/internal/handlers"
 	"github.com/fpirim/fikopar/backend/internal/services"
 )
 
@@ -17,8 +16,7 @@ func newTestRouter(t *testing.T, cfg *config.Config) http.Handler {
 	t.Helper()
 	cfg.JWTSecret = "test-secret"
 	authSvc := services.NewAuthService(cfg)
-	return New(&handlers.AuthHandler{}, &handlers.UserHandler{}, &handlers.AdminHandler{},
-		&handlers.OrganizationHandler{}, &handlers.SicilHandler{}, authSvc, cfg)
+	return New(Handlers{}, authSvc, cfg)
 }
 
 func TestHealthzReportsVersion(t *testing.T) {

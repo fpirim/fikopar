@@ -4,13 +4,10 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/fpirim/fikopar/backend/internal/app"
 	"github.com/fpirim/fikopar/backend/internal/config"
 	"github.com/fpirim/fikopar/backend/internal/db"
-	"github.com/fpirim/fikopar/backend/internal/handlers"
 	"github.com/fpirim/fikopar/backend/internal/observability"
-	"github.com/fpirim/fikopar/backend/internal/repository"
-	"github.com/fpirim/fikopar/backend/internal/router"
-	"github.com/fpirim/fikopar/backend/internal/services"
 )
 
 func main() {
@@ -31,29 +28,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	userRepo := repository.NewUserRepository(database)
-	orgRepo := repository.NewOrganizationRepository(database)
-	sicilRepo := repository.NewSicilRepository(database)
-	authService := services.NewAuthService(cfg)
-	userService := services.NewUserService(userRepo, authService, cfg)
-	orgService := services.NewOrganizationService(orgRepo, cfg)
-	sicilService := services.NewSicilService(sicilRepo)
-
-	if err := userService.CreateDefaultAdmin(); err != nil {
+	a := app.New(database, cfg)
+	if err := a.UserService.CreateDefaultAdmin(); err != nil {
 		slog.Error("failed to create default admin", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	authHandler := handlers.NewAuthHandler(userRepo, authService)
-	userHandler := handlers.NewUserHandler(userRepo, userService, authService)
-	adminHandler := handlers.NewAdminHandler(userService, userRepo)
-	orgHandler := handlers.NewOrganizationHandler(orgService)
-	sicilHandler := handlers.NewSicilHandler(sicilService)
-
-	e := router.New(authHandler, userHandler, adminHandler, orgHandler, sicilHandler, authService, cfg)
-
 	slog.Info("server starting", slog.String("port", cfg.Port), slog.String("env", cfg.Env))
-	if err := e.Start(":" + cfg.Port); err != nil {
+	if err := a.Echo.Start(":" + cfg.Port); err != nil {
 		slog.Error("server stopped", slog.Any("error", err))
 		os.Exit(1)
 	}

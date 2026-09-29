@@ -9,11 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fpirim/fikopar/backend/internal/app"
 	"github.com/fpirim/fikopar/backend/internal/config"
-	"github.com/fpirim/fikopar/backend/internal/handlers"
 	"github.com/fpirim/fikopar/backend/internal/models"
 	"github.com/fpirim/fikopar/backend/internal/repository"
-	"github.com/fpirim/fikopar/backend/internal/router"
 	"github.com/fpirim/fikopar/backend/internal/services"
 	"github.com/fpirim/fikopar/backend/internal/testutil"
 
@@ -40,22 +39,8 @@ func newTestApp(t *testing.T) *testApp {
 		CORSAllowedOrigins: "*",
 	}
 
-	userRepo := repository.NewUserRepository(testDB)
-	orgRepo := repository.NewOrganizationRepository(testDB)
-	sicilRepo := repository.NewSicilRepository(testDB)
-	authService := services.NewAuthService(cfg)
-	userService := services.NewUserService(userRepo, authService, cfg)
-	orgService := services.NewOrganizationService(orgRepo, cfg)
-	sicilService := services.NewSicilService(sicilRepo)
-
-	authHandler := handlers.NewAuthHandler(userRepo, authService)
-	userHandler := handlers.NewUserHandler(userRepo, userService, authService)
-	adminHandler := handlers.NewAdminHandler(userService, userRepo)
-	orgHandler := handlers.NewOrganizationHandler(orgService)
-	sicilHandler := handlers.NewSicilHandler(sicilService)
-
-	e := router.New(authHandler, userHandler, adminHandler, orgHandler, sicilHandler, authService, cfg)
-	return &testApp{e: e, auth: authService, repo: userRepo}
+	a := app.New(testDB, cfg)
+	return &testApp{e: a.Echo, auth: services.NewAuthService(cfg), repo: repository.NewUserRepository(testDB)}
 }
 
 // seedUser creates a user with a bcrypt-hashed password and returns it.

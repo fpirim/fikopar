@@ -17,15 +17,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 )
 
-func New(
-	authHandler *handlers.AuthHandler,
-	userHandler *handlers.UserHandler,
-	adminHandler *handlers.AdminHandler,
-	orgHandler *handlers.OrganizationHandler,
-	sicilHandler *handlers.SicilHandler,
-	authService *services.AuthService,
-	cfg *config.Config,
-) *echo.Echo {
+type Handlers struct {
+	Auth  *handlers.AuthHandler
+	User  *handlers.UserHandler
+	Admin *handlers.AdminHandler
+	Org   *handlers.OrganizationHandler
+	Sicil *handlers.SicilHandler
+}
+
+func New(h Handlers, authService *services.AuthService, cfg *config.Config) *echo.Echo {
 	e := echo.New()
 
 	e.Use(middleware.RequestID())
@@ -58,44 +58,44 @@ func New(
 	})
 
 	// Public
-	e.POST("/api/auth/login", authHandler.Login)
-	e.GET("/api/uploads/avatars/:filename", userHandler.GetAvatar)
-	e.GET("/api/uploads/logos/:filename", orgHandler.GetLogo)
+	e.POST("/api/auth/login", h.Auth.Login)
+	e.GET("/api/uploads/avatars/:filename", h.User.GetAvatar)
+	e.GET("/api/uploads/logos/:filename", h.Org.GetLogo)
 
 	// Authenticated
 	api := e.Group("/api")
 	api.Use(appMiddleware.JWT(authService))
-	api.GET("/users/me", userHandler.Me)
-	api.PUT("/users/me", userHandler.UpdateMe)
-	api.POST("/users/me/avatar", userHandler.UploadAvatar)
-	api.DELETE("/users/me/avatar", userHandler.DeleteMyAvatar)
+	api.GET("/users/me", h.User.Me)
+	api.PUT("/users/me", h.User.UpdateMe)
+	api.POST("/users/me/avatar", h.User.UploadAvatar)
+	api.DELETE("/users/me/avatar", h.User.DeleteMyAvatar)
 
 	// Org membership is enforced in the service layer.
 	const sicilIDPath = "/sicil/:id"
-	api.POST("/sicil/grid", sicilHandler.Grid)
-	api.POST("/sicil", sicilHandler.Create)
-	api.GET(sicilIDPath, sicilHandler.Get)
-	api.PUT(sicilIDPath, sicilHandler.Update)
-	api.DELETE(sicilIDPath, sicilHandler.Delete)
+	api.POST("/sicil/grid", h.Sicil.Grid)
+	api.POST("/sicil", h.Sicil.Create)
+	api.GET(sicilIDPath, h.Sicil.Get)
+	api.PUT(sicilIDPath, h.Sicil.Update)
+	api.DELETE(sicilIDPath, h.Sicil.Delete)
 
 	// Admin only
 	admin := api.Group("/admin")
 	admin.Use(appMiddleware.RequireRole(models.RoleAdmin))
-	admin.GET("/users", adminHandler.ListUsers)
-	admin.POST("/users", adminHandler.CreateUser)
-	admin.POST("/users/grid", adminHandler.ListUsersGrid)
-	admin.PUT("/users/:id", adminHandler.UpdateUser)
-	admin.DELETE("/users/:id", adminHandler.DeleteUser)
-	admin.POST("/users/:id/avatar", adminHandler.UploadUserAvatar)
-	admin.DELETE("/users/:id/avatar", adminHandler.DeleteUserAvatar)
+	admin.GET("/users", h.Admin.ListUsers)
+	admin.POST("/users", h.Admin.CreateUser)
+	admin.POST("/users/grid", h.Admin.ListUsersGrid)
+	admin.PUT("/users/:id", h.Admin.UpdateUser)
+	admin.DELETE("/users/:id", h.Admin.DeleteUser)
+	admin.POST("/users/:id/avatar", h.Admin.UploadUserAvatar)
+	admin.DELETE("/users/:id/avatar", h.Admin.DeleteUserAvatar)
 
-	admin.GET("/organizations", orgHandler.List)
-	admin.POST("/organizations", orgHandler.Create)
-	admin.POST("/organizations/grid", orgHandler.Grid)
-	admin.PUT("/organizations/:id", orgHandler.Update)
-	admin.DELETE("/organizations/:id", orgHandler.Delete)
-	admin.POST("/organizations/:id/logo", orgHandler.UploadLogo)
-	admin.DELETE("/organizations/:id/logo", orgHandler.DeleteLogo)
+	admin.GET("/organizations", h.Org.List)
+	admin.POST("/organizations", h.Org.Create)
+	admin.POST("/organizations/grid", h.Org.Grid)
+	admin.PUT("/organizations/:id", h.Org.Update)
+	admin.DELETE("/organizations/:id", h.Org.Delete)
+	admin.POST("/organizations/:id/logo", h.Org.UploadLogo)
+	admin.DELETE("/organizations/:id/logo", h.Org.DeleteLogo)
 
 	if cfg.StaticDir != "" {
 		e.Use(middleware.StaticWithConfig(middleware.StaticConfig{
