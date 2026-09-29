@@ -182,7 +182,7 @@ func TestJournal_ReversalLinksBothWaysAndNetsToZero(t *testing.T) {
 	assert.Equal(t, "reversal", rev.SourceType)
 	require.NotNil(t, rev.ReversesEntryID)
 	assert.Equal(t, orig.ID, *rev.ReversesEntryID)
-	assert.Contains(t, rev.Description, "wrong customer")
+	assert.Equal(t, "Reversal of "+orig.EntryNo+": wrong customer", rev.Description)
 	require.Len(t, rev.Postings, 2)
 	assert.Equal(t, "CREDIT", rev.Postings[0].Side)
 	assert.Equal(t, cash, rev.Postings[0].AccountID)
