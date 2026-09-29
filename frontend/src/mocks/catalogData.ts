@@ -43,7 +43,7 @@ export interface MockPart {
   version: number
 }
 
-export interface DepotSettings {
+interface DepotSettings {
   minQty: number
   maxQty: number | null
   shelf: string
@@ -105,7 +105,7 @@ export interface StockDb {
 
 export const DEPOT_IDS = [1, 2]
 export const key = (partId: number, depotId: number) => `${partId}:${depotId}`
-export const IN_KINDS: MovementKind[] = ['IN', 'ADJUST_IN', 'TRANSFER_IN']
+const IN_KINDS: MovementKind[] = ['IN', 'ADJUST_IN', 'TRANSFER_IN']
 export const delta = (m: MockMovement) => (IN_KINDS.includes(m.kind) ? m.qty : -m.qty)
 
 const CATALOGS: [code: number, name: string, prefixes: [string, string, string[]][]][] = [
@@ -594,7 +594,7 @@ export function createStockDb(size = 2000): StockDb {
       const h = hand()
       const min = r() < 0.5 ? Math.floor(r() * 12) : 0
       setDepot(p.id, 1, [
-        r() < 0.012 ? -Math.ceil(r() * 4) : h,
+        r() < 0.001 ? -Math.ceil(r() * 4) : h,
         0,
         min,
         min ? min * 3 : null,
@@ -604,7 +604,7 @@ export function createStockDb(size = 2000): StockDb {
     if (r() < 0.55) {
       const min = r() < 0.4 ? Math.floor(r() * 8) : 0
       setDepot(p.id, 2, [
-        r() < 0.01 ? -Math.ceil(r() * 3) : hand(),
+        r() < 0.001 ? -Math.ceil(r() * 3) : hand(),
         0,
         min,
         min ? min * 3 : null,

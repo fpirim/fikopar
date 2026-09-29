@@ -10,7 +10,7 @@ test.skip(!process.env.SCREENS, 'screenshots only on demand')
 test('02 dashboard', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('region', { name: 'Below minimum / negative' })).toContainText(
-    'GS-3516',
+    'OF-0457',
   )
   await page.screenshot({ path: shot('02-dashboard'), animations: 'disabled' })
 })

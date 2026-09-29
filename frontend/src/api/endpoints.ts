@@ -331,26 +331,6 @@ export const exportStockMovements = (orgId: number, body: MovementsRequest) =>
 export const transferStock = (orgId: number, body: StockTransferCreate, idempotencyKey: string) =>
   data(apiRequest<StockTransfer>('POST', `${stock(orgId)}/transfers`, { body, idempotencyKey }))
 
-export const listStockLevels = (
-  orgId: number,
-  query: {
-    partId?: number
-    depotId?: number | null
-    only?: 'ALL' | 'BELOW_MIN' | 'NEGATIVE' | 'BELOW_MIN_OR_NEGATIVE'
-    limit?: number
-    cursor?: string | null
-  },
-) =>
-  data(
-    apiRequest<{ items: StockLevel[]; nextCursor?: string | null }>(
-      'GET',
-      `${stock(orgId)}/levels`,
-      {
-        query,
-      },
-    ),
-  )
-
 export const listStockCounts = (
   orgId: number,
   query: { year?: number; depotId?: number | null; status?: StockCount['status'] } = {},

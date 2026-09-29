@@ -29,11 +29,11 @@ for (const lang of ['en', 'tr'] as const) {
 test('below-minimum card lists negatives first and opens the parts grid', async ({ page }) => {
   await page.goto('/')
   const card = page.getByRole('region', { name: 'Below minimum / negative' })
-  await expect(card).toContainText('365 below minimum · 24 negative')
+  await expect(card).toContainText('365 below minimum · 5 negative')
   const rows = card.getByRole('listitem')
   await expect(rows).toHaveCount(10)
-  await expect(rows.first()).toContainText('GS-3516')
-  await expect(rows.first()).toContainText('−4 / 0')
+  await expect(rows.first()).toContainText('OF-0457')
+  await expect(rows.first()).toContainText('−3 / 5')
   await card.getByRole('link', { name: 'All' }).click()
   await expect(page).toHaveURL(/\/parts\?stock=BELOW_MIN_OR_NEGATIVE$/)
 })
@@ -41,8 +41,8 @@ test('below-minimum card lists negatives first and opens the parts grid', async 
 test('a below-minimum row opens the part', async ({ page }) => {
   await page.goto('/')
   const card = page.getByRole('region', { name: 'Below minimum / negative' })
-  await card.getByRole('link', { name: 'GS-3516' }).click()
-  await expect(page).toHaveURL(/\/parts\/2775$/)
+  await card.getByRole('link', { name: 'OF-0457' }).click()
+  await expect(page).toHaveURL(/\/parts\/1010$/)
 })
 
 test('the top-bar depot scopes the dashboard', async ({ page }) => {
@@ -52,7 +52,7 @@ test('the top-bar depot scopes the dashboard', async ({ page }) => {
   await expect(page).toHaveURL(/depot=2/)
   await expect(page.getByRole('group', { name: 'Cash on hand' })).toContainText('17,950.00')
   const card = page.getByRole('region', { name: 'Below minimum / negative' })
-  await expect(card).toContainText('117 below minimum · 10 negative')
+  await expect(card).toContainText('115 below minimum · 3 negative')
   await expect(card.getByRole('link', { name: 'All' })).toHaveAttribute(
     'href',
     '/parts?stock=BELOW_MIN_OR_NEGATIVE&depot=2',

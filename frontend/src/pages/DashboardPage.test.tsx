@@ -50,14 +50,14 @@ describe('DashboardPage', () => {
   it('lists parts below minimum with negatives first and links to the parts grid', async () => {
     renderApp('/')
     const card = await screen.findByRole('region', { name: 'Minimum altı / eksi' })
-    await waitFor(() => expect(card).toHaveTextContent('365 minimum altı · 24 eksi'))
+    await waitFor(() => expect(card).toHaveTextContent('365 minimum altı · 5 eksi'))
     const rows = within(card).getAllByRole('listitem')
     expect(rows).toHaveLength(10)
-    expect(rows[0]).toHaveTextContent('GS-3516')
-    expect(rows[0]).toHaveTextContent('Gasket set, sump')
-    expect(rows[0]).toHaveTextContent('−4 / 0')
-    expect(within(rows[0]).getByText('−4 / 0')).toHaveClass('text-fk-negative')
-    expect(within(rows[0]).getByRole('link')).toHaveAttribute('href', '/parts/2775')
+    expect(rows[0]).toHaveTextContent('OF-0457')
+    expect(rows[0]).toHaveTextContent('Oil filter, hydraulic')
+    expect(rows[0]).toHaveTextContent('−3 / 5')
+    expect(within(rows[0]).getByText('−3 / 5')).toHaveClass('text-fk-negative')
+    expect(within(rows[0]).getByRole('link')).toHaveAttribute('href', '/parts/1010')
     expect(within(card).getByRole('link', { name: 'Tümü' })).toHaveAttribute(
       'href',
       '/parts?stock=BELOW_MIN_OR_NEGATIVE',
@@ -72,7 +72,7 @@ describe('DashboardPage', () => {
     const calls = capture('get', '/api/orgs/:orgId/dashboard')
     renderApp('/?depot=2')
     const card = await screen.findByRole('region', { name: 'Minimum altı / eksi' })
-    await waitFor(() => expect(card).toHaveTextContent('117 minimum altı · 10 eksi'))
+    await waitFor(() => expect(card).toHaveTextContent('115 minimum altı · 3 eksi'))
     expect(calls[0].url.searchParams.get('depotId')).toBe('2')
     expect(within(card).getByRole('link', { name: 'Tümü' })).toHaveAttribute(
       'href',
