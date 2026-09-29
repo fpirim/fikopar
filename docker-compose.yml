@@ -19,7 +19,9 @@ services:
     build: ./backend
     environment:
       PORT: 8080
-      DATABASE_URL: postgres://fikopar:fikopar@postgres:5432/fikopar?sslmode=disable
+      DATABASE_URL: postgres://fikopar_app:${APP_DB_PASSWORD:-fikopar_app}@postgres:5432/fikopar?sslmode=disable
+      MIGRATE_DATABASE_URL: postgres://fikopar:fikopar@postgres:5432/fikopar?sslmode=disable
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-fikopar_app}
       JWT_SECRET: ${JWT_SECRET:-changeme}
       JWT_EXPIRY_HOURS: 24
       UPLOAD_DIR: uploads/avatars
@@ -76,7 +78,9 @@ services:
     profiles: [e2e]
     environment:
       PORT: 8080
-      DATABASE_URL: postgres://fikopar:fikopar@e2e-db:5432/fikopar?sslmode=disable
+      DATABASE_URL: postgres://fikopar_app:e2e-app@e2e-db:5432/fikopar?sslmode=disable
+      MIGRATE_DATABASE_URL: postgres://fikopar:fikopar@e2e-db:5432/fikopar?sslmode=disable
+      APP_DB_PASSWORD: e2e-app
       JWT_SECRET: e2e-only
       ADMIN_DEFAULT_EMAIL: admin@fikopar.local
       ADMIN_DEFAULT_PASSWORD: admin123
