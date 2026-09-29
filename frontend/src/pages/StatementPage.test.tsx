@@ -13,12 +13,14 @@ describe('StatementPage', () => {
   it('shows brought-forward rows, running balance and depot totals', async () => {
     const calls = capture('get', '/api/orgs/:orgId/ledger/accounts/:accountId/statement')
     renderApp(URL_)
-    expect(await screen.findByRole('heading', { name: 'Yılmaz Tarım Makinaları' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Yılmaz Tarım Makinaları' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('120.10482')).toBeInTheDocument()
-    expect(screen.getByText('MÜŞTERİ')).toBeInTheDocument()
+    expect(await screen.findByText('MÜŞTERİ')).toBeInTheDocument()
     expect(screen.getByText('01.01.2026 – 29.09.2026 · tüm depolar')).toBeInTheDocument()
     await waitFor(() => expect(within(grid()).getAllByText('Devreden')).toHaveLength(2))
-    expect(within(grid()).getByText('142.300,00', { selector: '.ag-cell' })).toBeInTheDocument()
+    expect(within(grid()).getAllByText('142.300,00')).toHaveLength(2)
     expect(within(grid()).getByText('SF-2026-1-000418')).toBeInTheDocument()
     expect(within(grid()).getAllByText('186.340,00').length).toBeGreaterThan(0)
     const totals = screen.getByRole('table', { name: 'Depo toplamları' })

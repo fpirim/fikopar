@@ -61,6 +61,7 @@
       "taxOffice": "Vergi dairesi",
       "taxNo": "Vergi no",
       "term": "Vade (gün)"
-    }
+    },
+    "depotTotals": "Depo toplamları"
   }
 }

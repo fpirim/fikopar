@@ -129,3 +129,7 @@
 .ag-theme-alpine.fk-grid .ag-row {
   font-size: var(--fk-text-grid);
 }
+
+.ag-theme-alpine.fk-grid.fk-dense {
+  --ag-cell-horizontal-padding: 8px;
+}

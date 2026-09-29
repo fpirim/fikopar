@@ -61,7 +61,7 @@ const DEFAULT_COL: ColDef = {
   resizable: true,
   suppressMenu: true,
   flex: 1,
-  minWidth: 80,
+  minWidth: 40,
 }
 
 const rowHeight = (p: RowHeightParams) => (p.node.rowPinned ? 36 : 34)

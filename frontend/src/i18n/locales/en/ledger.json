@@ -61,6 +61,7 @@
       "taxOffice": "Tax office",
       "taxNo": "Tax no.",
       "term": "Payment term (days)"
-    }
+    },
+    "depotTotals": "Depot totals"
   }
 }
