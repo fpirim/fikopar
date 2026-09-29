@@ -240,3 +240,29 @@ func TestV13_StockLevelsAreWrittenOnlyByTheProjection(t *testing.T) {
 	require.NoError(t, move(testDB, f, f.part, f.depot, "OUT", "2", "2026-03-02"))
 	assert.Equal(t, "3.0000", onHand(t, f.part, f.depot))
 }
+
+// The projection marker cannot be forged with set_config, and TRUNCATE is refused, for the owner too.
+func TestV13_StockLevelsGuardCannotBeBypassed(t *testing.T) {
+	f := seedStock(t)
+	require.NoError(t, move(testDB, f, f.part, f.depot, "IN", "5", "2026-03-01"))
+	for name, db := range map[string]*gorm.DB{"owner": testDB, "app": testutil.App(t)} {
+		for _, stmt := range []string{
+			`UPDATE stock_levels SET on_hand = 100`,
+			fmt.Sprintf(`INSERT INTO stock_levels (org_id, part_id, depot_id, on_hand) VALUES (%d, %d, %d, 1)`, f.org, f.part2, f.depot),
+			`DELETE FROM stock_levels`,
+			`TRUNCATE stock_levels`,
+		} {
+			err := db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Exec(`SELECT set_config('fikopar.stock_projection', 'on', true)`).Error; err != nil {
+					return err
+				}
+				return tx.Exec(stmt).Error
+			})
+			assert.Error(t, err, name+": "+stmt)
+		}
+		assert.Error(t, db.Exec(`TRUNCATE stock_levels`).Error, name)
+	}
+	assert.Equal(t, "5.0000", onHand(t, f.part, f.depot))
+	require.NoError(t, move(testutil.App(t), f, f.part, f.depot, "OUT", "2", "2026-03-02"))
+	assert.Equal(t, "3.0000", onHand(t, f.part, f.depot))
+}
