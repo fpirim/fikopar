@@ -272,3 +272,32 @@ func TestV13_ImportMappingIsEffectiveOrNull(t *testing.T) {
 	assert.Equal(t, "FAILED", decode[importJSON](t, rec).Status)
 	assert.Contains(t, rec.Body.String(), `"mapping":null`)
 }
+
+func TestV13_EquivalentCodeFollowsTheLinkedStockNo(t *testing.T) {
+	f := newStock(t)
+	cat2 := f.newCatalog(t, 20, "Mahle")
+	a := f.part(t, "X-1", "Filter A", "")
+	a2 := f.partIn(t, cat2, "X-1", "Filter A2", "")
+	b := f.part(t, "B-1", "Filter B", `,"codes":[{"kind":"EQUIVALENT","code":"x","equivalentPartId":`+idStr(a)+`},`+
+		`{"kind":"EQUIVALENT","code":"y","equivalentPartId":`+idStr(a2)+`}]`)
+	get := func(id uint) partV13 {
+		rec := f.do(t, http.MethodGet, f.path("/catalog/parts/"+idStr(id)), f.token, "")
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return decode[partV13](t, rec)
+	}
+	pb := get(b)
+	require.Len(t, pb.Codes, 2, "same stock no in two catalogs, two links")
+	require.Len(t, pb.Equivalents, 2)
+
+	rec := f.req(t, http.MethodPut, f.path("/catalog/parts/"+idStr(a)), f.token,
+		`{"catalogId":`+idStr(f.catalog)+`,"stockNo":"X-9","name":"Filter A"}`,
+		map[string]string{"If-Match": `"` + strconv.Itoa(get(a).Version) + `"`})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	codes := map[uint]string{}
+	for _, c := range get(b).Codes {
+		codes[*c.EquivalentPartID] = c.Code
+	}
+	assert.Equal(t, map[uint]string{a: "X-9", a2: "X-1"}, codes)
+	r := f.search(t, "q=X9")
+	assert.Equal(t, []string{"B-1", "X-9"}, stockNos(r.Items))
+}
