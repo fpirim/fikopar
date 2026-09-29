@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import AutoNumeric from 'autonumeric'
+import { useTranslation } from 'react-i18next'
+import { numberSeparators } from '../../lib/format'
 
 // AutoNumeric wrapper that reproduces the legacy CCurrencyTextField caret behaviour (see e2e/numeric-input.spec.ts).
 export interface NumericInputProps {
@@ -23,6 +25,7 @@ export interface NumericInputProps {
   id?: string
   name?: string
   autoFocus?: boolean
+  ariaLabel?: string
 }
 
 function displayToNumeric(display: string, decimalChar: string): string {
@@ -272,7 +275,26 @@ function tryDelete(e: KeyboardEvent, ctx: KeyCtx): boolean {
   return true
 }
 
-export default function NumericInput({
+// Separators follow the UI language unless given; a language switch remounts the input.
+export default function NumericInput(props: Readonly<NumericInputProps>) {
+  const { i18n } = useTranslation()
+  const sep = numberSeparators()
+  const decimalCharacter = props.decimalCharacter ?? sep.decimal
+  const digitGroupSeparator = props.digitGroupSeparator ?? sep.group
+  const decimalCharacterAlternative =
+    props.decimalCharacterAlternative ?? (decimalCharacter === ',' ? '.' : undefined)
+  return (
+    <NumericInputCore
+      key={`${i18n.language}:${decimalCharacter}${digitGroupSeparator}`}
+      {...props}
+      decimalCharacter={decimalCharacter}
+      digitGroupSeparator={digitGroupSeparator}
+      decimalCharacterAlternative={decimalCharacterAlternative}
+    />
+  )
+}
+
+function NumericInputCore({
   value,
   onChange,
   decimalPlaces = 2,
@@ -280,7 +302,7 @@ export default function NumericInput({
   maximumValue,
   digitGroupSeparator = '.',
   decimalCharacter = ',',
-  decimalCharacterAlternative = '.',
+  decimalCharacterAlternative,
   currencySymbol,
   padZeroOnEmpty = true,
   leadingZero = 'keep',
@@ -292,6 +314,7 @@ export default function NumericInput({
   id,
   name,
   autoFocus,
+  ariaLabel,
 }: Readonly<NumericInputProps>) {
   const inputRef = useRef<HTMLInputElement>(null)
   const anRef = useRef<AutoNumeric | null>(null)
@@ -316,12 +339,12 @@ export default function NumericInput({
       decimalPlacesShownOnBlur: decimalPlaces,
       digitGroupSeparator,
       decimalCharacter,
-      decimalCharacterAlternative,
       leadingZero,
       allowDecimalPadding: true,
       emptyInputBehavior: padZeroOnEmpty ? 'zero' : 'null',
       watchExternalChanges: false,
     }
+    if (decimalCharacterAlternative) opts.decimalCharacterAlternative = decimalCharacterAlternative
     if (minimumValue !== undefined) opts.minimumValue = minimumValue
     if (maximumValue !== undefined) opts.maximumValue = maximumValue
     if (currencySymbol !== undefined && currencySymbol !== '') opts.currencySymbol = currencySymbol
@@ -506,6 +529,7 @@ export default function NumericInput({
       required={required}
       placeholder={placeholder}
       autoFocus={autoFocus}
+      aria-label={ariaLabel}
       style={{ textAlign }}
       className={
         className ??

@@ -1,0 +1,185 @@
+{
+  "docType": {
+    "SALES_INVOICE": "SATIŞ FAT.",
+    "SALES_INVOICE_WITH_WAYBILL": "SATIŞ FAT.",
+    "PURCHASE_INVOICE": "ALIŞ FAT.",
+    "PURCHASE_INVOICE_WITH_WAYBILL": "ALIŞ FAT.",
+    "SALES_RETURN": "SATIŞ İADE",
+    "PURCHASE_RETURN": "ALIŞ İADE",
+    "PRICE_DIFFERENCE": "FİYAT FARKI",
+    "COLLECTION": "TAHSİLAT",
+    "PAYMENT": "TEDİYE",
+    "RECEIVABLE_CHEQUE": "ALACAK ÇEKİ",
+    "RECEIVABLE_NOTE": "ALACAK SENEDİ",
+    "PAYABLE_CHEQUE": "BORÇ ÇEKİ",
+    "PAYABLE_NOTE": "BORÇ SENEDİ",
+    "opening": "AÇILIŞ"
+  },
+  "depotN": "Depo {{id}}",
+  "total": "Toplam",
+  "dr": "B",
+  "statement": {
+    "title": "Ekstreler",
+    "pick": "Ekstresini açmak için bir hesap seçin.",
+    "account": "Hesap",
+    "period": "{{from}} – {{to}}",
+    "allDepots": "tüm depolar",
+    "depot": "depo {{id}}",
+    "changePeriod": "Dönemi değiştir",
+    "from": "Başlangıç",
+    "to": "Bitiş",
+    "apply": "Uygula",
+    "broughtForward": "Devreden",
+    "col": {
+      "date": "Tarih",
+      "document": "Belge",
+      "type": "Tip",
+      "due": "Vade",
+      "depot": "Dp",
+      "debit": "Borç",
+      "credit": "Alacak",
+      "balance": "Bakiye"
+    },
+    "credit": "Kredi",
+    "limit": "Limit",
+    "used": "Kullanılan kredi",
+    "term": "Vade",
+    "days": "{{count}} gün",
+    "discount": "İskonto",
+    "discountValue": "%{{a}} + %{{b}}",
+    "cheques": "Portföydeki çekler",
+    "card": "Hesap kartı",
+    "taxOffice": "Vergi dairesi {{office}} · {{no}}",
+    "editCard": "Kartı düzenle",
+    "editTitle": "Hesap kartını düzenle",
+    "save": "Kaydet",
+    "saved": "Hesap kartı kaydedildi",
+    "field": {
+      "name": "Ünvan",
+      "city": "Şehir",
+      "district": "İlçe",
+      "taxOffice": "Vergi dairesi",
+      "taxNo": "Vergi no",
+      "term": "Vade (gün)"
+    },
+    "depotTotals": "Depo toplamları"
+  },
+  "carryForward": {
+    "title": "Cari devir {{from}} → {{to}}",
+    "previewPdf": "Önizleme PDF",
+    "post_one": "{{count}} açılış kaydını kaydet",
+    "post_other": "{{count}} açılış kaydını kaydet",
+    "posted": "Kaydedildi",
+    "steps": "Yıl sonu adımları",
+    "step": {
+      "NO_DRAFT_DOCUMENTS": "{{year}} belgelerini kapat",
+      "STOCK_COUNTS_POSTED": "Stok sayımı kaydedildi",
+      "LEDGER_BALANCED": "Cari bakiyeler",
+      "YEAR_NOT_OPENED": "{{year}} yılını aç"
+    },
+    "blocked": "Engelli: {{detail}}",
+    "kpi": {
+      "accounts": "Bakiyeli hesaplar",
+      "entries": "Kayıtlar (hesap × depo)",
+      "debit": "Σ borç",
+      "credit": "Σ alacak"
+    },
+    "col": {
+      "account": "Hesap",
+      "name": "Ünvan",
+      "depot": "Depo",
+      "closing": "Kapanış {{date}}",
+      "debit": "Açılış borç",
+      "credit": "Açılış alacak",
+      "status": "Durum"
+    },
+    "status": {
+      "READY": "HAZIR",
+      "SKIP": "ATLA",
+      "EDITED": "DÜZELTİLDİ",
+      "POSTED": "KAYITLI"
+    },
+    "hint": "Açılış tutarını değiştirmek için satıra çift tıklayın veya Enter'a basın.",
+    "override": {
+      "title": "Açılış tutarı · {{code}} · depo {{depot}}",
+      "closing": "Kapanış bakiyesi",
+      "debit": "Açılış borç",
+      "credit": "Açılış alacak",
+      "reason": "Gerekçe",
+      "skipHint": "İkisi de sıfırsa satır atlanır.",
+      "save": "Kaydet",
+      "remove": "Hesaplanan tutara dön",
+      "reasonShort": "Gerekçe yazın (en az 3 karakter)"
+    },
+    "confirm": {
+      "title": "Açılış kayıtlarını kaydet",
+      "body": "01.01.{{year}} tarihli {{count}} kayıt tek işlemde kaydedilir. Sonradan düzenlenemez; düzeltmeler ters kayıtla yapılır.",
+      "post": "Kaydet",
+      "done": "{{year}} cari devri kaydedildi"
+    }
+  },
+  "journal": {
+    "title": "Yevmiye",
+    "search": "Kayıt veya belge no",
+    "loadMore": "Daha fazla",
+    "empty": "Kayıt yok",
+    "status": {
+      "POSTED": "KAYITLI",
+      "REVERSED": "TERS KAYITLI"
+    },
+    "sum": "Σ {{value}}",
+    "reverse": "Ters kayıt…",
+    "posted": "Kayıt",
+    "source": "Kaynak",
+    "sourceType": {
+      "manual": "elle kayıt",
+      "document": "belge",
+      "receipt": "makbuz",
+      "instrument": "çek / senet",
+      "cash_voucher": "kasa fişi",
+      "cash_count": "kasa sayımı",
+      "opening": "açılış",
+      "reversal": "ters kayıt",
+      "legacy_import": "eski sistemden aktarım"
+    },
+    "idempotency": "Tekrar anahtarı",
+    "depot": "Depo",
+    "description": "Açıklama",
+    "reverses": "Ters kaydı",
+    "reversedBy": "Ters kaydı yapan",
+    "col": {
+      "no": "#",
+      "account": "Muhasebe hesabı",
+      "debit": "Borç",
+      "credit": "Alacak",
+      "entry": "Kayıt",
+      "date": "Tarih",
+      "type": "Tip",
+      "amount": "Tutar"
+    },
+    "trail": "İz",
+    "trailKind": {
+      "AUDIT": "Denetim · {{label}}",
+      "OUTBOX": "Olay {{label}}",
+      "DELIVERY": "İşlendi · {{label}}",
+      "STOCK": "Stok · {{label}}"
+    },
+    "trailRef": {
+      "AUDIT": "{{ref}}",
+      "OUTBOX": "outbox {{ref}}",
+      "DELIVERY": "teslim {{ref}}",
+      "STOCK": "{{ref}}"
+    },
+    "reverseDialog": {
+      "title": "{{no}} ters kaydı",
+      "body": "Borç ve alacak tarafları yer değiştirmiş yeni bir kayıt bugünün tarihiyle atılır. Asıl kayıt olduğu gibi kalır.",
+      "owned": "Bu kayıt {{source}} tarafından oluşturuldu. Belge, makbuz, çek veya fişe ait kayıtlar kaynaklarının iptaliyle ters çevrilir.",
+      "reason": "Gerekçe",
+      "reasonShort": "Gerekçe yazın (en az 3 karakter)",
+      "submit": "Ters kaydı at",
+      "done": "Ters kayıt {{no}} atıldı"
+    },
+    "postings": "Kayıt satırları",
+    "trailUser": "kullanıcı {{user}}"
+  }
+}

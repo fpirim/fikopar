@@ -1,0 +1,185 @@
+{
+  "docType": {
+    "SALES_INVOICE": "SALES INV.",
+    "SALES_INVOICE_WITH_WAYBILL": "SALES INV.",
+    "PURCHASE_INVOICE": "PURCH. INV.",
+    "PURCHASE_INVOICE_WITH_WAYBILL": "PURCH. INV.",
+    "SALES_RETURN": "SALES RETURN",
+    "PURCHASE_RETURN": "PURCH. RETURN",
+    "PRICE_DIFFERENCE": "PRICE DIFF.",
+    "COLLECTION": "COLLECTION",
+    "PAYMENT": "PAYMENT",
+    "RECEIVABLE_CHEQUE": "RCV. CHEQUE",
+    "RECEIVABLE_NOTE": "RCV. NOTE",
+    "PAYABLE_CHEQUE": "PAY. CHEQUE",
+    "PAYABLE_NOTE": "PAY. NOTE",
+    "opening": "OPENING"
+  },
+  "depotN": "Depot {{id}}",
+  "total": "Total",
+  "dr": "Dr",
+  "statement": {
+    "title": "Statements",
+    "pick": "Choose an account to open its statement.",
+    "account": "Account",
+    "period": "{{from}} – {{to}}",
+    "allDepots": "all depots",
+    "depot": "depot {{id}}",
+    "changePeriod": "Change period",
+    "from": "From",
+    "to": "To",
+    "apply": "Apply",
+    "broughtForward": "Brought forward",
+    "col": {
+      "date": "Date",
+      "document": "Document",
+      "type": "Type",
+      "due": "Due",
+      "depot": "Dp",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance"
+    },
+    "credit": "Credit",
+    "limit": "Limit",
+    "used": "Credit used",
+    "term": "Payment term",
+    "days": "{{count}} days",
+    "discount": "Discount",
+    "discountValue": "{{a}}% + {{b}}%",
+    "cheques": "Cheques in portfolio",
+    "card": "Account card",
+    "taxOffice": "Tax office {{office}} · {{no}}",
+    "editCard": "Edit card",
+    "editTitle": "Edit account card",
+    "save": "Save",
+    "saved": "Account card saved",
+    "field": {
+      "name": "Name",
+      "city": "City",
+      "district": "District",
+      "taxOffice": "Tax office",
+      "taxNo": "Tax no.",
+      "term": "Payment term (days)"
+    },
+    "depotTotals": "Depot totals"
+  },
+  "carryForward": {
+    "title": "Carry forward {{from}} → {{to}}",
+    "previewPdf": "Preview PDF",
+    "post_one": "Post {{count}} opening entry",
+    "post_other": "Post {{count}} opening entries",
+    "posted": "Posted",
+    "steps": "Year-end steps",
+    "step": {
+      "NO_DRAFT_DOCUMENTS": "Close {{year}} documents",
+      "STOCK_COUNTS_POSTED": "Stock count posted",
+      "LEDGER_BALANCED": "Account balances",
+      "YEAR_NOT_OPENED": "Open {{year}}"
+    },
+    "blocked": "Blocked: {{detail}}",
+    "kpi": {
+      "accounts": "Accounts with balance",
+      "entries": "Entries (account × depot)",
+      "debit": "Σ debit",
+      "credit": "Σ credit"
+    },
+    "col": {
+      "account": "Account",
+      "name": "Name",
+      "depot": "Depot",
+      "closing": "Closing {{date}}",
+      "debit": "Opening debit",
+      "credit": "Opening credit",
+      "status": "Status"
+    },
+    "status": {
+      "READY": "READY",
+      "SKIP": "SKIP",
+      "EDITED": "EDITED",
+      "POSTED": "POSTED"
+    },
+    "hint": "Double-click a row or press Enter to change its opening amount.",
+    "override": {
+      "title": "Opening amount · {{code}} · depot {{depot}}",
+      "closing": "Closing balance",
+      "debit": "Opening debit",
+      "credit": "Opening credit",
+      "reason": "Reason",
+      "skipHint": "Both zero skips the row.",
+      "save": "Save",
+      "remove": "Use computed amount",
+      "reasonShort": "Give a reason (3+ characters)"
+    },
+    "confirm": {
+      "title": "Post opening entries",
+      "body": "{{count}} entries dated 01.01.{{year}} are posted in one transaction. This cannot be edited afterwards; corrections go through reversal entries.",
+      "post": "Post",
+      "done": "Carry forward {{year}} posted"
+    }
+  },
+  "journal": {
+    "title": "Journal",
+    "search": "Entry or document no.",
+    "loadMore": "Load more",
+    "empty": "No entries",
+    "status": {
+      "POSTED": "POSTED",
+      "REVERSED": "REVERSED"
+    },
+    "sum": "Σ {{value}}",
+    "reverse": "Reverse…",
+    "posted": "Posted",
+    "source": "Source",
+    "sourceType": {
+      "manual": "manual entry",
+      "document": "document",
+      "receipt": "receipt",
+      "instrument": "cheque / note",
+      "cash_voucher": "cash voucher",
+      "cash_count": "till count",
+      "opening": "opening",
+      "reversal": "reversal",
+      "legacy_import": "legacy import"
+    },
+    "idempotency": "Idempotency key",
+    "depot": "Depot",
+    "description": "Description",
+    "reverses": "Reverses",
+    "reversedBy": "Reversed by",
+    "col": {
+      "no": "#",
+      "account": "Ledger account",
+      "debit": "Debit",
+      "credit": "Credit",
+      "entry": "Entry",
+      "date": "Date",
+      "type": "Type",
+      "amount": "Amount"
+    },
+    "trail": "Trail",
+    "trailKind": {
+      "AUDIT": "Audit · {{label}}",
+      "OUTBOX": "Event {{label}}",
+      "DELIVERY": "Posted · {{label}}",
+      "STOCK": "Stock · {{label}}"
+    },
+    "trailRef": {
+      "AUDIT": "{{ref}}",
+      "OUTBOX": "outbox {{ref}}",
+      "DELIVERY": "delivery {{ref}}",
+      "STOCK": "{{ref}}"
+    },
+    "reverseDialog": {
+      "title": "Reverse {{no}}",
+      "body": "A new entry with the debit and credit sides swapped is posted today. The original stays as it is.",
+      "owned": "This entry was created by {{source}}. Entries owned by a document, receipt, cheque or voucher are reversed by cancelling their source.",
+      "reason": "Reason",
+      "reasonShort": "Give a reason (3+ characters)",
+      "submit": "Post reversal",
+      "done": "{{no}} posted as the reversal"
+    },
+    "postings": "Postings",
+    "trailUser": "user {{user}}"
+  }
+}

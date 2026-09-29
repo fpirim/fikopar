@@ -37,6 +37,20 @@ module.exports = {
       to: { path: '^src/pages/' },
     },
     {
+      name: 'mocks-dev-only',
+      comment: 'MSW mocks load only from main.tsx (dev) and tests.',
+      severity: 'error',
+      from: { pathNot: '^src/(mocks/|main\\.tsx$|test/)' },
+      to: { path: '^src/mocks/' },
+    },
+    {
+      name: 'api-base-layer',
+      comment: 'src/api is the transport layer.',
+      severity: 'error',
+      from: { path: '^src/api/' },
+      to: { path: '^src/(pages|components|context|hooks)/' },
+    },
+    {
       name: 'no-test-in-prod',
       comment: 'Production code must not import tests.',
       severity: 'error',

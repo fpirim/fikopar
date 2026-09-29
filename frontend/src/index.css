@@ -5,6 +5,16 @@
 @import '@fontsource/ibm-plex-mono/500.css';
 @import './styles/tokens.css';
 
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url('../node_modules/@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2')
+    format('woff2-variations');
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -16,6 +26,14 @@
 
   body {
     @apply bg-background font-sans text-foreground;
+  }
+
+  a {
+    color: var(--fk-accent);
+  }
+
+  a:hover {
+    color: var(--fk-accent-hover);
   }
 }
 

@@ -1,0 +1,106 @@
+{
+  "receipt": {
+    "title": "New receipt",
+    "kind": "Receipt type",
+    "COLLECTION": "Collection",
+    "PAYMENT": "Payment",
+    "account": "Account",
+    "accountPlaceholder": "Code or name",
+    "date": "Date",
+    "depot": "Depot",
+    "method": "Method",
+    "methods": {
+      "CASH": "Cash",
+      "BANK_TRANSFER": "Bank transfer",
+      "CHEQUE": "Cheque",
+      "NOTE": "Promissory note",
+      "ENDORSEMENT": "Endorsed cheque"
+    },
+    "cashHint": "Cash book · Depot {{id}}",
+    "portfolioHint": "Registers in portfolio",
+    "bank": "Bank account",
+    "amount": "Amount",
+    "description": "Description",
+    "cancel": "Cancel",
+    "post": "Post & print",
+    "posting": "Posting…",
+    "posted": "{{no}} posted",
+    "balance": "Balance",
+    "after": "After",
+    "overdue": "Overdue",
+    "statement": "Statement",
+    "noAccount": "Pick an account to see its balance.",
+    "recent": "Recent receipts",
+    "errors": {
+      "account": "Choose an account",
+      "amount": "Enter an amount greater than zero",
+      "bank": "Choose a bank account"
+    },
+    "col": {
+      "no": "No.",
+      "date": "Date",
+      "type": "Type",
+      "method": "Method",
+      "account": "Account",
+      "source": "Source",
+      "amount": "Amount"
+    },
+    "chip": {
+      "COLLECTION": "COLLECTION",
+      "PAYMENT": "PAYMENT"
+    },
+    "summary": "Account summary"
+  },
+  "cash": {
+    "title": "Cash book",
+    "period": "{{depot}} · {{from}} – {{to}}",
+    "depotN": "Depot {{id}}",
+    "changePeriod": "Change period",
+    "from": "From",
+    "to": "To",
+    "apply": "Apply",
+    "expense": "Expense",
+    "deposit": "Bank deposit",
+    "count": "Count cash",
+    "opening": "Opening",
+    "in": "In",
+    "out": "Out",
+    "closing": "Closing",
+    "total": "Total",
+    "col": {
+      "date": "Date",
+      "document": "Document",
+      "account": "Account",
+      "description": "Description",
+      "in": "In",
+      "out": "Out",
+      "balance": "Balance"
+    },
+    "voucher": {
+      "expenseTitle": "Expense from the till",
+      "depositTitle": "Cash to the bank",
+      "kind": "Direction",
+      "BANK_DEPOSIT": "Till → bank",
+      "BANK_WITHDRAWAL": "Bank → till",
+      "expenseAccount": "Expense account",
+      "bankAccount": "Bank account",
+      "date": "Date",
+      "amount": "Amount",
+      "description": "Description",
+      "post": "Post",
+      "posted": "{{no}} posted",
+      "number": "Number on post: {{no}}"
+    },
+    "countDialog": {
+      "title": "Count cash · Depot {{id}}",
+      "book": "Book balance",
+      "counted": "Counted",
+      "difference": "Difference",
+      "postDifference": "Post the difference to cash over / short",
+      "note": "Note",
+      "save": "Record count",
+      "saved": "Count recorded, difference {{diff}}",
+      "last": "Last counts"
+    }
+  }
+}

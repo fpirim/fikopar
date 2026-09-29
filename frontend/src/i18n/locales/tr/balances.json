@@ -1,0 +1,37 @@
+{
+  "title": "Cari bakiyeler",
+  "asOf": "Tarih itibarıyla",
+  "accountType": "Hesap tipi",
+  "types": {
+    "all": "Tümü",
+    "MUSTERI": "Müşteriler",
+    "FIRMA": "Tedarikçiler",
+    "BANKA": "Bankalar"
+  },
+  "chip": {
+    "MUSTERI": "MÜŞTERİ",
+    "FIRMA": "TEDARİKÇİ",
+    "BANKA": "BANKA"
+  },
+  "typeOption": {
+    "MUSTERI": "Müşteri",
+    "FIRMA": "Tedarikçi",
+    "BANKA": "Banka"
+  },
+  "selected": "{{count}} seçili",
+  "statementsPdf": "Ekstreler PDF",
+  "reminderLetters": "Hatırlatma mektupları",
+  "col": {
+    "account": "Hesap",
+    "name": "Ünvan",
+    "city": "Şehir",
+    "type": "Tip",
+    "debit": "Borç",
+    "credit": "Alacak",
+    "balance": "Bakiye",
+    "overdue": "Vadesi geçen",
+    "lastMove": "Son hareket"
+  },
+  "selectAll": "Tümünü seç",
+  "selectRow": "Satırı seç"
+}
