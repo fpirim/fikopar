@@ -23,7 +23,7 @@ describe('AccountPicker', () => {
       <AccountPicker
         orgId={1}
         label="Hesap"
-        value={{ sicilId: 1006, hesapNo: '120.10517', hesapAdi: 'Kaya Ziraat' }}
+        value={{ sicilId: 1006, accountId: 5006, hesapNo: '120.10517', hesapAdi: 'Kaya Ziraat' }}
         onPick={vi.fn()}
       />,
     )

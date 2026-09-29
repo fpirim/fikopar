@@ -357,7 +357,7 @@ function buildLedger(): Ledger {
     iskonto2: 5,
     v_dairesi: p.city === 'Konya' ? 'Selçuk' : p.city,
     v_no: '[TAX NO]',
-    credit_limit: p.tipi === 'MUSTERI' ? '250000.00' : undefined,
+    credit_limit: p.tipi === 'MUSTERI' ? '250000.00' : null,
     telefonlar: [
       { tipi: 'IS', numara: '+90 332 000 00 00' },
       { tipi: 'CEP', numara: '+90 532 000 00 00' },
@@ -365,7 +365,9 @@ function buildLedger(): Ledger {
     contacts: [
       { name: p.code === '120.10482' ? 'Mehmet Yılmaz' : 'Ali Demir', role: 'purchasing' },
     ],
+    emails: [`muhasebe@${p.code.replace('.', '-')}.example.com`],
     account_id: p.accountId,
+    version: 1,
   }))
   const accounts: Account[] = [
     ...parties.map<Account>((p) => ({
@@ -457,6 +459,7 @@ function line(
     debit: m(Math.max(amount, 0)),
     credit: m(Math.max(-amount, 0)),
     runningBalance: '0.00',
+    resetsBalance: false,
   }
 }
 
@@ -744,8 +747,8 @@ function series(): NumberSeries[] {
     ['GDR', 2, 15],
     ['VRM', 1, 13],
     ['VRM', 2, 4],
-    ['J', 1, 4834],
-    ['J', 2, 4834],
+    ['J', 1, 4840],
+    ['J', 2, 1211],
   ]
   return s.map(([prefix, depotId, nextValue], i) => ({
     id: i + 1,
@@ -792,7 +795,7 @@ function entries(ledger: Ledger): JournalEntry[] {
     id,
     orgId: ORG_ID,
     depotId,
-    entryNo: `J-2026-${String(id).padStart(6, '0')}`,
+    entryNo: `J-2026-${depotId}-${String(id).padStart(6, '0')}`,
     entryDate: date,
     description,
     sourceType,
@@ -800,7 +803,10 @@ function entries(ledger: Ledger): JournalEntry[] {
     sourceNo,
     idempotencyKey: sourceNo ? `doc:${sourceNo}:post` : `manual:${id}`,
     reversesEntryId: null,
+    reversesEntryNo: null,
     reversedByEntryId: null,
+    reversedByEntryNo: null,
+    currency: 'TRY',
     createdBy: 12,
     createdAt: `${date}T${time}`,
     postings: lines.map(([code, side, amt], i) =>
@@ -877,6 +883,7 @@ function trails(): Record<number, TrailItem[]> {
         label: 'document.posted',
         ref: 'W/"6"',
         actorUserId: 12,
+        actorLogin: 'a.kaya',
       },
       {
         at: '2026-09-29T09:02:16',
@@ -928,6 +935,43 @@ function carryForwardRows(ledger: Ledger): CarryForwardRow[] {
   return rows
 }
 
+export interface CarryForwardRun {
+  status: 'PREVIEW' | 'POSTED' | 'REOPENED'
+  version: number
+  rows: CarryForwardRow[]
+  postedAt: string | null
+  reopenedAt: string | null
+  reopenReason: string | null
+}
+
+// 2025 is carried forward (2024 and earlier are closed); 2026 is still a preview.
+function carryForwardRuns(ledger: Ledger): Record<number, CarryForwardRun> {
+  const posted = carryForwardRows(ledger).map((r, i) => ({
+    ...r,
+    status: r.status === 'SKIP' ? r.status : ('POSTED' as const),
+    overrideReason: null,
+    journalEntryId: r.status === 'SKIP' ? null : 2000 + i,
+  }))
+  return {
+    2025: {
+      status: 'POSTED',
+      version: 3,
+      rows: posted,
+      postedAt: '2025-01-06T10:12:00Z',
+      reopenedAt: null,
+      reopenReason: null,
+    },
+    2026: {
+      status: 'PREVIEW',
+      version: 1,
+      rows: carryForwardRows(ledger),
+      postedAt: null,
+      reopenedAt: null,
+      reopenReason: null,
+    },
+  }
+}
+
 export interface Db {
   ledger: Ledger
   lines: LedgerLine[]
@@ -936,8 +980,7 @@ export interface Db {
   series: NumberSeries[]
   entries: JournalEntry[]
   trails: Record<number, TrailItem[]>
-  cfRows: CarryForwardRow[]
-  cfPosted: boolean
+  cf: Record<number, CarryForwardRun>
   idempotency: Map<string, { status: number; body: unknown }>
   activity: ActivityItem[]
 }
@@ -952,8 +995,7 @@ export function createDb(): Db {
     series: series(),
     entries: entries(ledger),
     trails: trails(),
-    cfRows: carryForwardRows(ledger),
-    cfPosted: false,
+    cf: carryForwardRuns(ledger),
     idempotency: new Map(),
     activity: [
       {

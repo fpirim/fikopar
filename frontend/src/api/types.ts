@@ -19,6 +19,10 @@ export type SicilUpdate = S['SicilUpdate']
 export type Account = S['Account']
 export type AccountPage = S['AccountPage']
 export type BalanceRow = S['BalanceRow']
+export type BalanceColId = S['BalanceColId']
+export type BalanceTotals = S['BalanceTotals']
+export type AccountPickerRole = S['AccountPickerRole']
+export type EntryOwner = S['EntryOwner']
 export type AccountSelection = S['AccountSelection']
 export type Statement = S['Statement']
 export type StatementLine = S['StatementLine']
@@ -45,3 +49,5 @@ export type BalancesRequest = GridRequest & {
   depotId?: number | null
   sicilTipi?: SicilTipi | null
 }
+
+export type ReceiptsRequest = GridRequest & { depotId?: number | null }
