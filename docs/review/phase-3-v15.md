@@ -47,15 +47,16 @@ green (router 143 s). Frontend: eslint 0 errors (7 older warnings), tsc, prettie
 - UI: editor discount headers and the FF direction toggle fit at 1440 / 1152 EN / TR; Parts and Balances drop
   columns below 1300 px (`useNarrow`) and no longer scroll sideways at 1152; the dialog close label is translated;
   Esc returns the focus to the opener (shared `DialogContent`). e2e cover all of these.
+- `DialogShell` / `ConfirmDialog` sit on the shared Radix `DialogContent`: Esc, focus trap, focus back to the
+  opener, translated close. Lists a dialog field portals to the body (`data-dialog-float`) stay clickable.
+- Top bar: the search shrinks (280 → 160 px min) before it meets the depot switch; e2e checks the top bar parts
+  apart at 1440 / 1152, EN / TR, on the dashboard, the FF editor and carry-forward.
 - vitest `testTimeout` 10 s: 5 coverage runs and 3 plain runs 357 / 357, none skipped.
 
 Gates: backend build, vet, golangci-lint 0, go-arch-lint, deadcode (Go 1.25) clean, `-race -count=3
 -tags=integration` green; frontend eslint 0 errors, tsc, prettier, knip, depcruise, build clean, vitest 357 × 3;
-MSW 113 (40 skipped); real all suites 47 (14 skipped); legacy 47.
+MSW 125 (40 skipped); real all suites 47 (14 skipped); legacy 47; vitest 361.
 
 ## Open
-- `DialogShell` / `ConfirmDialog` (admin pages, cards) are not Radix dialogs: no Esc, no focus trap, so no focus
-  return either.
-- At 1152 px the top bar "All depots" control overlaps the search box.
-- A reservation cannot be expired in place (the guard admits only deletes), so "expired but not swept" is covered by
-  the rule, not a test.
+- One vitest run (361 tests) had a single failure while a `docker compose --build` ran alongside; not reproduced in
+  ten more runs, three of them with coverage beside the backend race suite.
