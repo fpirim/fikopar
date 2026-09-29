@@ -1469,6 +1469,7 @@ export const stockHandlers = [
             (!sp.get('status') || c.status === sp.get('status')) &&
             (!sp.get('year') || c.year === Number(sp.get('year'))),
         )
+        .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
         .map(countOut),
     )
   }),

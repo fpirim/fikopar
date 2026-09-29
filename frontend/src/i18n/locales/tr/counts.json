@@ -1,1 +1,136 @@
-{}
+{
+  "title": "Stok sayımları",
+  "none": "Henüz sayım yok.",
+  "allCounts": "Tüm sayımlar",
+  "depotN": "Depo {{code}}",
+  "list": {
+    "countNo": "Sayım",
+    "depot": "Depo",
+    "countDate": "Sayım tarihi",
+    "status": "Durum",
+    "progress": "Sayılan",
+    "differences": "Fark",
+    "value": "Tutar"
+  },
+  "status": {
+    "OPEN": "SÜRÜYOR",
+    "FINALIZED": "KAPANDI",
+    "CANCELLED": "İPTAL"
+  },
+  "start": {
+    "button": "Sayım başlat",
+    "title": "Stok sayımı başlat",
+    "depot": "Depo",
+    "countDate": "Sayım tarihi",
+    "shelfFrom": "Raf başı",
+    "shelfTo": "Raf sonu",
+    "shelfHint": "Boş = depoda stoğu ya da rafı olan her parça.",
+    "submit": "Başlat",
+    "openExists": "Depo {{code}} için açık bir sayım var:"
+  },
+  "head": {
+    "started": "Depo {{code}} · başlangıç {{date}}",
+    "countDate": "sayım tarihi {{date}}",
+    "lines": "{{counted}} / {{total}} satır",
+    "progress": "Sayılan satırlar"
+  },
+  "sheet": {
+    "button": "Sayım listesi PDF",
+    "BLIND": "Kör liste",
+    "WITH_SYSTEM": "Sistem miktarlı liste",
+    "NOT_COUNTED": "Tekrar sayım listesi (sayılmayan)"
+  },
+  "only": {
+    "label": "Göster",
+    "DIFFERENCES": "Yalnız farklar",
+    "NOT_COUNTED": "Sayılmayan",
+    "COUNTED": "Sayılan"
+  },
+  "shelfFrom": "Raf başı",
+  "shelfTo": "Raf sonu",
+  "hint": {
+    "type": "yazarak say",
+    "next": "sonraki satır",
+    "undo": "geri al",
+    "saved": "otomatik kaydedilir"
+  },
+  "col": {
+    "shelf": "Raf",
+    "part": "Parça",
+    "name": "Açıklama",
+    "system": "Sistem",
+    "counted": "Sayılan",
+    "difference": "Fark",
+    "value": "Tutar",
+    "countedBy": "Sayan"
+  },
+  "filter": {
+    "startsWith": "İle başlar…",
+    "blank": "=",
+    "counter": "Ad"
+  },
+  "countedOf": "Sayılan {{no}}",
+  "shelfSuffix": "raf {{shelf}}",
+  "flag": {
+    "moved": "HAREKET {{qty}}",
+    "movedTitle": "Sayım başladıktan sonra {{qty}} hareket; bu parçayı yeniden sayın",
+    "LIST_PRICE": "LİSTE",
+    "LIST_PRICETitle": "Alış maliyeti yok; liste fiyatıyla değerlendi",
+    "NONE": "MALİYET YOK",
+    "NONETitle": "Alış maliyeti ve liste fiyatı yok; değerlenmedi"
+  },
+  "save": {
+    "saving": "Kaydediliyor",
+    "saved": "Kaydedildi",
+    "failed": "Kaydedilmedi: {{reason}}",
+    "invalid": "0 ya da daha büyük bir miktar girin"
+  },
+  "conflict": {
+    "title": "Başkası saydı",
+    "message": "{{by}}, {{no}} için {{time}} saatinde {{qty}} saydı. Sizin girdiğiniz: {{mine}}.",
+    "keep": "{{qty}} kalsın",
+    "take": "{{qty}} kullan"
+  },
+  "post": {
+    "button": "Farkları işle",
+    "title": "Farkları işle · {{no}}",
+    "counted": "Sayılan satır",
+    "notCounted": "Sayılmayan",
+    "differences": "Farklı satır",
+    "valueIn": "Giren tutar",
+    "valueOut": "Çıkan tutar",
+    "net": "Net",
+    "costNote": "{{date}} itibarıyla son alış maliyetiyle değerlendi.",
+    "unvalued_one": "{{count}} satır liste fiyatıyla değerlendi ya da maliyeti yok.",
+    "unvalued_other": "{{count}} satır liste fiyatıyla değerlendi ya da maliyeti yok.",
+    "uncounted": "Sayılmayan satırlar",
+    "SKIP": "Değiştirme",
+    "ZERO": "0 say",
+    "submit": "İşle",
+    "posted": "{{no}} işlendi · {{count}} düzeltme",
+    "negative": "İşlemden sonra eksi stok",
+    "negativeLine": "{{no}} · Depo {{code}}: {{qty}}",
+    "done": "Tamam"
+  },
+  "cancel": {
+    "button": "Sayımı iptal et",
+    "title": "{{no}} iptal",
+    "reason": "Gerekçe",
+    "reasonShort": "En az 3 karakter girin",
+    "submit": "Sayımı iptal et",
+    "keep": "Saymaya devam et",
+    "cancelled": "{{no}} iptal edildi"
+  },
+  "stale": {
+    "title": "Sayım değişti",
+    "message": "Bu sayım başkası tarafından işlendi ya da iptal edildi. Görmek için yenileyin."
+  },
+  "add": {
+    "button": "Parça ekle",
+    "title": "{{no}} sayımına parça ekle",
+    "part": "Stok no ya da kod",
+    "counted": "Sayılan",
+    "submit": "Ekle",
+    "added": "{{no}} sayıma eklendi"
+  }
+}
