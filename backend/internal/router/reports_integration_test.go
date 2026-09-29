@@ -278,9 +278,11 @@ func TestStatement_BroughtForwardPerDepotRunningBalanceAndDepotTotals(t *testing
 
 	require.Len(t, s.DepotTotals, 2)
 	assert.Equal(t, f.depot, s.DepotTotals[0].DepotID)
-	assert.Equal(t, "100.00", s.DepotTotals[0].Debit)
+	assert.Equal(t, "0.00", s.DepotTotals[0].Debit, "brought forward is not a line")
 	assert.Equal(t, "30.00", s.DepotTotals[0].Credit)
 	assert.Equal(t, "70.00", s.DepotTotals[0].Balance)
+	assert.Equal(t, "20.00", s.DepotTotals[1].Debit)
+	assert.Equal(t, "0.00", s.DepotTotals[1].Credit)
 	assert.Equal(t, "70.00", s.DepotTotals[1].Balance)
 
 	one := decode[statementJSON](t, f.do(t, http.MethodGet, path+"&depotId="+idStr(f.depot2), f.token, ""))

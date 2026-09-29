@@ -237,7 +237,7 @@ func TestV11_StatementRestartsAtCarriedOpenings(t *testing.T) {
 	assert.Equal(t, "529.00", st.ClosingBalance, "closing = balance as of `to`")
 	assert.Equal(t, f.balanceOf(t, "2027-01-31", "120.A"), st.ClosingBalance)
 	require.Len(t, st.DepotTotals, 2)
-	assert.Equal(t, "509.00", st.DepotTotals[0].Debit, "opening lines are left out")
+	assert.Equal(t, "9.00", st.DepotTotals[0].Debit, "brought forward and opening lines are left out")
 	assert.Equal(t, "459.00", st.DepotTotals[0].Balance)
 	assert.Equal(t, "70.00", st.DepotTotals[1].Balance)
 
