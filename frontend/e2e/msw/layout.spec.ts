@@ -32,9 +32,11 @@ for (const lang of ['en', 'tr'] as const) {
 
 // Names, cities and filter hints are text, but the mockup's must fit at 1440 too.
 const BALANCES = {
-  en: { city: 'Filter City', balance: 'Filter Balance', min: '> 10,000', shown: '6 of 412' },
-  tr: { city: 'Şehir filtresi', balance: 'Bakiye filtresi', min: '> 10.000', shown: '6 / 412' },
+  en: { city: 'Filter City', balance: 'Filter Balance', min: '> 10,000', shown: '10 of 412' },
+  tr: { city: 'Şehir filtresi', balance: 'Bakiye filtresi', min: '> 10.000', shown: '10 / 412' },
 }
+
+const TEXT_COLS = ['accountName', 'city', 'sicilTipi']
 
 for (const lang of ['en', 'tr'] as const) {
   test.describe(`${lang} text`, () => {
@@ -45,12 +47,15 @@ for (const lang of ['en', 'tr'] as const) {
       await page.goto('/balances?asOf=2026-09-29')
       await expect(page.locator('.fk-grid .ag-row').first()).toBeVisible()
       await page.waitForTimeout(300)
-      expect(await clipped(page, ['accountName', 'city'])).toEqual([])
+      expect(await clipped(page, TEXT_COLS)).toEqual([])
       await page.getByLabel(f.city).fill('Konya')
       await page.getByLabel(f.balance).fill(f.min)
       await expect(page.locator('.fk-grid .ag-floating-bottom')).toContainText(f.shown)
       await expect(page.locator('.fk-grid')).toContainText('Yılmaz Tarım Makinaları')
-      expect(await clipped(page, ['accountName', 'city'])).toEqual([])
+      expect(await clipped(page, TEXT_COLS)).toEqual([])
+      await page.goto('/balances?asOf=2026-09-29&type=FIRMA')
+      await expect(page.locator('.fk-grid .ag-row').first()).toBeVisible()
+      expect(await clipped(page, TEXT_COLS)).toEqual([])
     })
 
     test('statement card keeps the tax office and number on one line', async ({ page }) => {

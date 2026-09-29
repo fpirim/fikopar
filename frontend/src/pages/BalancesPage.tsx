@@ -27,7 +27,7 @@ import { DateField } from '../components/ui/date-field'
 import { Panel } from '../components/ui/panel'
 import { Segmented } from '../components/ui/segmented'
 import { FkGrid } from '../components/grid/FkGrid'
-import { exprFilter, numCol } from '../components/grid/columns'
+import { exprFilter, monoWidth, numCol } from '../components/grid/columns'
 import GridFooter from '../components/grid/GridFooter'
 import ColumnsMenu from '../components/grid/ColumnsMenu'
 import SelectCompany from '../components/layout/SelectCompany'
@@ -35,6 +35,8 @@ import SelectCompany from '../components/layout/SelectCompany'
 const TIPI: SicilTipi[] = ['MUSTERI', 'FIRMA', 'BANKA']
 const TONE: Record<SicilTipi, ChipTone> = { MUSTERI: 'blue', FIRMA: 'grey', BANKA: 'amber' }
 const MAX_BODY = 14
+// 99,999,999.99
+const MONEY_W = monoWidth(13)
 
 type Row = BalanceRow & { label?: string }
 type Money = Extract<BalanceColId, 'debitTotal' | 'creditTotal' | 'balance' | 'overdue'>
@@ -109,7 +111,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
     headerName: t(`col.${label}`),
     field,
     flex: 0,
-    width: 136,
+    width: MONEY_W,
     ...numCol,
     ...exprFilter({ kind: 'number', placeholder: t('grid:fk.positive') }),
     valueFormatter: (p) => formatMoney(p.value),
@@ -137,7 +139,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
         headerName: t('col.account'),
         sort: 'asc',
         flex: 0,
-        width: 108,
+        width: monoWidth(9),
         colSpan: (p) => (p.node?.rowPinned ? 4 : 1),
         cellClass: 'font-mono',
         ...exprFilter({ kind: 'text', placeholder: '120.', defaultOp: 'startsWith' }),
@@ -153,7 +155,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
         field: 'accountName',
         headerName: t('col.name'),
         flex: 2,
-        minWidth: 160,
+        minWidth: 192,
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
         cellRenderer: (p: ICellRendererParams<Row>) =>
           p.data && !p.node.rowPinned ? (
@@ -164,6 +166,8 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
         colId: 'city',
         field: 'city',
         headerName: t('col.city'),
+        flex: 1,
+        minWidth: 88,
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
       },
       {
@@ -171,7 +175,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
         field: 'sicilTipi',
         headerName: t('col.type'),
         flex: 0,
-        width: 112,
+        width: 96,
         ...exprFilter({
           kind: 'enum',
           anyLabel: t('grid:fk.any'),
@@ -193,7 +197,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
         field: 'lastMoveDate',
         headerName: t('col.lastMove'),
         flex: 0,
-        width: 108,
+        width: monoWidth(10),
         ...numCol,
         ...exprFilter({ kind: 'date', placeholder: t('grid:fk.before') }),
         valueFormatter: (p) => formatDay(p.value),
