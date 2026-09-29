@@ -14,7 +14,10 @@ describe('parseCondition', () => {
       type: 'greaterThan',
       filter: 10000,
     })
-    expect(parseCondition('number', '<=5.5')).toMatchObject({ type: 'lessThanOrEqual', filter: 5.5 })
+    expect(parseCondition('number', '<=5.5')).toMatchObject({
+      type: 'lessThanOrEqual',
+      filter: 5.5,
+    })
     expect(parseCondition('number', '≠ 0')).toMatchObject({ type: 'notEqual', filter: 0 })
     expect(parseCondition('number', '!=0')).toMatchObject({ type: 'notEqual', filter: 0 })
     expect(parseCondition('number', '100..200')).toEqual({

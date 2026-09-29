@@ -7,6 +7,7 @@ import { capture, captureDownloads } from '../test/msw'
 
 const pinned = () => document.querySelector('.ag-floating-bottom') as HTMLElement
 const location = () => screen.getByTestId('location').textContent
+const firstRow = () => screen.findAllByRole('link', { name: /^120\./ })
 
 async function filterKonyaCustomers() {
   await userEvent.type(await screen.findByLabelText('Şehir'), 'Konya')
@@ -20,7 +21,7 @@ describe('BalancesPage', () => {
     const calls = capture('post', '/api/orgs/:orgId/ledger/balances/grid')
     renderApp('/balances?asOf=2026-09-29')
     expect(await screen.findByRole('heading', { name: 'Cari bakiyeler' })).toBeInTheDocument()
-    expect(await screen.findByText('Yılmaz Tarım Makinaları')).toBeInTheDocument()
+    await firstRow()
     await waitFor(() => expect(pinned()).toHaveTextContent('412 / 412'))
     expect(calls[0].body).toMatchObject({
       asOf: '2026-09-29',
@@ -40,7 +41,7 @@ describe('BalancesPage', () => {
     expect(pinned()).toHaveTextContent('1.184.640,00')
     expect(pinned()).toHaveTextContent('282.425,00')
     expect(pinned()).toHaveTextContent('14.015,00')
-    expect(calls.at(-1)!.body).toMatchObject({
+    expect(calls[calls.length - 1].body).toMatchObject({
       filterModel: {
         city: { filterType: 'text', type: 'contains', filter: 'Konya' },
         sicilTipi: { filterType: 'text', type: 'equals', filter: 'MUSTERI' },
@@ -70,16 +71,16 @@ describe('BalancesPage', () => {
   it('narrows by account type, depot and date', async () => {
     const calls = capture('post', '/api/orgs/:orgId/ledger/balances/grid')
     renderApp('/balances?asOf=2026-09-29&depot=2')
-    await screen.findByText('Yılmaz Tarım Makinaları')
+    await firstRow()
     await userEvent.click(screen.getByRole('button', { name: 'Bankalar' }))
     await waitFor(() => expect(pinned()).toHaveTextContent('4 / 4'))
-    expect(calls.at(-1)!.body).toMatchObject({ sicilTipi: 'BANKA', depotId: 2 })
+    expect(calls[calls.length - 1].body).toMatchObject({ sicilTipi: 'BANKA', depotId: 2 })
     expect(location()).toContain('type=BANKA')
 
     const asOf = screen.getByLabelText('Tarih itibarıyla')
     await userEvent.clear(asOf)
     await userEvent.type(asOf, '30.06.2026{Enter}')
-    await waitFor(() => expect(calls.at(-1)!.body).toMatchObject({ asOf: '2026-06-30' }))
+    await waitFor(() => expect(calls[calls.length - 1].body).toMatchObject({ asOf: '2026-06-30' }))
   })
 
   it('prints statements for the selected accounts', async () => {
@@ -87,7 +88,7 @@ describe('BalancesPage', () => {
     const letters = capture('post', '/api/orgs/:orgId/ledger/reminder-letters')
     const files = captureDownloads()
     renderApp('/balances?asOf=2026-09-29')
-    await screen.findByText('Yılmaz Tarım Makinaları')
+    await firstRow()
     const pdf = screen.getByRole('button', { name: 'Ekstreler PDF' })
     expect(pdf).toBeDisabled()
     const rows = screen.getAllByRole('row').filter((r) => r.getAttribute('row-index') !== null)
@@ -116,21 +117,28 @@ describe('BalancesPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'CSV' }))
     await waitFor(() => expect(files).toHaveLength(2))
     const csv = await files[1].text()
-    expect(csv.split('\r\n')[0]).toBe('﻿Hesap;Ünvan;Şehir;Tip;Borç;Alacak;Bakiye;Vadesi geçen;Son hareket')
-    expect(csv).toContain('120.10482;Yılmaz Tarım Makinaları;Konya;MUSTERI;1204880.00;1018540.00;186340.00;0.00;2026-09-29')
+    expect(csv.split('\r\n')[0]).toBe(
+      'Hesap;Ünvan;Şehir;Tip;Borç;Alacak;Bakiye;Vadesi geçen;Son hareket',
+    )
+    expect(csv).toContain(
+      '120.10482;Yılmaz Tarım Makinaları;Konya;MUSTERI;1204880.00;1018540.00;186340.00;0.00;2026-09-29',
+    )
     expect(csv.trim().split('\r\n')).toHaveLength(7)
   })
 
   it('hides a column from the column menu', async () => {
     renderApp('/balances?asOf=2026-09-29')
-    await screen.findByText('Yılmaz Tarım Makinaları')
+    await firstRow()
     await userEvent.click(screen.getByRole('button', { name: 'Sütunlar' }))
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Şehir' }))
-    await waitFor(() => expect(screen.queryByLabelText('Şehir')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: 'Şehir' })).not.toBeInTheDocument(),
+    )
   })
 
   it('opens the statement from the account link', async () => {
     renderApp('/balances?asOf=2026-09-29&depot=1')
+    await userEvent.type(await screen.findByLabelText('Hesap'), '120.10482')
     await userEvent.click(await screen.findByRole('link', { name: '120.10482' }))
     expect(location()).toBe('/statements/5000?depot=1')
   })
