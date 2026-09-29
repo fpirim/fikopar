@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import type { IFloatingFilterParams, IFilter } from 'ag-grid-community'
 import { useTranslation } from 'react-i18next'
 import {
@@ -30,6 +30,8 @@ const ExprFloatingFilter = forwardRef<unknown, Props>(function ExprFloatingFilte
   const [text, setText] = useState('')
   const [invalid, setInvalid] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  // A pending apply must not reach a grid that is gone.
+  useEffect(() => () => clearTimeout(timer.current), [])
   const { t } = useTranslation('grid')
   const label = t('fk.filterCol', { col: column.getColDef().headerName ?? column.getColId() })
 

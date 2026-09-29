@@ -114,8 +114,20 @@ function priceOn(partId: number, date = today) {
   return rows[rows.length - 1] ?? null
 }
 
+// On hand per (part, depot), rebuilt when movements are added.
+const hand = { size: -1, db: null as StockDb | null, map: new Map<string, number>() }
+
 function onHand(partId: number, depotId: number) {
-  return onHandAt(st.db, partId, depotId)
+  if (hand.size !== st.db.movements.length || hand.db !== st.db) {
+    hand.map = new Map()
+    for (const m of st.db.movements) {
+      const k = key(m.partId, m.depotId)
+      hand.map.set(k, (hand.map.get(k) ?? 0) + delta(m))
+    }
+    hand.size = st.db.movements.length
+    hand.db = st.db
+  }
+  return hand.map.get(key(partId, depotId)) ?? 0
 }
 
 function level(p: MockPart, depotId: number): StockLevel {
