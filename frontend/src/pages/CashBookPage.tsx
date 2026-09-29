@@ -12,6 +12,7 @@ import { useOrgId } from '../hooks/useOrgId'
 import { formatDay, formatMoney, todayIso } from '../lib/format'
 import PeriodButton from '../components/PeriodButton'
 import { Button } from '../components/ui/button'
+import { Chip } from '../components/ui/chip'
 import { Panel } from '../components/ui/panel'
 import { Stat } from '../components/ui/stat'
 import { FkGrid } from '../components/grid/FkGrid'
@@ -107,6 +108,8 @@ function CashBook({ orgId, depotId }: Readonly<{ orgId: number; depotId: number 
         cellRenderer: (p: ICellRendererParams<Row>) =>
           p.node.rowPinned ? (
             <span className="font-sans font-semibold">{p.data?.label}</span>
+          ) : p.data?.resetsBalance ? (
+            <Chip tone="grey">{t('cash.carried')}</Chip>
           ) : (
             p.value
           ),
@@ -150,6 +153,7 @@ function CashBook({ orgId, depotId }: Readonly<{ orgId: number; depotId: number 
               description: '',
               journalEntryId: 0,
               runningBalance: data.openingBalance,
+              resetsBalance: false,
             } as Row,
           ]
         : [],
@@ -239,7 +243,10 @@ function CashBook({ orgId, depotId }: Readonly<{ orgId: number; depotId: number 
           rowData={data?.lines ?? []}
           pinnedTopRowData={pinnedTop}
           pinnedBottomRowData={pinnedBottom}
-          getRowClass={(p) => (p.node.rowPinned === 'top' ? 'fk-row-bf' : undefined)}
+          getRowClass={(p) => {
+            if (p.node.rowPinned === 'top') return 'fk-row-bf'
+            return p.data?.resetsBalance && !p.node.rowPinned ? 'fk-row-reset' : undefined
+          }}
         />
       </Panel>
       {(dialog === 'expense' || dialog === 'bank') && (
