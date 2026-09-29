@@ -47,3 +47,12 @@ crashes the loader), `deadcode`, `go test -race -count=3 -timeout 30m -tags=inte
 - `getSicilSummary`, `getTrialBalance`, dashboard, print endpoints: not in F1 scope.
 - Router integration tests: ~3 min under `-race` before, ~15 s with bcrypt.MinCost in tests.
 - Contract gaps: [phase-1-contract-issues.md](phase-1-contract-issues.md).
+
+## Verification fixes (f1/fix)
+- Statement `depotTotals` sum `lines` only, per the spec; brought forward is left out.
+- Sicil page on `/api/orgs/{orgId}/sicils*` with `If-Match`; the unit test pins the paths.
+- Append-only tables refuse TRUNCATE (`0006`); the server connects as `fikopar_app` without DDL or TRUNCATE (`0007`),
+  migrations run as the owner (`MIGRATE_DATABASE_URL`, `APP_DB_PASSWORD`).
+- Login answers 400 ERR_INVALID_REQUEST to a body without email or password; spec erratum in ADR 0010.
+- Router tests hash with `bcrypt.MinCost`: 183 s → 15 s per run under `-race`. Every `go test` gate has `-timeout 30m`.
+- Real e2e seeds a fresh company per run and passes twice in a row.
