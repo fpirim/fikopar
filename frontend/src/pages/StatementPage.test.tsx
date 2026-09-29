@@ -232,6 +232,28 @@ describe('StatementPage', () => {
     expect(puts[1].headers.get('If-Match')).toBe('"2"')
   })
 
+  it("sets the card's salesperson from the company members", async () => {
+    const puts = capture('put', '/api/orgs/:orgId/sicils/:sicilId')
+    renderApp(URL_)
+    await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const rep = within(dialog).getByLabelText('Plasiyer')
+    await waitFor(() => expect(rep).toHaveValue('7'))
+    await userEvent.selectOptions(rep, '9')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(puts).toHaveLength(1))
+    expect(puts[0].body).toMatchObject({ sales_rep_user_id: 9 })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
+    const again = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const rep2 = within(again).getByLabelText('Plasiyer')
+    await waitFor(() => expect(rep2).toHaveValue('9'))
+    await userEvent.selectOptions(rep2, '')
+    await userEvent.click(within(again).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(puts).toHaveLength(2))
+    expect(puts[1].body).toMatchObject({ sales_rep_user_id: null })
+  })
+
   it('drops the email and contact when cleared, and shows other errors inline', async () => {
     const puts = capture('put', '/api/orgs/:orgId/sicils/:sicilId')
     renderApp(URL_)

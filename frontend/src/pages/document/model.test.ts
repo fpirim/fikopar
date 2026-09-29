@@ -117,6 +117,18 @@ describe('document model', () => {
     expect(stockTone({ ...l, qty: '' }, 1)).toBeNull()
   })
 
+  it('counts what the draft holds of the part on any of its lines as available', () => {
+    const a = { ...withPart(blankLine(), hit, card), qty: '2', reservedQty: '2' }
+    const b = { ...withPart(blankLine(), hit, card), qty: '6', reservedQty: '0' }
+    const lines = [a, b]
+    expect(availableHere(b, 1, lines)).toBe(6)
+    expect(availableHere(a, 1, lines)).toBe(6)
+    expect(stockTone(b, 1, lines)).toBe('ok')
+    expect(stockTone({ ...b, qty: '7' }, 1, lines)).toBe('short')
+    const other = { ...b, partId: 10, reservedQty: '5' }
+    expect(availableHere(b, 1, [a, b, other])).toBe(6)
+  })
+
   it('previews the card posting, stock and credit used after', () => {
     const h = { ...blankHeader('SALES_INVOICE', 1, '2026-09-29'), account }
     const lines = [withPart(blankLine({ qty: '' }), hit, card)].map((l) => ({ ...l, qty: '3' }))

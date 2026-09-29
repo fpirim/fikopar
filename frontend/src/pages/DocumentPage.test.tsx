@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { server } from '../mocks/node'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
+import { getDocument } from '../api/endpoints'
 
 const D = '/api/orgs/:orgId/documents'
 const grid = () => document.querySelector('.fk-doc-lines') as HTMLElement
@@ -346,6 +347,150 @@ describe('DocumentPage', () => {
     expect(cellText(0, 'price')).toBe('12.000,00')
     expect(cellText(0, 'd1')).toBe('10')
     expect(totals()).toHaveTextContent('Ara toplam20.520,00')
+  })
+
+  it('shows the account no. of the document without the card summary', async () => {
+    server.use(
+      http.get('/api/orgs/:orgId/sicils/:sicilId/summary', () =>
+        HttpResponse.json({ code: 'ERR_INTERNAL' }, { status: 500 }),
+      ),
+    )
+    await loaded('/invoices/391')
+    await waitFor(() =>
+      expect(screen.getByLabelText('Cari')).toHaveValue('120.10482 · Yılmaz Tarım Makinaları'),
+    )
+  })
+
+  it("a new document takes the card's salesperson", async () => {
+    const creates = capture('post', D)
+    renderApp('/invoices/new?type=SALES_INVOICE')
+    await userEvent.type(await screen.findByRole('combobox', { name: 'Cari' }), 'Öztürk')
+    await userEvent.click(await screen.findByRole('option', { name: /Öztürk/ }))
+    await waitFor(() => expect(screen.getByLabelText('Plasiyer')).toHaveValue('9'))
+    expect(screen.queryByRole('option', { name: 'Kart varsayılanı' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    await waitFor(() => expect(creates).toHaveLength(1))
+    expect(creates[0].body).toMatchObject({ salesRepUserId: 9 })
+  })
+
+  it('a card without a salesperson leaves the picker empty', async () => {
+    renderApp('/invoices/new?type=SALES_INVOICE')
+    await userEvent.type(await screen.findByRole('combobox', { name: 'Cari' }), 'Kaya Ziraat')
+    await userEvent.click(await screen.findByRole('option', { name: /Kaya Ziraat/ }))
+    await waitFor(() =>
+      expect(screen.getByLabelText('Plasiyer')).toHaveDisplayValue('Plasiyer yok'),
+    )
+  })
+
+  it('the waybill picker asks only for waybills not billed yet', async () => {
+    const grids = capture('post', `${D}/grid`)
+    renderApp('/invoices/new?type=SALES_INVOICE')
+    await userEvent.type(await screen.findByRole('combobox', { name: 'Cari' }), 'Kaya Ziraat')
+    await userEvent.click(await screen.findByRole('option', { name: /Kaya Ziraat/ }))
+    expect(
+      await within(screen.getByLabelText('İrsaliye ref.')).findByRole('option', {
+        name: /SIR-2026-1-000052/,
+      }),
+    ).toBeInTheDocument()
+    expect(grids.at(-1)!.body).toMatchObject({
+      types: ['SALES_WAYBILL'],
+      statuses: ['POSTED'],
+      billed: false,
+    })
+  })
+
+  it('the original picker of a return asks for documents that bill no waybill', async () => {
+    const grids = capture('post', `${D}/grid`)
+    renderApp('/invoices/new?type=SALES_RETURN')
+    await userEvent.type(await screen.findByRole('combobox', { name: 'Cari' }), 'Yılmaz')
+    await userEvent.click(await screen.findByRole('option', { name: /Yılmaz/ }))
+    expect(
+      await within(screen.getByLabelText('Asıl belge')).findByRole('option', {
+        name: /SF-2026-1-000391/,
+      }),
+    ).toBeInTheDocument()
+    expect(grids.at(-1)!.body).toMatchObject({ billsWaybill: false })
+  })
+
+  it('cancel lists the dependents the error carries without reading them', async () => {
+    server.use(
+      http.post(`${D}/:documentId/cancel`, () =>
+        HttpResponse.json(
+          {
+            code: 'ERR_DOCUMENT_HAS_DEPENDENTS',
+            details: {
+              dependents: [{ id: 77, documentNo: 'SI-2026-9-000077', type: 'SALES_RETURN' }],
+            },
+          },
+          { status: 409 },
+        ),
+      ),
+    )
+    await loaded('/invoices/391')
+    const gets = capture('get', `${D}/:documentId`)
+    await userEvent.click(screen.getByRole('button', { name: 'Belgeyi iptal et' }))
+    const dialog = screen.getByRole('dialog')
+    await userEvent.type(within(dialog).getByLabelText('Gerekçe'), 'Mükerrer')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Belgeyi iptal et' }))
+    expect(await within(dialog).findByRole('link', { name: 'SI-2026-9-000077' })).toHaveAttribute(
+      'href',
+      '/invoices/77',
+    )
+    expect(gets).toHaveLength(0)
+  })
+
+  it('a draft that other drafts bill or link names them on delete and save', async () => {
+    const refused = () =>
+      HttpResponse.json(
+        {
+          code: 'ERR_DOCUMENT_HAS_DEPENDENTS',
+          details: { dependents: [{ id: 2001, documentNo: null, type: 'SALES_INVOICE' }] },
+        },
+        { status: 409 },
+      )
+    server.use(http.delete(`${D}/:documentId`, refused), http.put(`${D}/:documentId`, refused))
+    await loaded('/invoices/1001')
+    await userEvent.click(screen.getByRole('button', { name: 'Sil' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Sil' }).slice(-1)[0])
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Bu taslağı faturalayan veya bağlayan taslaklar var')
+    expect(within(alert).getByRole('link', { name: 'Taslak #2001' })).toHaveAttribute(
+      'href',
+      '/invoices/2001',
+    )
+    await userEvent.selectOptions(screen.getByLabelText('Plasiyer'), '9')
+    await userEvent.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('alert')).getByRole('link', { name: 'Taslak #2001' }),
+      ).toBeInTheDocument(),
+    )
+  })
+
+  it('the negative stock toast names the part of the warning', async () => {
+    const d = await getDocument(1, 1001)
+    server.use(
+      http.post(`${D}/:documentId/post`, () =>
+        HttpResponse.json({
+          ...d,
+          status: 'POSTED',
+          documentNo: 'SF-2026-1-000419',
+          version: d.version + 1,
+          warnings: [
+            {
+              code: 'NEGATIVE_STOCK',
+              partId: 999,
+              stockNo: 'ZZ-0001',
+              depotId: 1,
+              onHandAfter: '-3',
+            },
+          ],
+        }),
+      ),
+    )
+    await loaded('/invoices/1001')
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+    expect(await screen.findByText(/ZZ-0001, depo 1 içinde −3 oluyor/)).toBeInTheDocument()
   })
 
   it('an unknown document says so', async () => {

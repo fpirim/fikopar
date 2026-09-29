@@ -37,6 +37,7 @@ test('an invoice typed from the keyboard: part popup, quantity, discounts, Tab t
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('SF-2026-1-000419')
   await pickAccount(page, 'Yılmaz')
   await expect(page.getByLabel('Due')).toHaveValue('29.10.2026')
+  await expect(page.getByLabel('Salesperson')).toHaveValue('7')
 
   await page.keyboard.press('Insert')
   const search = page.getByRole('combobox', { name: 'Part search' })
@@ -216,6 +217,9 @@ test('a waybill is billed line for line; the bill moves no stock', async ({ page
   await expect(cell(page, 0, 'part')).toHaveText('HP-3780')
   await expect(cell(page, 1, 'qty')).toHaveText('10')
   await expect(page.getByRole('region', { name: 'On post' })).toContainText('Stock—')
+  await page.getByRole('button', { name: 'Save draft' }).click()
+  await expect(page).toHaveURL(/\/invoices\/\d+$/)
+  await expect(page.getByLabel('Waybill ref.')).toHaveValue('52')
   await page.getByRole('button', { name: 'Post' }).click()
   await expect(page.getByText(/SF-2026-1-000419 posted/)).toBeVisible()
   await expect(page.getByRole('link', { name: 'Bills SIR-2026-1-000052' })).toBeVisible()
