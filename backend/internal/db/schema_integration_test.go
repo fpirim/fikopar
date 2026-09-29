@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"testing/fstest"
 
 	"github.com/fpirim/fikopar/backend/internal/db"
 	"github.com/fpirim/fikopar/backend/internal/testutil"
@@ -294,3 +295,19 @@ func assertNoEntries(t *testing.T) {
 }
 
 func centsStr(c int64) string { return fmt.Sprintf("%d.%02d", c/100, c%100) }
+
+func TestApplySQL_AppliesNewFilesOnceAndRollsBackFailures(t *testing.T) {
+	good := fstest.MapFS{"9001_extra.sql": {Data: []byte(`CREATE TABLE f1_extra (id int);`)}}
+	require.NoError(t, db.ApplySQL(testDB, good))
+	require.NoError(t, db.ApplySQL(testDB, good), "an applied file is skipped")
+
+	bad := fstest.MapFS{"9002_bad.sql": {Data: []byte(`CREATE TABLE f1_bad (;`)}}
+	err := db.ApplySQL(testDB, bad)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "9002_bad.sql")
+	var n int64
+	require.NoError(t, testDB.Raw(`SELECT count(*) FROM schema_migrations WHERE version = '9002_bad'`).Scan(&n).Error)
+	assert.Zero(t, n)
+	require.NoError(t, testDB.Exec(`DROP TABLE f1_extra`).Error)
+	require.NoError(t, testDB.Exec(`DELETE FROM schema_migrations WHERE version = '9001_extra'`).Error)
+}

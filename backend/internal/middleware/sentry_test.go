@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/labstack/echo/v4"
@@ -31,4 +32,16 @@ func TestShouldReport(t *testing.T) {
 			assert.Equal(t, tc.want, shouldReport(tc.err))
 		})
 	}
+}
+
+func TestSentry_PassesThroughAndRepanics(t *testing.T) {
+	e := echo.New()
+	run := func(h echo.HandlerFunc) error {
+		c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+		return Sentry()(h)(c)
+	}
+	assert.NoError(t, run(func(echo.Context) error { return nil }))
+	assert.Error(t, run(func(echo.Context) error { return errors.New("boom") }))
+	assert.Error(t, run(func(echo.Context) error { return echo.NewHTTPError(http.StatusNotFound) }))
+	assert.Panics(t, func() { _ = run(func(echo.Context) error { panic("bad") }) })
 }
