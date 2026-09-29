@@ -84,7 +84,7 @@ func TestCSV_DelimiterDetectionQuotesAndAutoMap(t *testing.T) {
 				"",
 				"B-2" + delim + "Kayış" + delim + "10" + delim + "",
 			}, "\r\n")
-			m, f := read(t, "x.csv", []byte("﻿"+body), Mapping{})
+			m, f := read(t, "x.csv", []byte("\ufeff"+body), Mapping{})
 			assert.Equal(t, []string{"Stok Kodu", "Açıklama", "Fiyat", "Marka"}, f.Headers)
 			require.Len(t, f.Rows, 2)
 			assert.Equal(t, 2, f.Rows[0].No)
@@ -178,7 +178,7 @@ func lisaktRecord(t *testing.T, op, katno, stno, prcno, oem, typ, name, brand, p
 
 func TestLISAKT_FixedWidthCP857(t *testing.T) {
 	var buf bytes.Buffer
-	buf.Write(lisaktRecord(t, "1", "0010", "ŞAFT-1", "PRC 1", "OEM-1", "Mil", "Şaft göbeği ığü", "Özdemir", "00000001234500", "20260301", "00005", "0000", ""))
+	buf.Write(lisaktRecord(t, "1", "0010", "ŞAFT-1", "PRC 1", "OEM-1", "Mil", "Şaft göbeği ığü", "Özdemir", "00000000012345", "20260301", "00005", "0000", ""))
 	buf.WriteString("\r\n")
 	buf.Write(lisaktRecord(t, "0", "0011", "X", "", "", "", "", "", "00000000000000", "00000000", "00000", "0010", "ŞAFT-1"))
 	buf.WriteString("\n\n")
@@ -240,8 +240,8 @@ func buildXLSX(t *testing.T, sheetName string, shared []string, rows [][]xlsxCel
 	}
 	put("xl/sharedStrings.xml", `<?xml version="1.0"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`+ss.String()+`</sst>`)
 	var sh strings.Builder
-	for i, r := range rows {
-		fmt.Fprintf(&sh, `<row r="%d">`, i+1)
+	for _, r := range rows {
+		fmt.Fprintf(&sh, `<row r="%s">`, strings.TrimLeft(r[0].ref, "ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
 		for _, c := range r {
 			switch c.typ {
 			case "inlineStr":

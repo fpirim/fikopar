@@ -22,6 +22,7 @@ components:
   middleware: { in: internal/middleware }
   handlers: { in: internal/handlers }
   export: { in: internal/export }
+  pricefile: { in: internal/pricefile }
   router: { in: internal/router }
   testutil: { in: internal/testutil }
 
@@ -41,7 +42,7 @@ deps:
   middleware:
     mayDependOn: [services]
   services:
-    mayDependOn: [config, repository]
+    mayDependOn: [config, repository, pricefile]
   mocks:
     mayDependOn: [repository]
   db:
