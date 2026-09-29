@@ -1,0 +1,214 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION_FILE: backend/go.mod
+  NODE_VERSION: "22"
+
+jobs:
+  backend-lint:
+    name: Backend lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+          working-directory: backend
+
+  backend-static:
+    name: Backend architecture + dead code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+      - name: go-arch-lint
+        working-directory: backend
+        run: go run github.com/fe3dback/go-arch-lint@v1.15.0 check
+      - name: deadcode
+        working-directory: backend
+        run: |
+          out=$(go run golang.org/x/tools/cmd/deadcode@v0.45.0 -test ./...)
+          if [ -n "$out" ]; then echo "$out"; echo "::error::Unreachable (dead) code found."; exit 1; fi
+
+  backend-test:
+    name: Backend tests (unit + integration, -race)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+      - name: Unit tests
+        working-directory: backend
+        run: go test -race -count=1 ./...
+      - name: Unit + integration tests with coverage
+        working-directory: backend
+        run: go test -race -count=1 -tags=integration -coverpkg=./... -coverprofile=coverage.out ./...
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.out
+
+  frontend-lint:
+    name: Frontend lint, types, architecture
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run format:check
+      - name: Dead code (knip)
+        run: npm run knip
+      - name: Architecture (dependency-cruiser)
+        run: npm run depcruise
+
+  frontend-test:
+    name: Frontend unit tests (Vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run test:cov
+      - name: Rewrite lcov paths to repo root
+        run: sed -i -E 's#^SF:(.*/)?(src/)#SF:frontend/src/#' coverage/lcov.info
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/lcov.info
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start stack (postgres + backend + frontend)
+        run: docker compose up -d --build postgres backend frontend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Wait for stack
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -sf http://localhost:3000/ >/dev/null && curl -sf http://localhost:8080/healthz >/dev/null; then echo "up"; exit 0; fi
+            sleep 2
+          done
+          echo "stack did not become ready"; docker compose logs; exit 1
+      - name: Run E2E
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose logs
+
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (full history)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --redact --verbose --exit-code 1
+
+  coverage:
+    name: Coverage upload (Codecov)
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+      - uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: backend/coverage.out,frontend/coverage/lcov.info
+          fail_ci_if_error: false
+
+  sonarcloud:
+    name: SonarQube Cloud
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test]
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+      - name: Scan + quality gate
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@v5
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
+      - name: Skipped (no SONAR_TOKEN)
+        if: env.SONAR_TOKEN == ''
+        run: echo "::notice::SONAR_TOKEN not configured; SonarQube Cloud scan skipped."
