@@ -1,10 +1,5 @@
-// Dates relative to the day the specs run on. MSW specs freeze the browser on E2E_TODAY (default: the day the mock
-// data was cut); real specs follow the backend, which dates by today in Europe/Istanbul.
+// MSW specs run the browser on E2E_TODAY, by default the mock data's today (TODAY in src/mocks/data.ts).
 export const mswToday = process.env.E2E_TODAY ?? '2026-09-29'
-
-export function istanbulToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date())
-}
 
 export function addDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`)
