@@ -23,9 +23,15 @@ type Handlers struct {
 	Admin *handlers.AdminHandler
 	Org   *handlers.OrganizationHandler
 	Sicil *handlers.SicilHandler
+	Depot *handlers.DepotHandler
 }
 
-func New(h Handlers, authService *services.AuthService, cfg *config.Config) *echo.Echo {
+type Services struct {
+	Auth       *services.AuthService
+	Membership *services.MembershipService
+}
+
+func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	e := echo.New()
 
 	e.Use(middleware.RequestID())
@@ -45,8 +51,9 @@ func New(h Handlers, authService *services.AuthService, cfg *config.Config) *ech
 	}))
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     []string{cfg.CORSAllowedOrigins},
-		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.OPTIONS},
-		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.PATCH, echo.DELETE, echo.OPTIONS},
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "Idempotency-Key", "If-Match"},
+		ExposeHeaders:    []string{"ETag", "Idempotent-Replayed"},
 		AllowCredentials: true,
 	}))
 
@@ -64,19 +71,25 @@ func New(h Handlers, authService *services.AuthService, cfg *config.Config) *ech
 
 	// Authenticated
 	api := e.Group("/api")
-	api.Use(appMiddleware.JWT(authService))
+	api.Use(appMiddleware.JWT(svc.Auth))
 	api.GET("/users/me", h.User.Me)
 	api.PUT("/users/me", h.User.UpdateMe)
 	api.POST("/users/me/avatar", h.User.UploadAvatar)
 	api.DELETE("/users/me/avatar", h.User.DeleteMyAvatar)
 
-	// Org membership is enforced in the service layer.
-	const sicilIDPath = "/sicil/:id"
-	api.POST("/sicil/grid", h.Sicil.Grid)
-	api.POST("/sicil", h.Sicil.Create)
-	api.GET(sicilIDPath, h.Sicil.Get)
-	api.PUT(sicilIDPath, h.Sicil.Update)
-	api.DELETE(sicilIDPath, h.Sicil.Delete)
+	org := api.Group("/orgs/:orgId")
+	org.Use(appMiddleware.RequireOrgMember(svc.Membership))
+	orgAdmin := appMiddleware.RequireRole(models.RoleAdmin)
+
+	const sicilIDPath = "/sicils/:sicilId"
+	org.POST("/sicils/grid", h.Sicil.Grid)
+	org.POST("/sicils", h.Sicil.Create)
+	org.GET(sicilIDPath, h.Sicil.Get)
+	org.PUT(sicilIDPath, h.Sicil.Update)
+	org.DELETE(sicilIDPath, h.Sicil.Delete)
+
+	org.GET("/depots", h.Depot.List)
+	org.POST("/depots", h.Depot.Create, orgAdmin)
 
 	// Admin only
 	admin := api.Group("/admin")

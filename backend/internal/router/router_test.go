@@ -16,7 +16,7 @@ func newTestRouter(t *testing.T, cfg *config.Config) http.Handler {
 	t.Helper()
 	cfg.JWTSecret = "test-secret"
 	authSvc := services.NewAuthService(cfg)
-	return New(Handlers{}, authSvc, cfg)
+	return New(Handlers{}, Services{Auth: authSvc}, cfg)
 }
 
 func TestHealthzReportsVersion(t *testing.T) {

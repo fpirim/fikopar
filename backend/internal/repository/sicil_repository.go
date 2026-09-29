@@ -8,10 +8,9 @@ import (
 
 type SicilRepository interface {
 	Create(card *models.Sicil) error
-	GetByID(id uint) (*models.Sicil, error)
-	Update(card *models.Sicil) error
-	UpdateFields(id uint, fields map[string]any) error
-	Delete(id uint) error
+	GetByID(organizationID, id uint) (*models.Sicil, error)
+	UpdateFields(organizationID, id uint, fields map[string]any) error
+	Delete(organizationID, id uint) error
 	ListForGrid(req GridRequest, organizationID uint) (*GridResponse, error)
 	// Called inside the service's transaction so card and phones change atomically.
 	ReplaceTelefonlar(sicilID uint, telefonlar []models.SicilTelefon) error
@@ -29,28 +28,31 @@ func (r *sicilRepo) Create(card *models.Sicil) error {
 	return r.db.Create(card).Error
 }
 
-func (r *sicilRepo) GetByID(id uint) (*models.Sicil, error) {
+func (r *sicilRepo) GetByID(organizationID, id uint) (*models.Sicil, error) {
 	var card models.Sicil
-	if err := r.db.Preload("Telefonlar").First(&card, id).Error; err != nil {
+	if err := r.db.Preload("Telefonlar").Where("organization_id = ?", organizationID).First(&card, id).Error; err != nil {
 		return nil, err
 	}
 	return &card, nil
 }
 
-func (r *sicilRepo) Update(card *models.Sicil) error {
-	return r.db.Save(card).Error
-}
-
 // The service layer whitelists fields; organization_id must never reach here.
-func (r *sicilRepo) UpdateFields(id uint, fields map[string]any) error {
+func (r *sicilRepo) UpdateFields(organizationID, id uint, fields map[string]any) error {
 	if len(fields) == 0 {
 		return nil
 	}
-	return r.db.Model(&models.Sicil{}).Where("id = ?", id).Updates(fields).Error
+	return r.db.Model(&models.Sicil{}).Where("organization_id = ? AND id = ?", organizationID, id).Updates(fields).Error
 }
 
-func (r *sicilRepo) Delete(id uint) error {
-	return r.db.Delete(&models.Sicil{}, id).Error
+func (r *sicilRepo) Delete(organizationID, id uint) error {
+	res := r.db.Where("organization_id = ?", organizationID).Delete(&models.Sicil{}, id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // The org constraint comes from the service, never from the client filterModel.

@@ -25,6 +25,8 @@ func New(db *gorm.DB, cfg *config.Config) *App {
 	userService := services.NewUserService(userRepo, authService, cfg)
 	orgService := services.NewOrganizationService(orgRepo, cfg)
 	sicilService := services.NewSicilService(sicilRepo)
+	store := repository.NewStore(db)
+	idem := services.NewIdempotencyService(store)
 
 	e := router.New(router.Handlers{
 		Auth:  handlers.NewAuthHandler(userRepo, authService),
@@ -32,6 +34,7 @@ func New(db *gorm.DB, cfg *config.Config) *App {
 		Admin: handlers.NewAdminHandler(userService, userRepo),
 		Org:   handlers.NewOrganizationHandler(orgService),
 		Sicil: handlers.NewSicilHandler(sicilService),
-	}, authService, cfg)
+		Depot: handlers.NewDepotHandler(services.NewDepotService(store), idem),
+	}, router.Services{Auth: authService, Membership: services.NewMembershipService(orgRepo)}, cfg)
 	return &App{Echo: e, UserService: userService}
 }

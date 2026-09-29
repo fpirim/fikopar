@@ -13,6 +13,7 @@ type OrganizationRepository interface {
 	Update(org *models.Organization) error
 	Delete(id uint) error
 	ListForGrid(req GridRequest) (*GridResponse, error)
+	IsMember(userID, orgID uint) (bool, error)
 }
 
 type orgRepo struct {
@@ -60,4 +61,11 @@ func (r *orgRepo) ListForGrid(req GridRequest) (*GridResponse, error) {
 		"updated_at": "updated_at",
 	}
 	return paginatedGridWithMapping(r.db.Model(&models.Organization{}), req, &[]models.Organization{}, orgColumnMapping, []string{"name", "slug"})
+}
+
+func (r *orgRepo) IsMember(userID, orgID uint) (bool, error) {
+	var n int64
+	err := r.db.Model(&models.UserOrganization{}).
+		Where("user_id = ? AND organization_id = ?", userID, orgID).Count(&n).Error
+	return n > 0, err
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
 	"github.com/fpirim/fikopar/backend/internal/models"
-	"github.com/fpirim/fikopar/backend/internal/repository"
 	"github.com/fpirim/fikopar/backend/internal/repository/mocks"
 
 	"github.com/stretchr/testify/assert"

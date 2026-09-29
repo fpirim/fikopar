@@ -19,22 +19,6 @@ func NewSicilService(repo repository.SicilRepository) *SicilService {
 	return &SicilService{repo: repo}
 }
 
-// AssertCanAccessOrg allows admins everywhere and users only in their JWT's organizations.
-func AssertCanAccessOrg(claims *Claims, organizationID uint) error {
-	if claims == nil {
-		return apierror.Unauthorized
-	}
-	if claims.Role == string(models.RoleAdmin) {
-		return nil
-	}
-	for _, id := range claims.OrganizationIDs {
-		if id == organizationID {
-			return nil
-		}
-	}
-	return apierror.Forbidden
-}
-
 func validateSicil(card *models.Sicil) error {
 	card.HesapNo = strings.TrimSpace(card.HesapNo)
 	card.HesapAdi = strings.TrimSpace(card.HesapAdi)
@@ -72,10 +56,9 @@ func validateTelefonlar(ts []models.SicilTelefon) error {
 	return nil
 }
 
-func (s *SicilService) Create(claims *Claims, card *models.Sicil) (*models.Sicil, error) {
-	if err := AssertCanAccessOrg(claims, card.OrganizationID); err != nil {
-		return nil, err
-	}
+// Org membership is checked by middleware before any of these run; every query is scoped by org.
+func (s *SicilService) Create(organizationID uint, card *models.Sicil) (*models.Sicil, error) {
+	card.OrganizationID = organizationID
 	if err := validateSicil(card); err != nil {
 		return nil, err
 	}
@@ -90,15 +73,12 @@ func (s *SicilService) Create(claims *Claims, card *models.Sicil) (*models.Sicil
 	return card, nil
 }
 
-func (s *SicilService) GetByID(claims *Claims, id uint) (*models.Sicil, error) {
-	card, err := s.repo.GetByID(id)
+func (s *SicilService) GetByID(organizationID, id uint) (*models.Sicil, error) {
+	card, err := s.repo.GetByID(organizationID, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apierror.SicilNotFound
 		}
-		return nil, err
-	}
-	if err := AssertCanAccessOrg(claims, card.OrganizationID); err != nil {
 		return nil, err
 	}
 	return card, nil
@@ -119,15 +99,9 @@ var allowedSicilUpdateFields = map[string]bool{
 	"sicil_tipi": true,
 }
 
-func (s *SicilService) Update(claims *Claims, id uint, updates map[string]any) (*models.Sicil, error) {
-	card, err := s.repo.GetByID(id)
+func (s *SicilService) Update(organizationID, id uint, updates map[string]any) (*models.Sicil, error) {
+	card, err := s.GetByID(organizationID, id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apierror.SicilNotFound
-		}
-		return nil, err
-	}
-	if err := AssertCanAccessOrg(claims, card.OrganizationID); err != nil {
 		return nil, err
 	}
 
@@ -137,7 +111,7 @@ func (s *SicilService) Update(claims *Claims, id uint, updates map[string]any) (
 		return nil, err
 	}
 
-	if err := s.repo.UpdateFields(id, clean); err != nil {
+	if err := s.repo.UpdateFields(organizationID, id, clean); err != nil {
 		if isDuplicate(err) {
 			return nil, apierror.HesapNoExists
 		}
@@ -148,7 +122,7 @@ func (s *SicilService) Update(claims *Claims, id uint, updates map[string]any) (
 			return nil, err
 		}
 	}
-	return s.repo.GetByID(id)
+	return s.repo.GetByID(organizationID, id)
 }
 
 func filterSicilUpdates(updates map[string]any) map[string]any {
@@ -227,23 +201,17 @@ func applySicilUpdates(card *models.Sicil, updates map[string]any) {
 	}
 }
 
-func (s *SicilService) Delete(claims *Claims, id uint) error {
-	card, err := s.repo.GetByID(id)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return apierror.SicilNotFound
-		}
-		return err
+func (s *SicilService) Delete(organizationID, id uint) error {
+	err := s.repo.Delete(organizationID, id)
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return apierror.SicilNotFound
+	case repository.IsForeignKeyViolation(err):
+		return apierror.SicilHasPostings
 	}
-	if err := AssertCanAccessOrg(claims, card.OrganizationID); err != nil {
-		return err
-	}
-	return s.repo.Delete(id)
+	return err
 }
 
-func (s *SicilService) ListForGrid(claims *Claims, req repository.GridRequest, organizationID uint) (*repository.GridResponse, error) {
-	if err := AssertCanAccessOrg(claims, organizationID); err != nil {
-		return nil, err
-	}
+func (s *SicilService) ListForGrid(organizationID uint, req repository.GridRequest) (*repository.GridResponse, error) {
 	return s.repo.ListForGrid(req, organizationID)
 }
