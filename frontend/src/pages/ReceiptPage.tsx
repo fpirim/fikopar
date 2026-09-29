@@ -46,7 +46,8 @@ interface Form {
   kind: Kind
   account: AccountHit | null
   date: string
-  depotId: number
+  // null: the top-bar depot is "All"; use the first depot by code.
+  depotId: number | null
   method: PaymentMethod
   bankAccountId: number | null
   amount: string
@@ -69,7 +70,7 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
       kind: 'COLLECTION',
       account: null,
       date: todayIso(),
-      depotId: topDepot ?? 1,
+      depotId: topDepot,
       method: 'CASH',
       bankAccountId: null,
       amount: '',
@@ -79,6 +80,11 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
     [topDepot],
   )
   const [form, setForm] = useState<Form>(() => blank())
+  const firstDepot = useMemo(
+    () => [...depots].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))[0],
+    [depots],
+  )
+  const depotId = form.depotId ?? firstDepot?.id ?? null
   const [touched, setTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -87,21 +93,22 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
 
   const prefix = form.kind === 'COLLECTION' ? 'TAH' : 'TED'
   const year = Number(form.date.slice(0, 4))
-  const series = useApi(
-    () => listNumberSeries(orgId, { prefix, depotId: form.depotId, year }),
-    [orgId, prefix, form.depotId, year],
-  )
-  const depotCode = depots.find((d) => d.id === form.depotId)?.code ?? String(form.depotId)
+  const series = useApi(depotId ? () => listNumberSeries(orgId, { prefix, depotId, year }) : null, [
+    orgId,
+    prefix,
+    depotId,
+    year,
+  ])
+  const depotCode = depots.find((d) => d.id === depotId)?.code ?? ''
   const nextNo = series.data?.[0] ? formatNumber(series.data[0], depotCode) : ''
 
   const banks = useApi(() => listAccountsByRole(orgId, 'BANK'), [orgId]).data ?? []
   const bankAccountId = form.bankAccountId ?? banks[0]?.id ?? null
   const sicilId = form.account?.sicilId ?? null
-  const summary = useApi(sicilId ? () => getSicilSummary(orgId, sicilId, form.depotId) : null, [
-    orgId,
-    sicilId,
-    form.depotId,
-  ])
+  const summary = useApi(
+    sicilId && depotId ? () => getSicilSummary(orgId, sicilId, depotId) : null,
+    [orgId, sicilId, depotId],
+  )
 
   const errors = {
     account: !form.account ? t('receipt.errors.account') : null,
@@ -121,10 +128,10 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
     setTouched(true)
     setError('')
     setMethodError(false)
-    if (errors.account || errors.amount || errors.bank) return
+    if (errors.account || errors.amount || errors.bank || !depotId) return
     const body: ReceiptCreate = {
       kind: form.kind,
-      depotId: form.depotId,
+      depotId,
       sicilId: form.account!.sicilId,
       date: form.date,
       method: form.method,
@@ -207,7 +214,7 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
               inputClassName="h-10"
             />
             <DepotSelect
-              value={form.depotId}
+              value={depotId}
               onChange={(v) => set('depotId', v)}
               options={depots.map((d) => ({ id: d.id!, label: t('cash.depotN', { id: d.code }) }))}
               label={t('receipt.depot')}
@@ -215,7 +222,7 @@ function Receipts({ orgId }: Readonly<{ orgId: number }>) {
           </div>
           <MethodPicker
             value={form.method}
-            depotId={form.depotId}
+            depotCode={depotCode}
             bankCode={banks.find((b) => b.id === bankAccountId)?.code}
             invalid={methodError}
             onChange={(m) => {
@@ -312,7 +319,7 @@ function DepotSelect({
   options,
 }: Readonly<{
   label: string
-  value: number
+  value: number | null
   onChange: (v: number) => void
   options: { id: number; label: string }[]
 }>) {
@@ -322,7 +329,7 @@ function DepotSelect({
       <select
         id={id}
         className={selectCls}
-        value={value}
+        value={value ?? ''}
         onChange={(e) => onChange(Number(e.target.value))}
       >
         {options.map((o) => (
@@ -337,20 +344,20 @@ function DepotSelect({
 
 function MethodPicker({
   value,
-  depotId,
+  depotCode,
   bankCode,
   invalid,
   onChange,
 }: Readonly<{
   value: PaymentMethod
-  depotId: number
+  depotCode: string
   bankCode?: string
   invalid?: boolean
   onChange: (m: PaymentMethod) => void
 }>) {
   const { t } = useTranslation('treasury')
   const hint: Record<string, string> = {
-    CASH: t('receipt.cashHint', { id: depotId }),
+    CASH: t('receipt.cashHint', { code: depotCode || '—' }),
     BANK_TRANSFER: bankCode ?? '—',
     CHEQUE: t('receipt.portfolioHint'),
     NOTE: t('receipt.portfolioHint'),

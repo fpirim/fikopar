@@ -16,7 +16,7 @@
       "NOTE": "Senet",
       "ENDORSEMENT": "Ciro edilen çek"
     },
-    "cashHint": "Kasa defteri · Depo {{id}}",
+    "cashHint": "Kasa defteri · Depo {{code}}",
     "portfolioHint": "Portföye kaydedilir",
     "bank": "Banka hesabı",
     "amount": "Tutar",

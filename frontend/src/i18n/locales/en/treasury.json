@@ -16,7 +16,7 @@
       "NOTE": "Promissory note",
       "ENDORSEMENT": "Endorsed cheque"
     },
-    "cashHint": "Cash book · Depot {{id}}",
+    "cashHint": "Cash book · Depot {{code}}",
     "portfolioHint": "Registers in portfolio",
     "bank": "Bank account",
     "amount": "Amount",
