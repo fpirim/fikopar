@@ -75,7 +75,11 @@ type OutboxRelay struct {
 }
 
 func NewOutboxRelay(store *repository.Store, consumers ...Consumer) *OutboxRelay {
-	return &OutboxRelay{store: store, consumers: consumers}
+	r := &OutboxRelay{store: store}
+	for _, c := range consumers {
+		r.Register(c)
+	}
+	return r
 }
 
 func (r *OutboxRelay) Register(c Consumer) {

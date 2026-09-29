@@ -43,12 +43,13 @@ func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(&models.User{}, &models.Organization{}, &models.UserOrganization{}, &models.Sicil{}, &models.SicilTelefon{}); err != nil {
 		return err
 	}
-	return applySQL(db, migrations.FS)
+	return ApplySQL(db, migrations.FS)
 }
 
 const migrationLock = 7_310_201
 
-func applySQL(db *gorm.DB, files fs.FS) error {
+// ApplySQL runs the not yet applied *.sql files of files in one transaction.
+func ApplySQL(db *gorm.DB, files fs.FS) error {
 	names, err := fs.Glob(files, "*.sql")
 	if err != nil {
 		return err

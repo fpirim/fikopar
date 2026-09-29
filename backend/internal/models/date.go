@@ -26,8 +26,6 @@ func NewDate(year int, month time.Month, day int) Date {
 
 func (d Date) String() string { return d.Format(DateLayout) }
 
-func (d Date) AddDays(n int) Date { return Date{d.AddDate(0, 0, n)} }
-
 func (d Date) MarshalJSON() ([]byte, error) { return json.Marshal(d.String()) }
 
 func (d *Date) UnmarshalJSON(b []byte) error {
