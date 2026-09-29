@@ -28,7 +28,9 @@
         "StockMoved",
         "LedgerEntryPosted",
         "ReceiptPosted",
-        "InstrumentStatusChanged"
+        "InstrumentStatusChanged",
+        "PriceChanged",
+        "PriceListImported"
       ]
     },
     "version": {
@@ -45,8 +47,12 @@
       "minimum": 1
     },
     "depotId": {
-      "type": "integer",
-      "minimum": 1
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "Null for company-wide events (catalog, prices)"
     },
     "aggregateType": {
       "type": "string"

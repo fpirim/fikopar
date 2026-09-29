@@ -179,7 +179,7 @@ CREATE TRIGGER stock_movements_document_rules
 
 -- Count valuation. Last purchase cost = net_amount / qty of the latest POSTED purchase invoice line for the part in
 -- the company, any depot (document_date, then posted_at, then line id). Returns and price differences do not count.
--- Fallback: the default price list's price valid on p_date, flagged LIST_PRICE; neither → NONE.
+-- Fallback: the list price of the part's catalog valid on p_date, flagged LIST_PRICE; neither → NONE.
 CREATE OR REPLACE FUNCTION last_purchase_cost(p_org bigint, p_part bigint, p_date date)
 RETURNS TABLE (unit_cost numeric(18,4), cost_source text)
 LANGUAGE sql STABLE AS $$
@@ -193,11 +193,7 @@ LANGUAGE sql STABLE AS $$
       ORDER BY d.document_date DESC, d.posted_at DESC, l.id DESC
       LIMIT 1)
     UNION ALL
-    (SELECT pr.price, 'LIST_PRICE', 2
-       FROM prices pr JOIN price_lists pl ON pl.org_id = pr.org_id AND pl.id = pr.price_list_id
-      WHERE pr.org_id = p_org AND pr.part_id = p_part AND pl.is_default AND pr.valid_from <= p_date
-      ORDER BY pr.valid_from DESC
-      LIMIT 1)
+    (SELECT p.price, 'LIST_PRICE', 2 FROM price_on(p_org, p_part, p_date) p)
     UNION ALL
     SELECT NULL, 'NONE', 3
   ) AS c(unit_cost, cost_source, rank)

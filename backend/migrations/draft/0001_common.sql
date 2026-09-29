@@ -23,7 +23,6 @@ CREATE TABLE depots (
   code                 text         NOT NULL CHECK (code ~ '^[0-9A-Z]{1,2}$'),
   name                 text         NOT NULL,
   vat_rate             numeric(7,4) NOT NULL DEFAULT 0 CHECK (vat_rate BETWEEN 0 AND 100),
-  allow_negative_stock boolean      NOT NULL DEFAULT false,
   version              int          NOT NULL DEFAULT 1,
   UNIQUE (org_id, code),
   UNIQUE (org_id, id)

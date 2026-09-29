@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: fikopar API
-  version: 1.1.0
+  version: 1.2.0
   summary: B2B trade, ledger and instrument management for a spare-parts distributor.
   description: |
     **DRAFT / provisional.** Revised against the live JHipster (v2) inventory; see `docs/domain-model.md`.
@@ -21,9 +21,13 @@ info:
       body (account, depot, sicil, part …) answers `422 ERR_*_NOT_FOUND` with `field`.
     - **Closed years**: posting the carry-forward into year Y closes Y − 1 and every earlier year. Any operation
       that writes a journal entry dated in a closed year answers `409 ERR_YEAR_CLOSED` (manual and reversal
-      entries, document post/cancel, receipts and their voids, cash vouchers and counts, instrument operations).
+      entries, document post/cancel, receipts and their voids, cash vouchers and counts, instrument operations,
+      stock transfers, opening and finalizing stock counts).
       `reopenCarryForward` opens it again.
     - **Currency**: one currency per journal entry; v1.1 accepts `TRY` only.
+    - **Negative stock** is allowed (v1.2). Operations that move stock (document post and cancel, transfers,
+      count finalize) never fail on it; they return `warnings[]` with `NEGATIVE_STOCK`, the part, the depot and
+      the on hand after. Stock movements follow the ledger's closed years (`409 ERR_YEAR_CLOSED`).
     - **Exports**: reports and printable documents honour `Accept: application/pdf`. Grid endpoints return
       every filtered row as XLSX when `Accept` is the XLSX media type (server-side Excel). CSV is built in the client.
     - **Numbers**: `PREFIX-YEAR-DEPOT-COUNTER`, e.g. `SF-2026-1-000418`; one counter per company, depot, prefix and year.
@@ -61,7 +65,7 @@ tags:
   - name: Ledger
     description: Double-entry ledger (accounts, journal entries, balances)
   - name: Catalog
-    description: Parts, OEM/equivalent codes, price lists with history
+    description: Catalogs (price lists), parts, OEM/ALT/equivalent codes, list price history, price list imports
   - name: Stock
     description: Depots, movements, transfers, counts, levels
   - name: Documents
@@ -1266,7 +1270,8 @@ paths:
       operationId: postDocument
       summary: DRAFT → POSTED; allocates the number, emits DocumentPosted (ledger entry and stock movements follow)
       description: |
-        422 ERR_INSUFFICIENT_STOCK unless the depot allows negative stock; 422 ERR_CREDIT_LIMIT_EXCEEDED over the card's limit;
+        Negative stock never blocks: `warnings` lists NEGATIVE_STOCK per (part, depot). 422 ERR_CREDIT_LIMIT_EXCEEDED over the card's limit;
+        422 ERR_PART_INACTIVE for a line with an inactive part;
         422 ERR_WAYBILL_INVALID when `waybillDocumentId` is not a POSTED, unbilled waybill of the matching type, sicil and depot.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1286,7 +1291,9 @@ paths:
       tags: [Documents]
       operationId: cancelDocument
       summary: Cancel; a POSTED document is cancelled by reversal entries and opposite stock movements
-      description: 409 ERR_WAYBILL_BILLED for a waybill billed by a document that is not cancelled.
+      description: |
+        409 ERR_WAYBILL_BILLED for a waybill billed by a document that is not cancelled. Opposite movements may take
+        stock negative: `warnings` NEGATIVE_STOCK.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
@@ -1392,6 +1399,9 @@ paths:
       description: |
         One till per depot, so `depotId` is required; there is no combined book. With "All depots" in the top bar
         the client asks the user to pick a depot. Missing `depotId` answers 400 ERR_DEPOT_REQUIRED.
+        Across a carried year (as statements, L8): the CASH opening entry of the active run is an OPENING line on
+        1 January with `resetsBalance`; lines after it run from the carried opening. Voided opening entries and their
+        reversals are left out.
       parameters:
         - { name: depotId, in: query, required: true, schema: { type: integer } }
         - { name: from, in: query, required: true, schema: { type: string, format: date } }
@@ -1600,17 +1610,148 @@ paths:
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
 
+  /api/orgs/{orgId}/catalog/catalogs:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Catalog]
+      operationId: listCatalogs
+      summary: Catalogs (price lists), by code
+      parameters:
+        - { name: includeInactive, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: Catalogs
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Catalog' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Catalog]
+      operationId: createCatalog
+      summary: Create catalog
+      description: 409 ERR_CATALOG_CODE_EXISTS; 422 ERR_SICIL_NOT_FOUND (`supplierSicilId`).
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CatalogWrite' }
+      responses:
+        '201': { $ref: '#/components/responses/CatalogResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/catalog/catalogs/{catalogId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/CatalogId'
+    get:
+      tags: [Catalog]
+      operationId: getCatalog
+      summary: Get catalog
+      responses:
+        '200': { $ref: '#/components/responses/CatalogResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Catalog]
+      operationId: updateCatalog
+      summary: Update name, supplier and active flag; `code` is fixed (422 ERR_CATALOG_CODE_IMMUTABLE)
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CatalogWrite' }
+      responses:
+        '200': { $ref: '#/components/responses/CatalogResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/catalog/catalogs/{catalogId}/prices:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/CatalogId'
+    get:
+      tags: [Catalog]
+      operationId: listPrices
+      summary: The catalog as a price list on a date (one row per active part, by stock no)
+      parameters:
+        - { name: validOn, in: query, schema: { type: string, format: date }, description: Defaults to today }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Prices; `price` null for a part without a price on that date
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Price' } }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Catalog]
+      operationId: setPrices
+      summary: New list prices for several parts of this catalog from one date; earlier prices stay in history
+      description: |
+        All or nothing. Same rules as `setPartPrice` per item. 422 ERR_PART_NOT_IN_CATALOG (`items[i].partId`),
+        409 ERR_PRICE_EXISTS when a part already has a different price on `validFrom` (an equal price is a no-op).
+        One `PriceChanged` per inserted price.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [validFrom, items]
+              properties:
+                validFrom: { type: string, format: date }
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 1000
+                  items:
+                    type: object
+                    required: [partId, price]
+                    properties:
+                      partId: { type: integer }
+                      price: { $ref: '#/components/schemas/Money4' }
+      responses:
+        '201':
+          description: Inserted prices (no-ops left out)
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Price' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
   /api/orgs/{orgId}/catalog/parts/grid:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     post:
       tags: [Catalog]
       operationId: gridParts
-      summary: Grid search; `search` matches stock no, name and any OEM/equivalent code
+      summary: Parts & stock grid (floating filters, sort, infinite paging); XLSX via Accept, CSV in the client
+      description: |
+        Column ids and filter types: `PartColId`. `search` is OR over stockNo, name, brand and every code (normalized).
+        The `codes` filter matches any code of the part, normalized. Stock columns (onHand, reserved, available)
+        are for `depotId`, or summed over depots when it is null; minQty, maxQty and shelf need a `depotId` and are
+        null without one. Default sort `stockNo` asc, then `catalogCode`. `totals` has onHand, reserved and
+        available. XLSX carries every filtered row (at most 100 000) with the same columns.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/GridRequest' }
+            schema: { $ref: '#/components/schemas/PartGridRequest' }
       responses:
         '200':
           description: One page of parts
@@ -1621,25 +1762,34 @@ paths:
                   - $ref: '#/components/schemas/GridResponse'
                   - type: object
                     properties:
-                      rows: { type: array, items: { $ref: '#/components/schemas/Part' } }
+                      rows: { type: array, items: { $ref: '#/components/schemas/PartRow' } }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: { $ref: '#/components/schemas/Xlsx' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/orgs/{orgId}/catalog/search:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
       tags: [Catalog]
       operationId: searchCatalog
-      summary: Part picker (F2 on an invoice line)
+      summary: Part picker (F2 on an invoice line, typing in a line)
       description: |
-        Matches stock no and codes by normalized prefix/substring, name by words; exact code matches first.
-        Returns stock per depot and the price valid on `date`. Budget: p95 under 100 ms at 50k parts
-        (trigram indexes on parts and part_codes).
+        `q` is matched against stock no and every code (MANUFACTURER, OEM, ALT, EQUIVALENT) after normalization
+        (upper case, only 0-9 A-Z), and against the name word by word (every word must occur, case- and
+        Turkish-dotless-i-insensitive). Rank: 1 exact code or stock no, 2 prefix, 3 substring (normalized `q` of
+        3+ characters), 4 name; then stock no, then catalog code. Inactive parts are left out.
+        Each hit has on hand and available for every depot of the company (zero rows included) and the list price of
+        its catalog valid on `date`.
+
+        Paging: `limit` + opaque `cursor` over the ranked list. `total` counts matches up to 1000 (`totalCapped`).
+        Performance: p95 under 100 ms at 50 000 parts, 200 000 codes and 2 depots. Candidates come from the
+        btree prefix indexes (`parts.stock_no_norm`, `part_codes.normalized_code`, `text_pattern_ops`) and the
+        trigram indexes; price (`price_on`) and stock levels are joined for the page only.
       parameters:
-        - { name: q, in: query, required: true, schema: { type: string, minLength: 2 } }
-        - { name: priceListId, in: query, schema: { type: integer }, description: Defaults to the default sales list }
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 60 } }
+        - { name: catalogId, in: query, schema: { type: integer }, description: Only this catalog }
         - { name: date, in: query, schema: { type: string, format: date }, description: Price date; defaults to today }
-        - { name: inStockDepotId, in: query, schema: { type: integer }, description: Only parts available in this depot }
+        - { name: inStockDepotId, in: query, schema: { type: integer }, description: Only parts with available > 0 in this depot }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
         - $ref: '#/components/parameters/Cursor'
       responses:
@@ -1656,6 +1806,7 @@ paths:
       tags: [Catalog]
       operationId: resolvePartCodes
       summary: Resolve many codes at once (invoice CSV import); unknown or ambiguous codes are reported per row
+      description: Exact normalized match on stock no and codes only (rank 1 of `searchCatalog`); inactive parts are left out.
       requestBody:
         required: true
         content:
@@ -1687,7 +1838,10 @@ paths:
     post:
       tags: [Catalog]
       operationId: createPart
-      summary: Create part
+      summary: Create part in a catalog, optionally with its first list price
+      description: |
+        409 ERR_PART_CODE_EXISTS when the stock no exists in the catalog; 422 ERR_CATALOG_NOT_FOUND (`catalogId`),
+        ERR_PART_NOT_FOUND (`codes[i].equivalentPartId`). The same stock no may exist in another catalog.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
@@ -1699,12 +1853,13 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/catalog/parts/lookup:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
       tags: [Catalog]
       operationId: lookupPartByCode
-      summary: Resolve a manufacturer / OEM / equivalent code (normalized match)
+      summary: Resolve a manufacturer / OEM / ALT / equivalent code or stock no (normalized match)
       parameters:
         - { name: code, in: query, required: true, schema: { type: string, minLength: 2 } }
       responses:
@@ -1721,7 +1876,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: getPart
-      summary: Get part
+      summary: Get part with codes, current and next list price
       responses:
         '200': { $ref: '#/components/responses/PartResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -1729,7 +1884,10 @@ paths:
     put:
       tags: [Catalog]
       operationId: updatePart
-      summary: Update part
+      summary: Update part; `codes` replaces the code list; deactivate with `isActive` false (parts are never deleted)
+      description: |
+        `catalogId` must stay the same (422 ERR_PART_CATALOG_IMMUTABLE); `initialPrice` is ignored, prices change
+        through `setPartPrice`. 409 ERR_PART_CODE_EXISTS on a stock no taken in the catalog.
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
@@ -1738,9 +1896,12 @@ paths:
             schema: { $ref: '#/components/schemas/PartWrite' }
       responses:
         '200': { $ref: '#/components/responses/PartResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
   /api/orgs/{orgId}/catalog/parts/{partId}/stock:
     parameters:
@@ -1749,7 +1910,8 @@ paths:
     get:
       tags: [Stock]
       operationId: getPartStock
-      summary: On hand, reserved, available, min, max and shelf per depot, with a total row
+      summary: On hand, reserved, available, min, max and shelf for every depot, with a total row
+      description: Every depot of the company has a row; a depot without movements or settings shows zeros, version 0.
       responses:
         '200':
           description: Stock per depot
@@ -1772,7 +1934,10 @@ paths:
     put:
       tags: [Stock]
       operationId: setPartDepotSettings
-      summary: Min, max and shelf of a part in one depot
+      summary: Min, max and shelf of a part in one depot (upsert)
+      description: |
+        `If-Match` is the `version` of that depot row in `getPartStock`; `"0"` creates it. 422 ERR_INVALID_REQUEST
+        (`maxQty`) when max < min.
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
@@ -1788,8 +1953,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/StockLevel' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
   /api/orgs/{orgId}/catalog/parts/{partId}/prices:
     parameters:
       - $ref: '#/components/parameters/OrgId'
@@ -1797,113 +1964,264 @@ paths:
     get:
       tags: [Catalog]
       operationId: getPartPriceHistory
-      summary: Price history of a part, newest first, with change against the previous price
-      parameters:
-        - { name: priceListId, in: query, schema: { type: integer } }
+      summary: List price history of a part, newest `validFrom` first, future prices included
       responses:
         '200':
-          description: Prices, newest first
+          description: Prices
           content:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/Price' } }
         '401': { $ref: '#/components/responses/Unauthorized' }
-  /api/orgs/{orgId}/catalog/price-lists:
-    parameters: [{ $ref: '#/components/parameters/OrgId' }]
-    get:
-      tags: [Catalog]
-      operationId: listPriceLists
-      summary: Price lists (supplier catalogues and sales lists)
-      responses:
-        '200':
-          description: Price lists
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/PriceList' } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
     post:
       tags: [Catalog]
-      operationId: createPriceList
-      summary: Create price list
+      operationId: setPartPrice
+      summary: New list price from `validFrom` (past, today or future); history is append-only
+      description: |
+        Price on date D = the row with the latest `validFrom` ≤ D, so periods never overlap and a future price
+        becomes current on its day without a job. A different price on an existing `validFrom` → 409 ERR_PRICE_EXISTS
+        (a correction is a new row with a later `validFrom`); the same price → 200 with the existing row.
+        Emits `PriceChanged`.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/PriceList' }
+            schema: { $ref: '#/components/schemas/PriceWrite' }
       responses:
-        '201':
-          description: Created
+        '200':
+          description: Same price already on that date
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/PriceList' }
+              schema: { $ref: '#/components/schemas/Price' }
+        '201':
+          description: Price recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Price' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
-  /api/orgs/{orgId}/catalog/price-lists/{priceListId}/prices:
-    parameters:
-      - $ref: '#/components/parameters/OrgId'
-      - { name: priceListId, in: path, required: true, schema: { type: integer } }
+
+  /api/orgs/{orgId}/catalog/imports:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
       tags: [Catalog]
-      operationId: listPrices
-      summary: Prices valid on a date
+      operationId: listPriceImports
+      summary: Price list import jobs, newest first
       parameters:
-        - { name: validOn, in: query, schema: { type: string, format: date } }
+        - { name: catalogId, in: query, schema: { type: integer } }
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
-          description: Prices
+          description: Jobs
           content:
             application/json:
               schema:
                 type: object
                 required: [items]
                 properties:
-                  items: { type: array, items: { $ref: '#/components/schemas/Price' } }
+                  items: { type: array, items: { $ref: '#/components/schemas/PriceImport' } }
                   nextCursor: { type: [string, 'null'] }
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Catalog]
-      operationId: setPrices
-      summary: Set new prices from a date; earlier prices stay in history
+      operationId: createPriceImport
+      summary: Upload a price list (CSV, XLSX or legacy LISAKT text) into one catalog; starts parsing
+      description: |
+        Returns the job in PARSING, NEEDS_MAPPING, READY or FAILED; poll `getPriceImport` while PARSING.
+        Limits: 10 MiB, 100 000 rows (FAILED `ERR_IMPORT_TOO_MANY_ROWS`). Without `mapping` the columns are matched
+        by header name (`PriceImportTarget` names, Turkish aliases in `listPriceImportPresets`); if `code` or `price`
+        stay unmapped the job is NEEDS_MAPPING with `headers` and `sample`, and `updatePriceImport` sends the mapping.
+        A file whose SHA-256 was already applied to the catalog sets `duplicateOfImportId` (warning only).
+        400 ERR_NO_FILE_UPLOADED, ERR_FILE_TOO_LARGE; 422 ERR_CATALOG_NOT_FOUND.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, catalogId, validFrom]
+              properties:
+                file: { type: string, contentMediaType: application/octet-stream, description: '.csv, .xlsx or .txt (LISAKT)' }
+                catalogId: { type: integer }
+                validFrom: { type: string, format: date, description: For rows without their own valid_from }
+                mapping: { $ref: '#/components/schemas/PriceImportMapping' }
+            encoding:
+              mapping: { contentType: application/json }
+      responses:
+        '201': { $ref: '#/components/responses/PriceImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/catalog/imports/{importId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/ImportId'
+    get:
+      tags: [Catalog]
+      operationId: getPriceImport
+      summary: Job with status, counts per change kind and, once applied, the result
+      responses:
+        '200': { $ref: '#/components/responses/PriceImportResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Catalog]
+      operationId: updatePriceImport
+      summary: Change mapping or default `validFrom` and rebuild the preview; `{}` only rebuilds it
+      description: |
+        NEEDS_MAPPING or READY → PARSING → NEEDS_MAPPING | READY; version +1. Rebuilding against the current catalog is
+        also how a stale preview (409 ERR_IMPORT_STALE on apply) is refreshed. 409 ERR_INVALID_STATE_TRANSITION
+        in any other status.
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [validFrom, items]
               properties:
+                mapping: { $ref: '#/components/schemas/PriceImportMapping' }
                 validFrom: { type: string, format: date }
-                items:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: object
-                    required: [partId, price]
-                    properties:
-                      partId: { type: integer }
-                      price: { $ref: '#/components/schemas/Money4' }
       responses:
-        '201':
-          description: Prices recorded
+        '200': { $ref: '#/components/responses/PriceImportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/catalog/imports/{importId}/rows/grid:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/ImportId'
+    post:
+      tags: [Catalog]
+      operationId: gridPriceImportRows
+      summary: Preview diff rows (file vs catalog); XLSX via Accept
+      description: |
+        `change` picks the tab; a row with PRICE and ATTRIBUTES shows under both. Column ids: rowNo, stockNo,
+        description, brand, price, currentPrice, priceChangePct, validFrom, changes, errors. Default sort rowNo, MISSING
+        rows (rowNo null) last by stock no. `totals` is empty.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/GridRequest'
+                - type: object
+                  properties:
+                    change: { type: string, enum: [ALL, NEW, PRICE, ATTRIBUTES, UNCHANGED, MISSING, DELETE, ERROR, WARNING], default: ALL }
+      responses:
+        '200':
+          description: One page of rows
           content:
             application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/Price' } }
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/GridResponse'
+                  - type: object
+                    properties:
+                      rows: { type: array, items: { $ref: '#/components/schemas/PriceImportRow' } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/catalog/imports/{importId}/apply:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/ImportId'
+    post:
+      tags: [Catalog]
+      operationId: applyPriceImport
+      summary: Apply the previewed diff once, in one transaction; READY → APPLYING → APPLIED
+      description: |
+        `If-Match` = job version (the preview the user saw). Checks: status READY (409 ERR_INVALID_STATE_TRANSITION),
+        catalog unchanged since the preview (`catalogVersion`, 409 ERR_IMPORT_STALE), no ERROR rows unless
+        `skipErrorRows` (422 ERR_IMPORT_HAS_ERRORS). Effects: NEW → part in the job's catalog with its price;
+        PRICE → price row (`source` IMPORT, `importId`); ATTRIBUTES → part fields and codes (if `applyAttributes`);
+        DELETE → deactivated; MISSING → deactivated only with `missing` DEACTIVATE. Parts are never deleted.
+        200 with APPLIED, or 202 with APPLYING when it runs past the request (poll `getPriceImport`); on failure
+        the transaction rolls back and the job returns to READY. Emits one `PriceListImported`, no `PriceChanged`.
+        A replay with the same `Idempotency-Key` returns the first response.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                skipErrorRows: { type: boolean, default: false }
+                applyAttributes: { type: boolean, default: true }
+                missing: { type: string, enum: [KEEP, DEACTIVATE], default: KEEP }
+      responses:
+        '200': { $ref: '#/components/responses/PriceImportResponse' }
+        '202': { $ref: '#/components/responses/PriceImportResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/catalog/imports/{importId}/discard:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/ImportId'
+    post:
+      tags: [Catalog]
+      operationId: discardPriceImport
+      summary: Drop a job that was not applied (→ DISCARDED); the file is deleted
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      responses:
+        '200': { $ref: '#/components/responses/PriceImportResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/catalog/import-presets:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Catalog]
+      operationId: listPriceImportPresets
+      summary: Mapping presets (LISAKT) and the header aliases used for automatic mapping
+      responses:
+        '200':
+          description: Presets
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [presets, aliases]
+                properties:
+                  presets: { type: array, items: { $ref: '#/components/schemas/PriceImportPreset' } }
+                  aliases:
+                    type: object
+                    description: 'Target → accepted header names, e.g. `price: [price, fiyat, liste fiyatı]`'
+                    additionalProperties: { type: array, items: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/orgs/{orgId}/stock/levels:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
       tags: [Stock]
       operationId: listStockLevels
-      summary: Quantity on hand per part and depot, derived from movements
+      summary: On hand per part and depot (projection of movements); below-minimum and negative lists
+      description: |
+        `belowMin` = minQty > 0 and onHand < minQty; `negative` = onHand < 0. Order: onHand asc for NEGATIVE,
+        otherwise onHand − minQty asc, then stock no.
       parameters:
         - { name: partId, in: query, schema: { type: integer } }
         - $ref: '#/components/parameters/DepotIdQuery'
-        - { name: belowMin, in: query, schema: { type: boolean }, description: Dashboard "below minimum" list }
+        - { name: only, in: query, schema: { type: string, enum: [ALL, BELOW_MIN, NEGATIVE, BELOW_MIN_OR_NEGATIVE], default: ALL } }
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
       responses:
@@ -1923,8 +2241,14 @@ paths:
     post:
       tags: [Stock]
       operationId: gridStockMovements
-      summary: Movements with document, account and running on-hand; XLSX via Accept
-      description: '`runningOnHand` is set when `partId` is given (per depot, or over all depots when `depotId` is null).'
+      summary: Movements ledger with document, account and running on-hand; XLSX via Accept
+      description: |
+        Ledger order is (date, id). `runningOnHand` is the on hand after the movement in that order, per depot
+        (`depotId`) or over all depots (`depotId` null); it is set only when `partId` is given and the sort is `date`
+        (asc or desc), otherwise null. It counts every movement of the part, so column filters hide rows without
+        changing it. `openingOnHand` / `closingOnHand` bracket the `date` filter range (same scope).
+        Column ids: date, kind, label, sourceNo, sicilName, stockNo, name, depotId, qty, delta, unitCost; default sort
+        date desc, id desc. `totals`: qtyIn, qtyOut (Σ over filtered rows).
       requestBody:
         required: true
         content:
@@ -1938,7 +2262,7 @@ paths:
                     depotId: { type: [integer, 'null'] }
       responses:
         '200':
-          description: One page of movements, newest first
+          description: One page of movements
           content:
             application/json:
               schema:
@@ -1947,6 +2271,8 @@ paths:
                   - type: object
                     properties:
                       rows: { type: array, items: { $ref: '#/components/schemas/StockMovement' } }
+                      openingOnHand: { oneOf: [{ $ref: '#/components/schemas/SignedQuantity' }, { type: 'null' }] }
+                      closingOnHand: { oneOf: [{ $ref: '#/components/schemas/SignedQuantity' }, { type: 'null' }] }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -1955,7 +2281,12 @@ paths:
     post:
       tags: [Stock]
       operationId: transferStock
-      summary: Move stock between the company's depots (TRF number of the source depot, paired OUT/IN movements)
+      summary: Move stock between two depots of the company in one transaction (TRF number of the source depot)
+      description: |
+        All lines or none: one TRF number, and per line a TRANSFER_OUT in the source and a TRANSFER_IN in the
+        target, same date. Negative on hand is allowed and reported in `warnings`. 422 ERR_SAME_DEPOT,
+        ERR_DEPOT_NOT_FOUND, ERR_PART_NOT_FOUND / ERR_PART_INACTIVE (`lines[i].partId`), ERR_DUPLICATE_LINE (a part
+        twice); 409 ERR_YEAR_CLOSED. Emits `StockMoved` per movement.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
@@ -1964,21 +2295,40 @@ paths:
             schema: { $ref: '#/components/schemas/StockTransferCreate' }
       responses:
         '201':
+          description: Transfer with its movements and warnings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockTransfer' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/stock/transfers/{transferId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - { name: transferId, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Stock]
+      operationId: getStockTransfer
+      summary: Transfer with its movements (`warnings` empty)
+      responses:
+        '200':
           description: Transfer
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StockTransfer' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/orgs/{orgId}/stock/counts:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
       tags: [Stock]
       operationId: listStockCounts
-      summary: Stock counts (sayım)
+      summary: Stock counts (sayım), newest first
       parameters:
         - { name: year, in: query, schema: { type: integer } }
         - $ref: '#/components/parameters/DepotIdQuery'
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, FINALIZED, CANCELLED] } }
       responses:
         '200':
           description: Counts
@@ -1989,7 +2339,14 @@ paths:
     post:
       tags: [Stock]
       operationId: openStockCount
-      summary: Open a count for a depot, year and optional shelf range; creates one line per part in range
+      summary: Open a count session for one depot; freezes the system quantity of every line
+      description: |
+        One OPEN count per depot (409 ERR_STOCK_COUNT_OPEN_EXISTS). `startedAt` is the freeze instant: a line's
+        `systemQty` is the on hand of the part in the depot from movements that occurred up to then, also for lines
+        added later. Lines: active parts with on hand ≠ 0 in the depot or a non-empty shelf there; with a shelf range,
+        parts whose shelf is in [shelfFrom, shelfTo] (shelfTo also matches as a prefix: `B` includes `B-04-2`).
+        Number from the SAY series of the depot, year of `countDate`. 409 ERR_YEAR_CLOSED for a `countDate` in a
+        closed year.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
@@ -1998,8 +2355,10 @@ paths:
             schema: { $ref: '#/components/schemas/StockCountOpen' }
       responses:
         '201': { $ref: '#/components/responses/StockCountResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/stock/counts/{countId}:
     parameters:
       - $ref: '#/components/parameters/OrgId'
@@ -2008,6 +2367,14 @@ paths:
       tags: [Stock]
       operationId: getStockCount
       summary: Count header with progress and totals; count sheet PDF via Accept
+      description: |
+        The PDF sheet lists lines by shelf, then stock no: shelf, stock no, name, brand, unit, an empty counted box,
+        and the system quantity only with `sheet` WITH_SYSTEM. `only` NOT_COUNTED prints a recount sheet.
+      parameters:
+        - { name: sheet, in: query, schema: { type: string, enum: [BLIND, WITH_SYSTEM], default: BLIND }, description: PDF only }
+        - { name: only, in: query, schema: { type: string, enum: [ALL, NOT_COUNTED], default: ALL }, description: PDF only }
+        - { name: shelfFrom, in: query, schema: { type: string }, description: PDF only }
+        - { name: shelfTo, in: query, schema: { type: string }, description: PDF only }
       responses:
         '200':
           description: Stock count
@@ -2027,7 +2394,13 @@ paths:
     post:
       tags: [Stock]
       operationId: gridStockCountLines
-      summary: Count lines (shelf, part, system, counted, difference, value, counted by)
+      summary: Count lines; XLSX via Accept
+      description: |
+        `only`: DIFFERENCES = counted and ≠ system; NOT_COUNTED = countedQty null; COUNTED = not null. Shelf range as
+        in `openStockCount`. Column ids: shelf, stockNo, name, brand, systemQty, countedQty, difference,
+        movedSinceOpen, unitCost, costSource, value, countedBy, countedAt; default sort shelf, stockNo. While OPEN,
+        unitCost / costSource are `last_purchase_cost(countDate)` read live; after finalize, the snapshot.
+        `totals`: systemQty, countedQty, difference, value, valueIn, valueOut.
       requestBody:
         required: true
         content:
@@ -2037,10 +2410,12 @@ paths:
                 - $ref: '#/components/schemas/GridRequest'
                 - type: object
                   properties:
-                    only: { type: string, enum: [ALL, DIFFERENCES, NOT_COUNTED], default: ALL }
+                    only: { type: string, enum: [ALL, DIFFERENCES, NOT_COUNTED, COUNTED], default: ALL }
+                    shelfFrom: { type: string }
+                    shelfTo: { type: string }
       responses:
         '200':
-          description: One page of lines; `totals` has system, counted, difference and value
+          description: One page of lines
           content:
             application/json:
               schema:
@@ -2052,6 +2427,7 @@ paths:
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/orgs/{orgId}/stock/counts/{countId}/lines:
     parameters:
       - $ref: '#/components/parameters/OrgId'
@@ -2059,26 +2435,33 @@ paths:
     post:
       tags: [Stock]
       operationId: addStockCountLine
-      summary: Add a part found on a shelf that is not on the sheet
+      summary: Add a part found on a shelf that is not on the sheet (`added` true, systemQty frozen at `startedAt`)
+      description: |
+        409 ERR_STOCK_COUNT_LINE_EXISTS when the part already has a line (one line per part; count it there),
+        409 ERR_STOCK_COUNT_NOT_OPEN; 422 ERR_PART_NOT_FOUND / ERR_PART_INACTIVE.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [partId, shelf]
+              required: [partId]
               properties:
                 partId: { type: integer }
-                shelf: { type: string }
+                shelf: { type: string, maxLength: 20, description: Defaults to the part's shelf in the depot }
                 countedQty: { $ref: '#/components/schemas/Quantity' }
       responses:
         '201':
           description: Line
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StockCountLine' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/stock/counts/{countId}/lines/{lineId}:
     parameters:
       - $ref: '#/components/parameters/OrgId'
@@ -2089,8 +2472,9 @@ paths:
       operationId: setStockCountLine
       summary: Autosave one counted quantity (null clears it); sets countedBy and countedAt
       description: |
-        Per-line optimistic lock, so several people can count one sheet. The count must be OPEN
-        (409 ERR_STOCK_COUNT_NOT_OPEN).
+        Per-line optimistic lock: `If-Match` is the line `version` (ETag), every save moves it by one, so several
+        people can count one sheet and a stale save gets 412 instead of overwriting. The count must be OPEN
+        (409 ERR_STOCK_COUNT_NOT_OPEN). 404 ERR_STOCK_COUNT_LINE_NOT_FOUND. The count header version does not move.
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
@@ -2101,6 +2485,7 @@ paths:
               required: [countedQty]
               properties:
                 countedQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
+                shelf: { type: string, maxLength: 20, description: Where it was found; the part's depot shelf is not changed }
       responses:
         '200':
           description: Saved line
@@ -2110,6 +2495,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/StockCountLine' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
@@ -2120,8 +2506,13 @@ paths:
     post:
       tags: [Stock]
       operationId: finalizeStockCount
-      summary: Post differences; OPEN → FINALIZED, differences become ADJUST movements
-      description: '`uncounted` decides lines without a counted quantity: SKIP leaves stock as is, ZERO counts them as 0.'
+      summary: Post differences; OPEN → FINALIZED, one ADJUST movement per line with a difference
+      description: |
+        `uncounted`: SKIP leaves lines without a count as they are; ZERO treats them as counted 0.
+        Difference = counted − systemQty (frozen); movements after `startedAt` stay on top, so on hand after =
+        on hand now + difference. ADJUST_IN / ADJUST_OUT dated `countDate`, `unitCost` = snapshot of
+        `last_purchase_cost(countDate)` with `costSource` (ADR-0008). One transaction; negative results are allowed
+        and reported in `warnings`. 409 ERR_STOCK_COUNT_NOT_OPEN, ERR_YEAR_CLOSED. Emits `StockMoved` per movement.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
@@ -2135,10 +2526,33 @@ paths:
               properties:
                 uncounted: { type: string, enum: [SKIP, ZERO] }
       responses:
+        '200':
+          description: Finalized count, adjustments and warnings
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountFinalized' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/stock/counts/{countId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/CountId'
+    post:
+      tags: [Stock]
+      operationId: cancelStockCount
+      summary: OPEN → CANCELLED without movements; the depot can open a new count
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
         '200': { $ref: '#/components/responses/StockCountResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
 
   /api/orgs/{orgId}/migration/runs:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
@@ -2319,6 +2733,16 @@ components:
       in: path
       required: true
       schema: { type: integer }
+    CatalogId:
+      name: catalogId
+      in: path
+      required: true
+      schema: { type: integer }
+    ImportId:
+      name: importId
+      in: path
+      required: true
+      schema: { type: integer }
     CountId:
       name: countId
       in: path
@@ -2410,7 +2834,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     Conflict:
-      description: Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_ENTRY_OWNED_BY_SOURCE with `owner`)
+      description: Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_IMPORT_STALE, ERR_ENTRY_OWNED_BY_SOURCE with `owner`)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -2425,7 +2849,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     Unprocessable:
-      description: Business rule violated or unknown id in the body (ERR_ENTRY_UNBALANCED, ERR_INSUFFICIENT_STOCK, ERR_IDEMPOTENCY_KEY_REUSED, ERR_*_NOT_FOUND, …)
+      description: Business rule violated or unknown id in the body (ERR_ENTRY_UNBALANCED, ERR_IDEMPOTENCY_KEY_REUSED, ERR_IMPORT_HAS_ERRORS, ERR_*_NOT_FOUND, …)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -2477,6 +2901,20 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Part' }
+    CatalogResponse:
+      description: Catalog
+      headers:
+        ETag: { $ref: '#/components/headers/ETag' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Catalog' }
+    PriceImportResponse:
+      description: Price list import job
+      headers:
+        ETag: { $ref: '#/components/headers/ETag' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/PriceImport' }
     DocumentResponse:
       description: Document
       headers:
@@ -2580,8 +3018,18 @@ components:
         - ERR_INVALID_AMOUNT
         - ERR_PART_NOT_FOUND
         - ERR_PART_CODE_EXISTS
-        - ERR_PRICE_LIST_NOT_FOUND
-        - ERR_INSUFFICIENT_STOCK
+        - ERR_PART_INACTIVE
+        - ERR_PART_NOT_IN_CATALOG
+        - ERR_PART_CATALOG_IMMUTABLE
+        - ERR_CATALOG_NOT_FOUND
+        - ERR_CATALOG_CODE_EXISTS
+        - ERR_CATALOG_CODE_IMMUTABLE
+        - ERR_PRICE_EXISTS
+        - ERR_IMPORT_NOT_FOUND
+        - ERR_IMPORT_FORMAT
+        - ERR_IMPORT_TOO_MANY_ROWS
+        - ERR_IMPORT_STALE
+        - ERR_IMPORT_HAS_ERRORS
         - ERR_STOCK_COUNT_NOT_OPEN
         - ERR_DOCUMENT_NOT_FOUND
         - ERR_DOCUMENT_EMPTY
@@ -2607,6 +3055,10 @@ components:
         - ERR_CARRY_FORWARD_BLOCKED
         - ERR_STOCK_COUNT_LINE_NOT_FOUND
         - ERR_STOCK_COUNT_OPEN_EXISTS
+        - ERR_STOCK_COUNT_NOT_FOUND
+        - ERR_STOCK_COUNT_LINE_EXISTS
+        - ERR_TRANSFER_NOT_FOUND
+        - ERR_DUPLICATE_LINE
         - ERR_SAME_DEPOT
         - ERR_CASH_VOUCHER_NOT_FOUND
         - ERR_CASH_VOUCHER_ALREADY_VOIDED
@@ -2629,6 +3081,11 @@ components:
       type: string
       pattern: '^\d{1,14}(\.\d{1,4})?$'
       examples: ['12.5']
+    SignedQuantity:
+      type: string
+      description: Quantity that may be negative (on hand, available, differences)
+      pattern: '^-?\d{1,14}(\.\d{1,4})?$'
+      examples: ['-3']
     Percent:
       type: string
       pattern: '^\d{1,3}(\.\d{1,4})?$'
@@ -2822,7 +3279,7 @@ components:
 
     Dashboard:
       type: object
-      required: [date, receivables, payables, cash, instrumentsDue30, latest, dueThisWeek, belowMin, ledgerCheck]
+      required: [date, receivables, payables, cash, instrumentsDue30, latest, dueThisWeek, belowMin, belowMinCount, negativeCount, ledgerCheck]
       properties:
         date: { type: string, format: date }
         receivables:
@@ -2872,7 +3329,13 @@ components:
               dueDate: { type: string, format: date }
               daysToDue: { type: integer, description: Negative when overdue }
               remaining: { $ref: '#/components/schemas/Money' }
-        belowMin: { type: array, items: { $ref: '#/components/schemas/StockLevel' } }
+        belowMin:
+          type: array
+          maxItems: 10
+          description: '"Below minimum / negative" list: listStockLevels only=BELOW_MIN_OR_NEGATIVE, negative first'
+          items: { $ref: '#/components/schemas/StockLevel' }
+        belowMinCount: { type: integer, description: '(part, depot) pairs below minimum' }
+        negativeCount: { type: integer, description: '(part, depot) pairs with negative on hand' }
         ledgerCheck:
           type: object
           required: [status]
@@ -2918,7 +3381,6 @@ components:
         code: { type: string, examples: ['1'] }
         name: { type: string }
         vatRate: { $ref: '#/components/schemas/Percent' }
-        allowNegativeStock: { type: boolean, default: false }
         version: { type: integer, readOnly: true }
     NumberSeries:
       type: object
@@ -3034,7 +3496,7 @@ components:
           type: array
           description: |
             The four steps of the screen, in order. CLOSE_DOCUMENTS ← NO_DRAFT_DOCUMENTS, STOCK_COUNTS ←
-            STOCK_COUNTS_POSTED, ACCOUNT_BALANCES ← LEDGER_BALANCED, OPEN_YEAR ← YEAR_NOT_OPENED and the post.
+            STOCK_COUNTS_POSTED and YEAR_END_COUNTS, ACCOUNT_BALANCES ← LEDGER_BALANCED, OPEN_YEAR ← YEAR_NOT_OPENED and the post.
             A failing blocking check makes its step BLOCKED; the first step not DONE is CURRENT; all four are
             DONE when status is POSTED.
           minItems: 4
@@ -3049,12 +3511,15 @@ components:
           type: array
           description: |
             Close previous-year documents, stock counts posted, balances, open the year.
-            NO_DRAFT_DOCUMENTS and STOCK_COUNTS_POSTED are always ok until documents (F2) and stock (F3) exist.
+            STOCK_COUNTS_POSTED (blocking): no stock count in status OPEN with countDate ≤ 31 December of year − 1, in any
+            depot (their ADJUST movements would land in the closed year); `detail` lists the count numbers.
+            YEAR_END_COUNTS (not blocking): every depot has a FINALIZED count dated in year − 1; `detail` lists depots
+            without one. NO_DRAFT_DOCUMENTS stays always ok until documents exist.
           items:
             type: object
             required: [code, ok, blocking]
             properties:
-              code: { type: string, enum: [NO_DRAFT_DOCUMENTS, STOCK_COUNTS_POSTED, LEDGER_BALANCED, YEAR_NOT_OPENED] }
+              code: { type: string, enum: [NO_DRAFT_DOCUMENTS, STOCK_COUNTS_POSTED, YEAR_END_COUNTS, LEDGER_BALANCED, YEAR_NOT_OPENED] }
               ok: { type: boolean }
               blocking: { type: boolean }
               detail: { type: string }
@@ -3258,8 +3723,8 @@ components:
             lineNo: { type: integer }
             stockNo: { type: string, readOnly: true }
             name: { type: string, readOnly: true }
-            onHand: { $ref: '#/components/schemas/Quantity', description: 'In the document depot, now' }
-            available: { $ref: '#/components/schemas/Quantity', description: onHand − reserved }
+            onHand: { $ref: '#/components/schemas/SignedQuantity', description: 'In the document depot, now' }
+            available: { $ref: '#/components/schemas/SignedQuantity', description: onHand − reserved }
             netAmount: { $ref: '#/components/schemas/Money' }
             vatAmount: { $ref: '#/components/schemas/Money' }
             lineTotal: { $ref: '#/components/schemas/Money' }
@@ -3361,15 +3826,20 @@ components:
             creditUsedPctAfter: { type: [integer, 'null'] }
         warnings:
           type: array
-          description: Non-blocking on save, checked again on post
+          description: |
+            Non-blocking. STOCK_SHORT on a draft (requested > available); NEGATIVE_STOCK in the post and cancel
+            responses, computed in that transaction from the stock levels and the document's movements.
           items:
             type: object
             required: [code]
             properties:
-              code: { type: string, enum: [STOCK_SHORT, CREDIT_LIMIT, PRICE_BELOW_LIST] }
+              code: { type: string, enum: [STOCK_SHORT, NEGATIVE_STOCK, CREDIT_LIMIT, PRICE_BELOW_LIST] }
               lineNo: { type: [integer, 'null'] }
+              partId: { type: [integer, 'null'] }
+              depotId: { type: [integer, 'null'] }
               requested: { $ref: '#/components/schemas/Quantity' }
-              available: { $ref: '#/components/schemas/Quantity' }
+              available: { $ref: '#/components/schemas/SignedQuantity' }
+              onHandAfter: { $ref: '#/components/schemas/SignedQuantity', description: NEGATIVE_STOCK }
         journalEntryId: { type: [integer, 'null'] }
         postedAt: { type: [string, 'null'], format: date-time }
         cancelledAt: { type: [string, 'null'], format: date-time }
@@ -3424,10 +3894,15 @@ components:
             voidedByEntryId: { type: [integer, 'null'] }
     CashBookLine:
       type: object
-      required: [date, kind, description, income, expense, runningBalance]
+      required: [date, kind, description, income, expense, runningBalance, resetsBalance]
       properties:
         date: { type: string, format: date }
-        kind: { type: string, enum: [COLLECTION, PAYMENT, EXPENSE, BANK_DEPOSIT, BANK_WITHDRAWAL, CASH_COUNT, OTHER] }
+        kind: { type: string, enum: [COLLECTION, PAYMENT, EXPENSE, BANK_DEPOSIT, BANK_WITHDRAWAL, CASH_COUNT, OPENING, OTHER] }
+        resetsBalance:
+          type: boolean
+          description: |
+            OPENING line of a carried year (1 January, active run): runningBalance restarts at the carried opening
+            amount instead of adding to the previous line. income / expense show the opening; totals leave it out.
         documentNo: { type: [string, 'null'] }
         receiptId: { type: [integer, 'null'] }
         voucherId: { type: [integer, 'null'] }
@@ -3445,11 +3920,11 @@ components:
         depotId: { type: integer }
         from: { type: string, format: date }
         to: { type: string, format: date, description: Inclusive }
-        openingBalance: { $ref: '#/components/schemas/Money', description: Balance at the end of from − 1 }
-        totalIn: { $ref: '#/components/schemas/Money' }
-        totalOut: { $ref: '#/components/schemas/Money' }
+        openingBalance: { $ref: '#/components/schemas/Money', description: 'Balance as of from − 1 (L6: from the latest active run ≤ that day)' }
+        totalIn: { $ref: '#/components/schemas/Money', description: Without resetsBalance lines }
+        totalOut: { $ref: '#/components/schemas/Money', description: Without resetsBalance lines }
         lines: { type: array, items: { $ref: '#/components/schemas/CashBookLine' } }
-        closingBalance: { $ref: '#/components/schemas/Money' }
+        closingBalance: { $ref: '#/components/schemas/Money', description: 'Balance as of `to` (L6) = runningBalance of the last line, or openingBalance without lines' }
     CashVoucherCreate:
       type: object
       required: [kind, depotId, date, accountId, amount, description]
@@ -3587,91 +4062,408 @@ components:
         actorUserId: { type: integer }
         note: { type: [string, 'null'] }
 
+    StockWarning:
+      type: object
+      description: Non-blocking. Negative stock is allowed (v1.2); the operation succeeded.
+      required: [code, partId, depotId, onHandAfter]
+      properties:
+        code: { type: string, enum: [NEGATIVE_STOCK] }
+        partId: { type: integer }
+        stockNo: { type: string }
+        depotId: { type: integer }
+        onHandAfter: { $ref: '#/components/schemas/SignedQuantity' }
+
+    CatalogWrite:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: integer, minimum: 1, maximum: 9999, description: Legacy KATNO; fixed after create }
+        name: { type: string, maxLength: 60 }
+        supplierSicilId: { type: [integer, 'null'] }
+        isActive: { type: boolean, default: true }
+    Catalog:
+      allOf:
+        - $ref: '#/components/schemas/CatalogWrite'
+        - type: object
+          description: A catalog is one price list. Every part belongs to exactly one catalog.
+          required: [id, currency, partCount, contentVersion, version]
+          properties:
+            id: { type: integer }
+            supplierName: { type: [string, 'null'] }
+            currency: { $ref: '#/components/schemas/Currency' }
+            partCount: { type: integer, description: Active parts }
+            contentVersion: { type: integer, format: int64, description: Moves with every part or price change in the catalog }
+            lastImportAt: { type: [string, 'null'], format: date-time }
+            version: { type: integer }
+
     PartCode:
       type: object
       required: [kind, code]
       properties:
-        kind: { type: string, enum: [MANUFACTURER, OEM, EQUIVALENT] }
-        code: { type: string, maxLength: 40 }
-        equivalentPartId: { type: [integer, 'null'], description: For EQUIVALENT codes (muadil) }
+        kind:
+          type: string
+          enum: [MANUFACTURER, OEM, ALT, EQUIVALENT]
+          description: 'MANUFACTURER (PRCNO), OEM (OEMNO), ALT (alternative / old code, no linked part), EQUIVALENT (muadil: links another part)'
+        code: { type: string, minLength: 1, maxLength: 40 }
+        normalizedCode: { type: string, readOnly: true, description: 'Upper case, 0-9 A-Z only; unique per part and kind' }
+        equivalentPartId: { type: [integer, 'null'], description: 'Required for EQUIVALENT; null otherwise' }
     PartWrite:
       type: object
-      required: [catalogNo, stockNo, name]
+      required: [catalogId, stockNo, name]
       properties:
-        catalogNo: { type: integer, description: Legacy KATNO }
-        stockNo: { type: string, maxLength: 15, description: Legacy STNO }
-        name: { type: string }
-        type: { type: string }
-        brand: { type: string }
+        catalogId: { type: integer, description: Fixed after create }
+        stockNo: { type: string, minLength: 1, maxLength: 15, description: 'Legacy STNO; unique per catalog' }
+        name: { type: string, maxLength: 60 }
+        type: { type: [string, 'null'], maxLength: 30 }
+        brand: { type: [string, 'null'], maxLength: 30 }
         unit: { type: string, default: PCS }
-        packageQty: { type: integer, minimum: 1 }
+        packageQty: { type: integer, minimum: 1, default: 1 }
         vatPct: { $ref: '#/components/schemas/Percent' }
+        isActive: { type: boolean, default: true, description: Inactive parts are left out of search and new lines (422 ERR_PART_INACTIVE) }
         codes: { type: array, items: { $ref: '#/components/schemas/PartCode' } }
+        initialPrice: { $ref: '#/components/schemas/PriceWrite', description: createPart only }
     Part:
       allOf:
         - $ref: '#/components/schemas/PartWrite'
         - type: object
-          required: [id, orgId, isActive, version]
+          required: [id, orgId, catalogCode, isActive, version]
           properties:
             id: { type: integer }
             orgId: { type: integer }
-            isActive: { type: boolean }
-            listPrice: { $ref: '#/components/schemas/Money4', description: Current price in the default sales list }
-            priceListName: { type: string }
-            onHand: { $ref: '#/components/schemas/Quantity', description: Sum over depots }
+            catalogCode: { type: integer }
+            catalogName: { type: string }
+            listPrice: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }], description: Price valid today }
+            listPriceValidFrom: { type: [string, 'null'], format: date }
+            nextPrice:
+              description: Earliest future price, if any
+              oneOf:
+                - type: 'null'
+                - type: object
+                  required: [price, validFrom]
+                  properties:
+                    price: { $ref: '#/components/schemas/Money4' }
+                    validFrom: { type: string, format: date }
+            onHand: { $ref: '#/components/schemas/SignedQuantity', description: Sum over depots }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
             version: { type: integer }
+    PartColId:
+      type: string
+      description: |
+        gridParts column ids. text: stockNo, name, type, brand, catalogCode, codes, unit, shelf, isActive ("true" /
+        "false"); number: vatPct, packageQty, listPrice, onHand, reserved, available, minQty, maxQty; date:
+        listPriceValidFrom, updatedAt.
+      enum: [stockNo, name, type, brand, catalogCode, codes, unit, vatPct, packageQty, listPrice, listPriceValidFrom,
+             onHand, reserved, available, minQty, maxQty, shelf, isActive, updatedAt]
+    PartGridRequest:
+      allOf:
+        - $ref: '#/components/schemas/GridRequest'
+        - type: object
+          properties:
+            sortModel:
+              type: array
+              items:
+                type: object
+                properties:
+                  colId: { $ref: '#/components/schemas/PartColId' }
+            filterModel:
+              type: object
+              propertyNames: { $ref: '#/components/schemas/PartColId' }
+            catalogId: { type: [integer, 'null'] }
+            depotId: { type: [integer, 'null'], description: Scope of the stock columns; null = all depots }
+            stock: { type: string, enum: [ALL, IN_STOCK, BELOW_MIN, NEGATIVE, BELOW_MIN_OR_NEGATIVE], default: ALL }
+            includeInactive: { type: boolean, default: false }
+            priceDate: { type: string, format: date, description: listPrice date; defaults to today }
+    PartRow:
+      type: object
+      required: [id, catalogId, catalogCode, stockNo, name, unit, vatPct, packageQty, isActive, onHand, reserved, available, belowMin, negative, version]
+      properties:
+        id: { type: integer }
+        catalogId: { type: integer }
+        catalogCode: { type: integer }
+        stockNo: { type: string }
+        name: { type: string }
+        type: { type: [string, 'null'] }
+        brand: { type: [string, 'null'] }
+        codes: { type: array, items: { $ref: '#/components/schemas/PartCode' } }
+        unit: { type: string }
+        vatPct: { $ref: '#/components/schemas/Percent' }
+        packageQty: { type: integer }
+        listPrice: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }] }
+        listPriceValidFrom: { type: [string, 'null'], format: date }
+        onHand: { $ref: '#/components/schemas/SignedQuantity' }
+        reserved: { $ref: '#/components/schemas/Quantity' }
+        available: { $ref: '#/components/schemas/SignedQuantity' }
+        minQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
+        maxQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
+        shelf: { type: [string, 'null'] }
+        belowMin: { type: boolean, description: 'With depotId: minQty > 0 and onHand < minQty; without: in any depot' }
+        negative: { type: boolean, description: 'With depotId: onHand < 0; without: in any depot' }
+        isActive: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer }
     CatalogHit:
       type: object
-      required: [partId, stockNo, name, stock]
+      required: [partId, catalogId, catalogCode, stockNo, name, stock, onHandTotal, matchKind]
       properties:
         partId: { type: integer }
+        catalogId: { type: integer }
+        catalogCode: { type: integer }
         stockNo: { type: string }
         name: { type: string }
         brand: { type: [string, 'null'] }
-        codes: { type: array, items: { $ref: '#/components/schemas/PartCode' }, description: OEM and equivalent codes }
+        type: { type: [string, 'null'] }
+        codes: { type: array, items: { $ref: '#/components/schemas/PartCode' }, description: 'MANUFACTURER, OEM, ALT and EQUIVALENT codes' }
         matchedCode: { type: [string, 'null'], description: 'The code that matched `q`, for highlighting' }
+        matchKind: { type: string, enum: [STOCK_NO, MANUFACTURER, OEM, ALT, EQUIVALENT, NAME] }
+        equivalents:
+          type: array
+          description: Parts linked by EQUIVALENT codes, either direction
+          items:
+            type: object
+            required: [partId, stockNo, catalogCode, onHandTotal]
+            properties:
+              partId: { type: integer }
+              stockNo: { type: string }
+              catalogCode: { type: integer }
+              onHandTotal: { $ref: '#/components/schemas/SignedQuantity' }
         stock:
           type: array
+          description: One entry per depot of the company
           items:
             type: object
             required: [depotId, onHand, available]
             properties:
               depotId: { type: integer }
-              onHand: { $ref: '#/components/schemas/Quantity' }
-              available: { $ref: '#/components/schemas/Quantity' }
-        listPrice: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }] }
+              onHand: { $ref: '#/components/schemas/SignedQuantity' }
+              available: { $ref: '#/components/schemas/SignedQuantity' }
+        onHandTotal: { $ref: '#/components/schemas/SignedQuantity' }
+        listPrice: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }], description: 'Catalog price valid on `date`' }
+        listPriceValidFrom: { type: [string, 'null'], format: date }
         vatPct: { $ref: '#/components/schemas/Percent' }
         unit: { type: string }
+        packageQty: { type: integer }
     CatalogSearchResult:
       type: object
-      required: [items, total]
+      required: [items, total, totalCapped]
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/CatalogHit' } }
-        total: { type: integer, description: 'All matches ("5 of 23")' }
-        priceList: { $ref: '#/components/schemas/PriceList' }
+        total: { type: integer, description: 'Matches ("5 of 23"), at most 1000' }
+        totalCapped: { type: boolean, description: 'True when there are more than 1000 ("1000+")' }
+        date: { type: string, format: date, description: Price date used }
         nextCursor: { type: [string, 'null'] }
-    PriceList:
+    PriceWrite:
       type: object
-      required: [code, name, kind]
+      required: [price, validFrom]
       properties:
-        id: { type: integer, readOnly: true }
-        code: { type: string }
-        name: { type: string }
-        kind: { type: string, enum: [SALES, SUPPLIER] }
-        supplierSicilId: { type: [integer, 'null'] }
-        currency: { $ref: '#/components/schemas/Currency' }
-        isDefault: { type: boolean }
-    Price:
-      type: object
-      required: [priceListId, partId, price, validFrom]
-      properties:
-        priceListId: { type: integer }
-        partId: { type: integer }
         price: { $ref: '#/components/schemas/Money4' }
         validFrom: { type: string, format: date }
-        validTo: { type: [string, 'null'], format: date, description: Derived from the next price }
-        changePct: { type: [string, 'null'], description: 'Against the previous price, e.g. "6.9"' }
-        createdBy: { type: integer }
+    Price:
+      type: object
+      description: 'One list price of a part. Valid from `validFrom` until the day before the next `validFrom`.'
+      required: [partId, validFrom, source, isCurrent]
+      properties:
+        id: { type: integer }
+        partId: { type: integer }
+        catalogId: { type: integer }
+        stockNo: { type: string }
+        name: { type: string }
+        price: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }], description: 'Null only in listPrices for a part without a price on the date' }
+        validFrom: { type: [string, 'null'], format: date }
+        validTo: { type: [string, 'null'], format: date, description: 'Next validFrom − 1 day; null = open-ended' }
+        previousPrice: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }] }
+        changePct: { type: [string, 'null'], description: 'Against previousPrice, one decimal, e.g. "6.9"' }
+        isCurrent: { type: boolean, description: Valid today }
+        source: { type: [string, 'null'], enum: [MANUAL, IMPORT, LEGACY, null] }
+        importId: { type: [integer, 'null'] }
+        createdBy: { type: [string, 'null'], description: User login }
+        createdAt: { type: [string, 'null'], format: date-time }
+
+    PriceImportTarget:
+      type: string
+      description: |
+        Fields a column can be mapped to. code = stock no (required), price (required). Empty cells keep the
+        current value; oem / manufacturerCode / altCodes, when present, replace that kind of code on the part
+        (altCodes split on `listSeparator`). catalogCode, op and equivalent* are LISAKT fields.
+      enum: [code, description, brand, type, manufacturerCode, oem, altCodes, price, validFrom, packQty, vatPct,
+             catalogCode, op, equivalentCatalogCode, equivalentCode]
+    PriceImportColumn:
+      type: object
+      description: |
+        Source of one target. CSV / XLSX: `header` (case-insensitive, trimmed) or `index` (1-based) or `letter` (XLSX).
+        FIXED_WIDTH: `start` (1-based) and `length`; `scale` = implied decimals of an unsigned zoned number.
+      properties:
+        header: { type: string }
+        index: { type: integer, minimum: 1 }
+        letter: { type: string, pattern: '^[A-Z]{1,3}$' }
+        start: { type: integer, minimum: 1 }
+        length: { type: integer, minimum: 1 }
+        scale: { type: integer, minimum: 0, maximum: 6, default: 0 }
+    PriceImportMapping:
+      type: object
+      properties:
+        preset: { type: [string, 'null'], enum: [LISAKT, null], description: 'Fills format, encoding, dateFormat and columns; fields given here override' }
+        format: { type: string, enum: [CSV, XLSX, FIXED_WIDTH], description: 'From the extension when omitted; FIXED_WIDTH needs a preset' }
+        encoding: { type: string, enum: [UTF-8, CP857, WINDOWS-1254], default: UTF-8, description: CSV and FIXED_WIDTH }
+        delimiter: { type: string, maxLength: 1, description: 'CSV; detected from ; , or tab when omitted' }
+        decimalSeparator: { type: string, enum: [',', '.'], default: ',' }
+        dateFormat: { type: string, enum: [dd.mm.yyyy, yyyy-mm-dd, yyyymmdd], default: dd.mm.yyyy, description: 'Text dates; XLSX date cells are read as dates' }
+        sheet: { type: string, description: XLSX sheet name; first sheet when omitted }
+        headerRow: { type: integer, minimum: 0, default: 1, description: '0 = no header (CSV / XLSX); data starts on the next row' }
+        listSeparator: { type: string, maxLength: 1, default: '|' }
+        columns:
+          type: object
+          propertyNames: { $ref: '#/components/schemas/PriceImportTarget' }
+          additionalProperties: { $ref: '#/components/schemas/PriceImportColumn' }
+    PriceImportPreset:
+      type: object
+      required: [code, name, mapping]
+      properties:
+        code: { type: string, enum: [LISAKT] }
+        name: { type: string }
+        mapping: { $ref: '#/components/schemas/PriceImportMapping' }
+        notes: { type: string }
+      examples:
+        - code: LISAKT
+          name: Legacy LISAKT price list (COBOL, fixed width, CP857)
+          mapping:
+            preset: LISAKT
+            format: FIXED_WIDTH
+            encoding: CP857
+            dateFormat: yyyymmdd
+            columns:
+              op: { start: 1, length: 1 }
+              catalogCode: { start: 2, length: 4 }
+              code: { start: 6, length: 15 }
+              manufacturerCode: { start: 21, length: 30 }
+              oem: { start: 51, length: 30 }
+              type: { start: 81, length: 30 }
+              description: { start: 111, length: 60 }
+              brand: { start: 171, length: 30 }
+              price: { start: 233, length: 14, scale: 4 }
+              validFrom: { start: 257, length: 8 }
+              packQty: { start: 265, length: 5 }
+              equivalentCatalogCode: { start: 285, length: 4 }
+              equivalentCode: { start: 289, length: 15 }
+          notes: >-
+            Record 319 bytes (OK-OP, ST-KAYIT, BAG). Ignored: MIN/MAX (201-232; per depot now), NOTE, SIRA,
+            BISKONTO/BKDV. validFrom 00000000 → job validFrom. op 0 = DELETE, 1 insert, 2 update.
+    PriceImportCounts:
+      type: object
+      required: [rows, new, price, attributes, unchanged, missing, delete, errors, warnings]
+      properties:
+        rows: { type: integer, description: Data rows in the file }
+        new: { type: integer }
+        price: { type: integer }
+        attributes: { type: integer }
+        unchanged: { type: integer }
+        missing: { type: integer, description: Active catalog parts not in the file }
+        delete: { type: integer }
+        errors: { type: integer, description: Rows with at least one error }
+        warnings: { type: integer }
+    PriceImport:
+      type: object
+      required: [id, catalogId, catalogCode, fileName, fileSha256, fileSize, format, validFrom, status, counts, createdAt, expiresAt, version]
+      properties:
+        id: { type: integer }
+        catalogId: { type: integer }
+        catalogCode: { type: integer }
+        fileName: { type: string }
+        fileSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        fileSize: { type: integer }
+        format: { type: string, enum: [CSV, XLSX, FIXED_WIDTH] }
+        mapping: { $ref: '#/components/schemas/PriceImportMapping', description: Effective mapping (after preset and auto-mapping) }
+        validFrom: { type: string, format: date }
+        status:
+          type: string
+          enum: [PARSING, NEEDS_MAPPING, READY, FAILED, APPLYING, APPLIED, DISCARDED, EXPIRED]
+          description: |
+            PARSING → NEEDS_MAPPING | READY | FAILED; NEEDS_MAPPING | READY → PARSING (updatePriceImport);
+            READY → APPLYING → APPLIED (or back to READY on rollback); not applied → DISCARDED, or EXPIRED after 7 days.
+            FAILED, APPLIED, DISCARDED and EXPIRED are final.
+        failureCode: { type: [string, 'null'], enum: [ERR_IMPORT_FORMAT, ERR_IMPORT_TOO_MANY_ROWS, ERR_FILE_TOO_LARGE, null] }
+        failureDetail: { type: [string, 'null'] }
+        headers: { type: array, items: { type: string }, description: Detected header cells (CSV / XLSX) }
+        sample: { type: array, maxItems: 5, items: { type: array, items: { type: string } }, description: 'First data rows, raw' }
+        unmappedTargets: { type: array, items: { $ref: '#/components/schemas/PriceImportTarget' }, description: Required targets without a column (NEEDS_MAPPING) }
+        counts: { $ref: '#/components/schemas/PriceImportCounts' }
+        catalogVersion: { type: [integer, 'null'], format: int64, description: 'Catalog contentVersion the preview was built on' }
+        duplicateOfImportId: { type: [integer, 'null'], description: An APPLIED import of the same file into this catalog }
+        result:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [partsCreated, pricesInserted, partsUpdated, partsDeactivated, rowsSkipped]
+              properties:
+                partsCreated: { type: integer }
+                pricesInserted: { type: integer }
+                partsUpdated: { type: integer }
+                partsDeactivated: { type: integer }
+                rowsSkipped: { type: integer, description: ERROR rows skipped with skipErrorRows }
+        createdBy: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        appliedBy: { type: [string, 'null'] }
+        appliedAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer }
+    PriceImportFields:
+      type: object
+      properties:
+        stockNo: { type: string }
+        description: { type: [string, 'null'] }
+        brand: { type: [string, 'null'] }
+        type: { type: [string, 'null'] }
+        manufacturerCode: { type: [string, 'null'] }
+        oem: { type: array, items: { type: string } }
+        altCodes: { type: array, items: { type: string } }
+        price: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }] }
+        validFrom: { type: [string, 'null'], format: date }
+        packQty: { type: [integer, 'null'] }
+        vatPct: { oneOf: [{ $ref: '#/components/schemas/Percent' }, { type: 'null' }] }
+        equivalent:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [catalogCode, stockNo]
+              properties:
+                catalogCode: { type: integer }
+                stockNo: { type: string }
+    PriceImportIssue:
+      type: object
+      required: [code]
+      properties:
+        field: { $ref: '#/components/schemas/PriceImportTarget' }
+        code:
+          type: string
+          description: |
+            Errors: REQUIRED, INVALID_NUMBER, INVALID_DATE, INVALID_PERCENT, NEGATIVE_PRICE, TOO_LONG, DUPLICATE_IN_FILE
+            (same stock no twice), PRICE_EXISTS (a different price already on that validFrom), CATALOG_MISMATCH (LISAKT
+            KATNO ≠ job catalog), UNKNOWN_OP. Warnings: BACKDATED (validFrom before the latest price), OP_MISMATCH
+            (insert of an existing part or update of an unknown one), EQUIVALENT_NOT_FOUND, INACTIVE_PART (reactivated).
+          enum: [REQUIRED, INVALID_NUMBER, INVALID_DATE, INVALID_PERCENT, NEGATIVE_PRICE, TOO_LONG, DUPLICATE_IN_FILE,
+                 PRICE_EXISTS, CATALOG_MISMATCH, UNKNOWN_OP, BACKDATED, OP_MISMATCH, EQUIVALENT_NOT_FOUND, INACTIVE_PART]
+        value: { type: [string, 'null'], description: Raw cell }
+    PriceImportRow:
+      type: object
+      description: |
+        NEW = stock no not in the catalog. PRICE = file price ≠ price valid on the row's validFrom (then a new price row
+        is inserted; an equal price inserts nothing). ATTRIBUTES = a non-empty cell differs from the part.
+        UNCHANGED = none of these. MISSING = active part of the catalog not in the file (rowNo null).
+        DELETE = LISAKT op 0.
+      required: [id, changes, errors, warnings]
+      properties:
+        id: { type: integer }
+        rowNo: { type: [integer, 'null'], description: 'File row, header included; null for MISSING' }
+        partId: { type: [integer, 'null'] }
+        stockNo: { type: [string, 'null'] }
+        changes: { type: array, items: { type: string, enum: [NEW, PRICE, ATTRIBUTES, MISSING, DELETE] }, description: Empty = UNCHANGED }
+        file: { oneOf: [{ $ref: '#/components/schemas/PriceImportFields' }, { type: 'null' }] }
+        current: { oneOf: [{ $ref: '#/components/schemas/PriceImportFields' }, { type: 'null' }], description: 'Catalog now; price = valid on the row validFrom' }
+        changedFields: { type: array, items: { $ref: '#/components/schemas/PriceImportTarget' } }
+        priceChangePct: { type: [string, 'null'] }
+        errors: { type: array, items: { $ref: '#/components/schemas/PriceImportIssue' } }
+        warnings: { type: array, items: { $ref: '#/components/schemas/PriceImportIssue' } }
+
     PartDepotSettings:
       type: object
       properties:
@@ -3680,38 +4472,47 @@ components:
         shelf: { type: string, maxLength: 20, examples: [A-04-2] }
     StockLevel:
       type: object
-      required: [partId, onHand, reserved, available]
+      required: [partId, onHand, reserved, available, belowMin, negative]
       properties:
         partId: { type: integer }
         stockNo: { type: string }
         name: { type: string }
+        catalogCode: { type: integer }
         depotId: { type: [integer, 'null'], description: Null on the total row }
-        onHand: { $ref: '#/components/schemas/Quantity' }
+        onHand: { $ref: '#/components/schemas/SignedQuantity', description: 'Σ movements; negative allowed' }
         reserved: { $ref: '#/components/schemas/Quantity', description: Held by B2B orders (F3) }
-        available: { $ref: '#/components/schemas/Quantity' }
+        available: { $ref: '#/components/schemas/SignedQuantity', description: onHand − reserved }
         minQty: { $ref: '#/components/schemas/Quantity' }
         maxQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
         shelf: { type: string }
-        belowMin: { type: boolean }
-        version: { type: integer, description: Of the depot settings }
+        belowMin: { type: boolean, description: minQty > 0 and onHand < minQty }
+        negative: { type: boolean, description: onHand < 0 }
+        version: { type: integer, description: 'Of the depot settings; 0 = no row yet' }
     MovementKind: { type: string, enum: [IN, OUT, ADJUST_IN, ADJUST_OUT, TRANSFER_IN, TRANSFER_OUT] }
     StockMovement:
       type: object
-      required: [id, partId, depotId, kind, qty, date, occurredAt, sourceType]
+      required: [id, partId, depotId, kind, qty, delta, date, occurredAt, sourceType]
       properties:
         id: { type: integer }
         partId: { type: integer }
+        stockNo: { type: string }
+        name: { type: string }
         depotId: { type: integer }
         kind: { $ref: '#/components/schemas/MovementKind' }
         label: { type: string, enum: [SALE, PURCHASE, SALES_RETURN, PURCHASE_RETURN, TRANSFER, COUNT, OPENING], description: Grid "Type" }
         qty: { $ref: '#/components/schemas/Quantity' }
-        unitCost: { $ref: '#/components/schemas/Money4' }
+        delta: { $ref: '#/components/schemas/SignedQuantity', description: '+qty for IN kinds, −qty for OUT kinds' }
+        unitCost: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }] }
         sourceType: { type: string, enum: [document, stock_count, transfer, legacy_import] }
         sourceId: { type: [string, 'null'] }
         sourceNo: { type: [string, 'null'], description: 'Document, count or transfer number' }
+        documentId: { type: [integer, 'null'] }
+        documentType: { oneOf: [{ $ref: '#/components/schemas/DocumentType' }, { type: 'null' }] }
+        transferId: { type: [integer, 'null'] }
+        countId: { type: [integer, 'null'] }
         sicilName: { type: [string, 'null'] }
         otherDepotId: { type: [integer, 'null'], description: Transfers }
-        runningOnHand: { $ref: '#/components/schemas/Quantity' }
+        runningOnHand: { oneOf: [{ $ref: '#/components/schemas/SignedQuantity' }, { type: 'null' }] }
         date: { type: string, format: date }
         occurredAt: { type: string, format: date-time }
     StockTransferCreate:
@@ -3725,44 +4526,53 @@ components:
         lines:
           type: array
           minItems: 1
+          maxItems: 500
           items:
             type: object
             required: [partId, qty]
             properties:
               partId: { type: integer }
-              qty: { $ref: '#/components/schemas/Quantity' }
+              qty: { $ref: '#/components/schemas/Quantity', description: '> 0' }
     StockTransfer:
       allOf:
         - $ref: '#/components/schemas/StockTransferCreate'
         - type: object
-          required: [id, transferNo, movements]
+          required: [id, transferNo, movements, warnings]
           properties:
             id: { type: integer }
             transferNo: { type: string, examples: [TRF-2026-1-000051] }
+            createdBy: { type: [string, 'null'] }
+            createdAt: { type: string, format: date-time }
             movements: { type: array, items: { $ref: '#/components/schemas/StockMovement' } }
+            warnings: { type: array, items: { $ref: '#/components/schemas/StockWarning' } }
     StockCountOpen:
       type: object
-      required: [depotId, year]
+      required: [depotId, countDate]
       properties:
         depotId: { type: integer }
-        year: { type: integer }
+        countDate: { type: string, format: date, description: Date of the ADJUST movements; sets the SAY year }
         shelfFrom: { type: string }
         shelfTo: { type: string }
     StockCountLine:
       type: object
-      required: [id, partId, stockNo, name, shelf, systemQty, costSource, version]
+      required: [id, partId, stockNo, name, shelf, systemQty, added, costSource, version]
       properties:
         id: { type: integer }
         partId: { type: integer }
         stockNo: { type: string }
         name: { type: string }
+        brand: { type: [string, 'null'] }
+        unit: { type: string }
         shelf: { type: string }
-        systemQty: { $ref: '#/components/schemas/Quantity', description: 'Live while OPEN, snapshot after posting' }
+        systemQty: { $ref: '#/components/schemas/SignedQuantity', description: 'On hand at the count startedAt; frozen' }
         countedQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }], description: Null = not counted }
-        difference: { type: [string, 'null'], pattern: '^-?\d{1,14}(\.\d{1,4})?$' }
+        difference: { oneOf: [{ $ref: '#/components/schemas/SignedQuantity' }, { type: 'null' }], description: 'countedQty − systemQty; null when not counted' }
+        movedSinceOpen: { $ref: '#/components/schemas/SignedQuantity', description: 'Net movements of the part in the depot after startedAt (recount hint)' }
+        onHandAfterPost: { oneOf: [{ $ref: '#/components/schemas/SignedQuantity' }, { type: 'null' }], description: 'On hand now + difference' }
+        added: { type: boolean, description: Added during the count }
         unitCost:
           oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }]
-          description: Last purchase cost (docs/domain-model.md); live while OPEN, snapshot after posting
+          description: Last purchase cost on countDate (docs/domain-model.md); live while OPEN, snapshot after finalize
         costSource:
           type: string
           enum: [LAST_PURCHASE, LIST_PRICE, NONE]
@@ -3770,24 +4580,38 @@ components:
         value: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }], description: difference × unitCost }
         countedBy: { type: [string, 'null'], description: User login }
         countedAt: { type: [string, 'null'], format: date-time }
-        version: { type: integer }
+        version: { type: integer, description: 'Line ETag; +1 per save' }
     StockCount:
       allOf:
         - $ref: '#/components/schemas/StockCountOpen'
         - type: object
-          required: [id, countNo, status, lineCount, countedCount, version]
+          required: [id, countNo, year, status, startedAt, lineCount, countedCount, differenceCount, version]
           properties:
             id: { type: integer }
             countNo: { type: string, examples: [SAY-2026-1-000001] }
+            year: { type: integer, description: Year of countDate }
             status: { type: string, enum: [OPEN, FINALIZED, CANCELLED] }
-            startedAt: { type: string, format: date-time }
+            startedAt: { type: string, format: date-time, description: Freeze instant of systemQty }
             lineCount: { type: integer }
             countedCount: { type: integer, description: 'Progress "412 / 1,280"' }
-            differenceValue: { $ref: '#/components/schemas/Money', description: Σ line value at last purchase cost }
+            differenceCount: { type: integer, description: Counted lines with a difference }
+            differenceValue: { $ref: '#/components/schemas/Money', description: 'Σ line value (signed)' }
+            valueIn: { $ref: '#/components/schemas/Money', description: Σ positive values }
+            valueOut: { $ref: '#/components/schemas/Money', description: Σ negative values, as a positive amount }
             unvaluedLines: { type: integer, description: Lines with a difference and costSource LIST_PRICE or NONE }
             uncounted: { type: [string, 'null'], enum: [SKIP, ZERO, null] }
+            createdBy: { type: [string, 'null'] }
             finalizedAt: { type: [string, 'null'], format: date-time }
-            version: { type: integer }
+            cancelledAt: { type: [string, 'null'], format: date-time }
+            cancelReason: { type: [string, 'null'] }
+            version: { type: integer, description: 'Header ETag; moves on finalize and cancel only' }
+    StockCountFinalized:
+      type: object
+      required: [count, movementCount, warnings]
+      properties:
+        count: { $ref: '#/components/schemas/StockCount' }
+        movementCount: { type: integer, description: ADJUST movements written }
+        warnings: { type: array, items: { $ref: '#/components/schemas/StockWarning' } }
 
     MigrationRun:
       type: object

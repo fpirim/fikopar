@@ -1,6 +1,6 @@
-# Contracts v1.1
+# Contracts v1.2
 
-Frozen 2026-09-29, git tag `contracts-v1.1` (v1: `contracts-v1`). Code is written against these; a change needs
+Frozen 2026-09-29, git tag `contracts-v1.2` (earlier: `contracts-v1.1`, `contracts-v1`). Code is written against these; a change needs
 an ADR in [`adr/`](adr/) and a new version here.
 
 | Artifact | Path |
@@ -11,9 +11,21 @@ an ADR in [`adr/`](adr/) and a new version here.
 | Schema and DB invariants | [`backend/migrations/draft/`](../backend/migrations/draft) (`check/run.sh`) |
 | Screens → operations | [`docs/screens.md`](screens.md) |
 | Design tokens | [`frontend/src/styles/tokens.css`](../frontend/src/styles/tokens.css), [`docs/brand.md`](brand.md) |
-| Decisions | [`docs/adr/0001`–`0010`](adr/) |
+| Decisions | [`docs/adr/0001`–`0011`](adr/) |
 
 ## Changelog
+
+**v1.2** (2026-09-29, [ADR-0011](adr/0011-contracts-v1-2.md)) — F2 catalog and stock.
+- Negative stock allowed: `warnings[]` NEGATIVE_STOCK on post / cancel / transfer / count finalize; `SignedQuantity`;
+  NEGATIVE filters on stock levels, parts grid and dashboard. `allowNegativeStock`, `ERR_INSUFFICIENT_STOCK` removed.
+- Catalog = price list (`catalogs`, `/catalog/catalogs`); part in one fixed catalog; append-only dated prices,
+  `setPartPrice` (future dates), `ERR_PRICE_EXISTS`. `price_lists`, `priceListId` removed.
+- Price list import jobs: upload, mapping, preview diff grid, apply with `If-Match` + `Idempotency-Key`, LISAKT preset.
+- Parts grid column ids, ALT codes, movements `delta` / opening / closing, `getStockTransfer`, counts with frozen
+  system quantity, `countDate`, `cancelStockCount`, `StockCountFinalized`, search ranking and paging.
+- Carry forward: `STOCK_COUNTS_POSTED` defined, `YEAR_END_COUNTS`; stock follows closed years.
+- Cash book: OPENING `resetsBalance` line across a carried year.
+- Events: `PriceChanged`, `PriceListImported`; envelope `depotId` nullable.
 
 **v1.1** (2026-09-29, [ADR-0010](adr/0010-contracts-v1-1.md)) — resolves
 [phase 1 contract issues](review/phase-1-contract-issues.md).
