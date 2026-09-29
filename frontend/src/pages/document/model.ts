@@ -35,7 +35,7 @@ export interface Header {
   // A loaded draft's date and due: a due that was the card's default keeps following the date.
   loadedDue?: { date: string; due: string | null }
   account: AccountHit | null
-  // null: the card's salesperson (the server fills it in).
+  // Starts as the card's salesperson; null when the card has none.
   salesRepUserId: number | null
   linkedDocumentId: number | null
   priceDirection: PriceDirection | null
@@ -250,17 +250,29 @@ export function dueFor(h: Header, termDays: number | null | undefined): string |
   return follows ? auto : h.dueDate
 }
 
-// Available for this line in the document depot, what it holds itself included.
-export function availableHere(l: EditLine, depotId: number | null): number | null {
+// STOCK_SHORT rule: on hand − reserved by other documents, in the document depot. What this draft
+// holds of the part, on any of its lines, is added back to the depot's available.
+export function availableHere(
+  l: EditLine,
+  depotId: number | null,
+  lines: readonly EditLine[] = [l],
+): number | null {
   const s = l.stock?.find((x) => x.depotId === depotId)
   if (!s) return null
-  return Number(s.available) + Number(l.reservedQty || 0)
+  const own = lines
+    .filter((x) => x.key !== l.key && x.partId !== null && x.partId === l.partId)
+    .reduce((n, x) => n + Number(x.reservedQty || 0), Number(l.reservedQty || 0))
+  return Number(s.available) + own
 }
 
 export type StockTone = 'ok' | 'short' | 'none'
 
-export function stockTone(l: EditLine, depotId: number | null): StockTone | null {
-  const a = availableHere(l, depotId)
+export function stockTone(
+  l: EditLine,
+  depotId: number | null,
+  lines: readonly EditLine[] = [l],
+): StockTone | null {
+  const a = availableHere(l, depotId, lines)
   if (a === null || !l.qty) return null
   if (a <= 0) return 'none'
   return a < Number(l.qty) ? 'short' : 'ok'

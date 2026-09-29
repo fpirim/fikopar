@@ -203,6 +203,7 @@ function toPart(p: MockPart): Part {
     listPriceValidFrom: current?.validFrom ?? null,
     nextPrice: next ? { price: money4(next.price), validFrom: next.validFrom } : null,
     onHand: q(DEPOT_IDS.reduce((s, d) => s + onHand(p.id, d), 0)),
+    lastPurchaseCost: lastPurchaseOut(p.id),
     equivalents: equivalentsOf(p).map((e) => ({
       partId: e.id,
       stockNo: e.stockNo,
@@ -242,6 +243,7 @@ function partRow(p: MockPart, depotId: number | null, priceDate = today): PartRo
     minQty: one ? one.minQty! : null,
     maxQty: one ? (one.maxQty ?? null) : null,
     shelf: one ? one.shelf || null : null,
+    lastPurchaseCost: lastPurchaseOut(p.id),
     belowMin: levels.some((l) => l.belowMin),
     negative: levels.some((l) => l.negative),
     ...(depotId
@@ -609,9 +611,19 @@ function transfer(body: StockTransferCreate): { status: number; body: JsonBodyTy
 }
 
 // Last purchase cost from posted purchase invoices (documentHandlers registers the lookup).
-let lastPurchase: (partId: number, date: string) => number | null = () => null
-export function setLastPurchaseCost(fn: (partId: number, date: string) => number | null) {
+export interface PurchaseCost {
+  cost: number
+  date: string
+  documentNo: string
+}
+let lastPurchase: (partId: number, date: string) => PurchaseCost | null = () => null
+export function setLastPurchaseCost(fn: (partId: number, date: string) => PurchaseCost | null) {
   lastPurchase = fn
+}
+
+function lastPurchaseOut(partId: number): Part['lastPurchaseCost'] {
+  const c = lastPurchase(partId, today)
+  return c ? { amount: c.cost.toFixed(4), date: c.date, documentNo: c.documentNo } : null
 }
 
 function lineOut(c: MockCount, l: MockCountLine): StockCountLine {
@@ -619,7 +631,7 @@ function lineOut(c: MockCount, l: MockCountLine): StockCountLine {
   const moved = now - l.systemQty
   const diff = l.countedQty === null ? null : l.countedQty - l.systemQty
   // While open the cost is read live; a finalized line keeps its snapshot.
-  const live = c.status === 'OPEN' ? lastPurchase(l.partId, c.countDate) : null
+  const live = c.status === 'OPEN' ? (lastPurchase(l.partId, c.countDate)?.cost ?? null) : null
   const source = live === null ? l.costSource : 'LAST_PURCHASE'
   const cost = live ?? (l.unitCost === null ? null : Number(l.unitCost))
   const value = diff === null || cost === null || source === 'NONE' ? null : diff * cost

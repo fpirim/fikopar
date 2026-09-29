@@ -392,7 +392,7 @@ describe('DocumentPage', () => {
         name: /SIR-2026-1-000052/,
       }),
     ).toBeInTheDocument()
-    expect(grids.at(-1)!.body).toMatchObject({
+    expect(grids[grids.length - 1].body).toMatchObject({
       types: ['SALES_WAYBILL'],
       statuses: ['POSTED'],
       billed: false,
@@ -409,7 +409,7 @@ describe('DocumentPage', () => {
         name: /SF-2026-1-000391/,
       }),
     ).toBeInTheDocument()
-    expect(grids.at(-1)!.body).toMatchObject({ billsWaybill: false })
+    expect(grids[grids.length - 1].body).toMatchObject({ billsWaybill: false })
   })
 
   it('cancel lists the dependents the error carries without reading them', async () => {

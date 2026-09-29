@@ -42,7 +42,7 @@
     "DECREASE": "Azalış"
   },
   "salesRep": "Plasiyer",
-  "cardDefault": "Kart varsayılanı",
+  "noSalesRep": "Plasiyer yok",
   "original": "Asıl belge",
   "waybillRef": "İrsaliye ref.",
   "pickOriginal": "Asıl belgeyi seçin",
@@ -213,5 +213,7 @@
     "totalsNote": "iptaller hariç",
     "dateFrom": "Başlangıç",
     "dateTo": "Bitiş"
-  }
+  },
+  "draftRef": "Taslak #{{id}}",
+  "draftDependents": "Bu taslağı faturalayan veya bağlayan taslaklar var; önce onları silin"
 }

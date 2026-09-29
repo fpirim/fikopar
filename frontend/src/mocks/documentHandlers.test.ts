@@ -243,14 +243,14 @@ describe('document mocks, contracts v1.5', () => {
     expect(d.hesapNo).toBe('120.10482')
     const s = await getSicilSummary(1, d.sicilId)
     expect(s).toMatchObject({ salesRepUserId: 7, salesRepName: 'A. Kaya' })
-    const hp = await getPart(1, 1001)
+    const hp = (await getPart(1, 1001)).data
     expect(hp.lastPurchaseCost).toEqual({
       amount: '8900.0000',
       date: '2026-09-26',
       documentNo: 'AF-2026-1-000201',
     })
-    expect((await getPart(1, 1009)).lastPurchaseCost).toBeNull()
-    const rows = await gridParts(1, { startRow: 0, endRow: 200 })
+    expect((await getPart(1, 1009)).data.lastPurchaseCost).toBeNull()
+    const rows = await gridParts(1, { startRow: 0, endRow: 2000 })
     expect(rows.rows.find((r) => r.id === 1001)?.lastPurchaseCost?.documentNo).toBe(
       'AF-2026-1-000201',
     )

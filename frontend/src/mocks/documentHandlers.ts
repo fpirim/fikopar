@@ -32,7 +32,12 @@ import {
   stockDirection,
 } from '../lib/documents'
 import { applyGrid } from './grid'
-import { setDocumentReservations, setLastPurchaseCost, stockBridge } from './stockHandlers'
+import {
+  setDocumentReservations,
+  setLastPurchaseCost,
+  stockBridge,
+  type PurchaseCost,
+} from './stockHandlers'
 import { TODAY } from './data'
 
 const O = '/api/orgs/:orgId'
@@ -52,6 +57,7 @@ export interface Card {
   tipi: string
   balance: number
   limit: number | null
+  salesRepUserId: number | null
 }
 
 interface MockLine {
@@ -100,6 +106,9 @@ const members: Member[] = [
   { userId: 12, name: 'Demo', email: 'demo@fikopar.local' },
   { userId: 9, name: 'M. Demir', email: 'm.demir@fikopar.local' },
 ]
+
+export const memberName = (userId: number | null | undefined) =>
+  members.find((m) => m.userId === userId)?.name ?? null
 
 const state = {
   docs: [] as MockDoc[],
@@ -404,19 +413,19 @@ setDocumentReservations((p, d) => held(p, d))
 const PURCHASES: DocumentType[] = ['PURCHASE_INVOICE', 'PURCHASE_INVOICE_WITH_WAYBILL']
 
 // Net unit price of the latest posted purchase invoice line on or before `date`.
-function lastPurchaseCost(partId: number, date: string): number | null {
-  let best: { date: string; id: number; cost: number } | null = null
+function lastPurchaseCost(partId: number, date: string): PurchaseCost | null {
+  let best: (PurchaseCost & { id: number }) | null = null
   for (const d of state.docs) {
     if (d.status !== 'POSTED' || !PURCHASES.includes(d.type) || d.documentDate > date) continue
     for (const l of d.lines) {
       if (l.partId !== partId) continue
       const cost = Number(amounts(l).netAmount) / Number(l.qty)
       if (!best || d.documentDate > best.date || (d.documentDate === best.date && l.id > best.id)) {
-        best = { date: d.documentDate, id: l.id, cost }
+        best = { date: d.documentDate, id: l.id, cost, documentNo: d.documentNo ?? '' }
       }
     }
   }
-  return best?.cost ?? null
+  return best ? { cost: best.cost, date: best.date, documentNo: best.documentNo } : null
 }
 setLastPurchaseCost(lastPurchaseCost)
 
@@ -490,6 +499,7 @@ function warnings(d: MockDoc): DocumentWarning[] {
         code: 'STOCK_SHORT',
         lineNo: i + 1,
         partId: l.partId,
+        stockNo: stockBridge.part(l.partId)?.stockNo ?? null,
         depotId: d.depotId,
         requested: l.qty,
         available: q(availableFor(d, l.partId)),
@@ -502,7 +512,12 @@ function warnings(d: MockDoc): DocumentWarning[] {
       list !== null &&
       Number(l.unitPrice) < list
     ) {
-      out.push({ code: 'PRICE_BELOW_LIST', lineNo: i + 1, partId: l.partId })
+      out.push({
+        code: 'PRICE_BELOW_LIST',
+        lineNo: i + 1,
+        partId: l.partId,
+        stockNo: stockBridge.part(l.partId)?.stockNo ?? null,
+      })
     }
   })
   const over = creditExcess(d)
@@ -607,7 +622,7 @@ function out(d: MockDoc): Document {
   const t = totalsOf(d)
   const linked = d.linkedDocumentId ? doc(d.linkedDocumentId) : undefined
   const wb = d.waybillDocumentId ? doc(d.waybillDocumentId) : undefined
-  const bill = state.docs.find((b) => b.waybillDocumentId === d.id && b.status !== 'CANCELLED')
+  const bill = billedBy(d.id)
   return {
     id: d.id,
     orgId: 1,
@@ -616,12 +631,13 @@ function out(d: MockDoc): Document {
     status: d.status,
     depotId: d.depotId,
     sicilId: d.sicilId,
+    hesapNo: card(d.sicilId)?.code ?? '',
     sicilName: card(d.sicilId)?.name ?? '',
     documentDate: d.documentDate,
     shipDate: d.shipDate,
     dueDate: d.dueDate,
     salesRepUserId: d.salesRepUserId,
-    salesRepName: members.find((m) => m.userId === d.salesRepUserId)?.name ?? null,
+    salesRepName: memberName(d.salesRepUserId),
     linkedDocumentId: d.linkedDocumentId,
     linkedDocumentNo: linked?.documentNo ?? null,
     priceDirection: d.priceDirection,
@@ -664,7 +680,7 @@ function summary(d: MockDoc): DocumentSummary {
     sicilName: c?.name ?? '',
     documentDate: d.documentDate,
     dueDate: d.dueDate,
-    salesRepName: members.find((m) => m.userId === d.salesRepUserId)?.name ?? null,
+    salesRepName: memberName(d.salesRepUserId),
     grossTotal: t.grossTotal,
     discountTotal: t.discountTotal,
     netTotal: t.netTotal,
@@ -699,6 +715,26 @@ const COLS: Record<DocumentColId, (r: DocumentSummary) => string | number | null
   waybillDocumentNo: (r) => r.waybillDocumentNo,
 }
 
+// The non-cancelled document that bills a waybill.
+const billedBy = (waybillId: number) =>
+  state.docs.find((b) => b.waybillDocumentId === waybillId && b.status !== 'CANCELLED')
+
+// Drafts that bill this draft's lines (update and delete), posted documents that link it (cancel).
+function dependents(d: MockDoc) {
+  const list =
+    d.status === 'DRAFT'
+      ? state.docs.filter((x) => x.status === 'DRAFT' && x.waybillDocumentId === d.id)
+      : state.docs.filter((x) => x.status === 'POSTED' && x.linkedDocumentId === d.id)
+  return list.map((x) => ({ id: x.id, documentNo: x.documentNo, type: x.type }))
+}
+
+const hasDependents = (d: MockDoc): Result | null => {
+  const list = dependents(d)
+  return list.length
+    ? fail(409, 'ERR_DOCUMENT_HAS_DEPENDENTS', { details: { dependents: list } })
+    : null
+}
+
 function documentsGrid(req: DocumentsRequest) {
   const used = [
     ...Object.keys(req.filterModel ?? {}),
@@ -713,7 +749,11 @@ function documentsGrid(req: DocumentsRequest) {
       (!req.sicilId || r.sicilId === req.sicilId) &&
       (!req.dateFrom || r.documentDate >= req.dateFrom) &&
       (!req.dateTo || r.documentDate <= req.dateTo) &&
-      (!req.documentNo || (r.documentNo ?? '').includes(req.documentNo)),
+      (!req.documentNo ||
+        (r.documentNo ?? '').toLowerCase().includes(req.documentNo.toLowerCase())) &&
+      (req.billed == null ||
+        (isWaybill(r.type) && (billedBy(r.id) !== undefined) === req.billed)) &&
+      (req.billsWaybill == null || (doc(r.id)?.waybillDocumentId != null) === req.billsWaybill),
   )
   const sortModel = req.sortModel?.length
     ? req.sortModel
@@ -846,7 +886,7 @@ function apply(d: MockDoc, body: DocumentWrite) {
     documentDate: body.documentDate,
     shipDate: body.shipDate ?? null,
     dueDate: body.dueDate ?? addDays(body.documentDate, c.tipi === 'BANKA' ? 0 : 30),
-    salesRepUserId: body.salesRepUserId ?? (c.tipi === 'MUSTERI' ? 7 : null),
+    salesRepUserId: body.salesRepUserId ?? c.salesRepUserId,
     linkedDocumentId: body.linkedDocumentId ?? null,
     priceDirection: body.priceDirection ?? null,
     waybillDocumentId: body.waybillDocumentId ?? null,
@@ -893,6 +933,8 @@ function create(body: DocumentWrite): Result {
 
 function update(d: MockDoc, body: DocumentWrite): Result {
   if (d.status !== 'DRAFT') return fail(409, 'ERR_DOCUMENT_NOT_DRAFT')
+  const blocked = hasDependents(d)
+  if (blocked) return blocked
   const bad = validate(body, d)
   if (bad) return bad
   apply(d, body)
@@ -1012,9 +1054,8 @@ function cancel(d: MockDoc, reason: string): Result {
   ) {
     return fail(409, 'ERR_WAYBILL_BILLED')
   }
-  if (state.docs.some((x) => x.linkedDocumentId === d.id && x.status === 'POSTED')) {
-    return fail(409, 'ERR_DOCUMENT_HAS_DEPENDENTS')
-  }
+  const blocked = hasDependents(d)
+  if (blocked) return blocked
   d.status = 'CANCELLED'
   d.cancelledAt = new Date().toISOString()
   d.cancelDate = TODAY
@@ -1090,6 +1131,8 @@ export const documentHandlers = [
     const stale = precondition(request, d.version)
     if (stale) return stale
     if (d.status !== 'DRAFT') return reply(fail(409, 'ERR_DOCUMENT_NOT_DRAFT'))
+    const blocked = hasDependents(d)
+    if (blocked) return reply(blocked)
     state.docs = state.docs.filter((x) => x !== d)
     return new HttpResponse(null, { status: 204 })
   }),

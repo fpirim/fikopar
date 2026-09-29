@@ -63,7 +63,9 @@
       "term": "Payment term (days)",
       "creditLimit": "Credit limit",
       "email": "Email",
-      "contact": "Contact"
+      "contact": "Contact",
+      "salesRep": "Salesperson",
+      "noSalesRep": "No salesperson"
     },
     "depotTotals": "Depot totals",
     "conflictTitle": "Card changed",

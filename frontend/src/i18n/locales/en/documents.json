@@ -42,7 +42,7 @@
     "DECREASE": "Decrease"
   },
   "salesRep": "Salesperson",
-  "cardDefault": "Card default",
+  "noSalesRep": "No salesperson",
   "original": "Original",
   "waybillRef": "Waybill ref.",
   "pickOriginal": "Choose the original",
@@ -213,5 +213,7 @@
     "totalsNote": "cancelled left out",
     "dateFrom": "From",
     "dateTo": "To"
-  }
+  },
+  "draftRef": "Draft #{{id}}",
+  "draftDependents": "Other drafts bill or link this draft; delete them first"
 }
