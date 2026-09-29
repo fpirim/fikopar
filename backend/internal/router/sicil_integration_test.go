@@ -81,7 +81,7 @@ func TestSicil_CrossOrgIDIsNotFound(t *testing.T) {
 
 	path := orgPath(orgA, "/sicils/"+idStr(cardB))
 	assert.Equal(t, http.StatusNotFound, app.do(t, http.MethodGet, path, token, "").Code)
-	assert.Equal(t, http.StatusNotFound, app.do(t, http.MethodPut, path, token, `{"hesap_adi":"hijacked"}`).Code)
+	assert.Equal(t, http.StatusNotFound, app.req(t, http.MethodPut, path, token, `{"hesap_adi":"hijacked"}`, map[string]string{"If-Match": `"1"`}).Code)
 	assert.Equal(t, http.StatusNotFound, app.do(t, http.MethodDelete, path, token, "").Code)
 
 	rec = app.do(t, http.MethodGet, orgPath(orgB, "/sicils/"+idStr(cardB)), token, "")
@@ -100,7 +100,7 @@ func TestSicil_Update_OrganizationIDImmutable(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	cardID := extractID(t, rec.Body.Bytes())
 
-	rec = app.do(t, http.MethodPut, orgPath(orgA, "/sicils/"+idStr(cardID)), token, `{"organization_id":`+idStr(other)+`,"hesap_adi":"Renamed"}`)
+	rec = app.req(t, http.MethodPut, orgPath(orgA, "/sicils/"+idStr(cardID)), token, `{"organization_id":`+idStr(other)+`,"hesap_adi":"Renamed"}`, map[string]string{"If-Match": `"1"`})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	rec = app.do(t, http.MethodGet, orgPath(orgA, "/sicils/"+idStr(cardID)), token, "")
@@ -143,7 +143,7 @@ func TestSicil_CreateWithTelefonlar_AndUpdateReplacesThem(t *testing.T) {
 	cardID := extractID(t, rec.Body.Bytes())
 	assert.Contains(t, rec.Body.String(), "+90 555 111 22 33")
 
-	rec = app.do(t, http.MethodPut, orgPath(orgID, "/sicils/"+idStr(cardID)), token, `{"telefonlar":[{"tipi":"EV","numara":"+90 312 000 00 00"}]}`)
+	rec = app.req(t, http.MethodPut, orgPath(orgID, "/sicils/"+idStr(cardID)), token, `{"telefonlar":[{"tipi":"EV","numara":"+90 312 000 00 00"}]}`, map[string]string{"If-Match": `"1"`})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	rec = app.do(t, http.MethodGet, orgPath(orgID, "/sicils/"+idStr(cardID)), token, "")
