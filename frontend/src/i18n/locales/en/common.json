@@ -1,0 +1,32 @@
+{
+  "appName": "fikopar",
+  "new": "New",
+  "create": "Create",
+  "update": "Update",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "delete": "Delete",
+  "change": "Change",
+  "remove": "Remove",
+  "clear": "Clear",
+  "close": "Close",
+  "logout": "Log out",
+  "search": "Search...",
+  "saving": "Saving...",
+  "processing": "Processing...",
+  "active": "Active",
+  "deleteSelected": "Delete ({{count}})",
+  "printSelected": "Print ({{count}})",
+  "field": {
+    "name": "Name",
+    "email": "Email",
+    "password": "Password",
+    "role": "Role",
+    "slug": "Slug"
+  },
+  "role": {
+    "admin": "Admin",
+    "user": "User"
+  },
+  "noResult": "No results"
+}

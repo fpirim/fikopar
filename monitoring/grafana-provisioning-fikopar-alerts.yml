@@ -1,0 +1,170 @@
+# Grafana-managed alert rules (file provisioning, e.g. provisioning/alerting/).
+# Scoped to env="prod". noData/execErr = OK so rules stay quiet until metrics flow.
+# Instance-down is expected from a generic rule; routing uses the default policy.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: fikopar
+    folder: fikopar
+    interval: 1m
+    rules:
+      # 5xx ratio > 5% (warning)
+      - uid: fikopar_high_error_rate
+        title: fikopar high error rate (5xx > 5%)
+        condition: C
+        for: 5m
+        isPaused: false
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+          app: fikopar
+          env: prod
+        annotations:
+          summary: 'fikopar 5xx error rate above 5%'
+          description: 'More than 5% of requests returned 5xx over 5 minutes ({{ humanizePercentage $values.A.Value }}).'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'sum(rate(fikopar_requests_total{env="prod",code=~"5.."}[5m])) / clamp_min(sum(rate(fikopar_requests_total{env="prod"}[5m])), 1e-9)'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+
+      # 5xx ratio > 20% (critical)
+      - uid: fikopar_critical_error_rate
+        title: fikopar CRITICAL error rate (5xx > 20%)
+        condition: C
+        for: 5m
+        isPaused: false
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: critical
+          app: fikopar
+          env: prod
+        annotations:
+          summary: 'fikopar 5xx error rate above 20%'
+          description: 'More than 20% of requests returned 5xx over 5 minutes ({{ humanizePercentage $values.A.Value }}).'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'sum(rate(fikopar_requests_total{env="prod",code=~"5.."}[5m])) / clamp_min(sum(rate(fikopar_requests_total{env="prod"}[5m])), 1e-9)'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.20] }
+
+      # p95 latency > 1s (warning)
+      - uid: fikopar_high_latency_p95
+        title: fikopar high latency (p95 > 1s)
+        condition: C
+        for: 10m
+        isPaused: false
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+          app: fikopar
+          env: prod
+        annotations:
+          summary: 'fikopar p95 latency above 1s'
+          description: 'p95 latency > 1s for 10 minutes ({{ printf "%.3f" $values.A.Value }}s).'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'histogram_quantile(0.95, sum by (le) (rate(fikopar_request_duration_seconds_bucket{env="prod"}[5m])))'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [1] }
+
+      # RSS > 400MiB (warning)
+      - uid: fikopar_high_memory
+        title: fikopar high memory (RSS > 400MiB)
+        condition: C
+        for: 15m
+        isPaused: false
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+          app: fikopar
+          env: prod
+        annotations:
+          summary: 'fikopar RSS above 400MiB ({{ $labels.instance }})'
+          description: 'RSS above threshold for 15 minutes; tune to the container memory limit.'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'process_resident_memory_bytes{job="fikopar",env="prod"}'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [419430400] }
+
+      # goroutines > 1000 (warning, likely leak)
+      - uid: fikopar_goroutine_leak
+        title: fikopar goroutine leak (> 1000)
+        condition: C
+        for: 15m
+        isPaused: false
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+          app: fikopar
+          env: prod
+        annotations:
+          summary: 'fikopar goroutines above 1000 ({{ $labels.instance }})'
+          description: 'More than 1000 goroutines for 15 minutes ({{ $values.A.Value }}).'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'go_goroutines{job="fikopar",env="prod"}'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [1000] }

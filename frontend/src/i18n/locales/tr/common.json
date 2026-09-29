@@ -1,0 +1,32 @@
+{
+  "appName": "fikopar",
+  "new": "Yeni",
+  "create": "Oluştur",
+  "update": "Güncelle",
+  "cancel": "İptal",
+  "confirm": "Onayla",
+  "delete": "Sil",
+  "change": "Değiştir",
+  "remove": "Kaldır",
+  "clear": "Temizle",
+  "close": "Kapat",
+  "logout": "Çıkış",
+  "search": "Ara...",
+  "saving": "Kaydediliyor...",
+  "processing": "İşleniyor...",
+  "active": "Aktif",
+  "deleteSelected": "Sil ({{count}})",
+  "printSelected": "Yazdır ({{count}})",
+  "field": {
+    "name": "Ad",
+    "email": "E-posta",
+    "password": "Şifre",
+    "role": "Rol",
+    "slug": "Slug"
+  },
+  "role": {
+    "admin": "Admin",
+    "user": "Kullanıcı"
+  },
+  "noResult": "Sonuç yok"
+}

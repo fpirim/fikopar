@@ -1,0 +1,5 @@
+{
+  "reporter": ["lcovonly"],
+  "report-dir": "coverage-e2e",
+  "temp-dir": ".nyc_output"
+}

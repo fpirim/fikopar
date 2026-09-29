@@ -1,0 +1,91 @@
+/* Dark-mode layer over react-phone-input-2, driven by the CSS variables behind Tailwind's `dark` class. */
+
+.react-tel-input {
+  color: hsl(var(--foreground));
+}
+
+/* Phone input — must look consistent with the other inputs in DialogShell. */
+.react-tel-input .form-control {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+.react-tel-input .form-control:focus {
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.4);
+}
+.react-tel-input .form-control:disabled {
+  color: hsl(var(--muted-foreground));
+  background-color: hsl(var(--muted));
+}
+
+/* Bayrak butonu */
+.react-tel-input .flag-dropdown {
+  background-color: hsl(var(--background));
+  border-color: hsl(var(--border));
+}
+.react-tel-input .flag-dropdown.open .selected-flag,
+.react-tel-input .selected-flag:hover,
+.react-tel-input .selected-flag:focus,
+.react-tel-input .flag-dropdown.open {
+  background-color: hsl(var(--muted));
+}
+
+/* Country list dropdown */
+.react-tel-input .country-list {
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 10px 25px -5px hsl(0 0% 0% / 0.4);
+}
+.react-tel-input .country-list .country {
+  color: hsl(var(--foreground));
+}
+.react-tel-input .country-list .country .dial-code {
+  color: hsl(var(--muted-foreground));
+}
+.react-tel-input .country-list .country:hover,
+.react-tel-input .country-list .country.highlight {
+  background-color: hsl(var(--muted));
+}
+.react-tel-input .country-list .country-name {
+  color: hsl(var(--foreground));
+}
+.react-tel-input .country-list .divider {
+  border-bottom-color: hsl(var(--border));
+}
+
+/* Search input — full width, outer spacing equal to the container padding. */
+.react-tel-input .country-list .search {
+  background-color: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 8px 10px;
+  display: block;
+}
+.react-tel-input .country-list .search-box {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  /* `!important` — the library sets an inline width:60%; override it. */
+  width: 100% !important;
+  margin-left: 0 !important;
+  padding: 6px 10px;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+.react-tel-input .country-list .search-box:focus {
+  border-color: hsl(var(--ring));
+  outline: none;
+}
+.react-tel-input .country-list .search-emoji {
+  filter: grayscale(0.2);
+}
+
+/* Lower-contrast scrollbar (especially in dark mode) */
+.react-tel-input .country-list::-webkit-scrollbar {
+  width: 8px;
+}
+.react-tel-input .country-list::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}

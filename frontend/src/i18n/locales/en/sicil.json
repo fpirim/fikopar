@@ -1,0 +1,60 @@
+{
+  "title": "Account Cards",
+  "selectOrgPrompt": "Select an organization from the top bar to view account cards.",
+  "dialog": {
+    "editTitle": "Edit Account Card",
+    "createTitle": "New Account Card"
+  },
+  "field": {
+    "id": "ID",
+    "hesapNo": "Account No",
+    "hesapAdi": "Account Name",
+    "adres": "Address",
+    "ilce": "District",
+    "sehir": "City",
+    "vDairesi": "Tax Office",
+    "vNo": "Tax Number",
+    "telefon": "Phone",
+    "tcNo": "National ID Number",
+    "gun": "Payment Term (days)",
+    "iskonto": "Discount",
+    "hesapTipi": "Account Type"
+  },
+  "grid": {
+    "id": "ID",
+    "hesapNo": "Account No",
+    "hesapAdi": "Account Name",
+    "hesapTipi": "Type",
+    "ilce": "District",
+    "sehir": "City",
+    "tcNo": "National ID",
+    "vNo": "Tax No",
+    "createdAt": "Created"
+  },
+  "hesapTipi": {
+    "FIRMA": "Company",
+    "MUSTERI": "Customer",
+    "BANKA": "Bank"
+  },
+  "telefonBolumu": {
+    "title": "Phones",
+    "add": "Add Phone",
+    "remove": "Delete",
+    "empty": "No phones added yet."
+  },
+  "telefonTipi": {
+    "CEP": "Mobile",
+    "EV": "Home",
+    "IS": "Work",
+    "FAKS": "Fax",
+    "DIGER": "Other"
+  },
+  "created": "Account card created",
+  "updated": "Account card updated",
+  "deleteTitle": "Delete account cards",
+  "deleteConfirm": "{{count}} account card(s) will be deleted. This cannot be undone.",
+  "deletedN": "{{count}} account card(s) deleted",
+  "deleteFailedN": "{{count}} account card(s) could not be deleted",
+  "deleteFailed": "Delete failed",
+  "printTitle": "Selected Account Cards"
+}

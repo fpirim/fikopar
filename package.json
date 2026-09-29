@@ -1,0 +1,39 @@
+{
+  "name": "fikopar",
+  "version": "1.0.0",
+  "description": "fikopar fullstack app",
+  "scripts": {
+    "dev:backend": "cd backend && go run ./cmd/server",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:backend": "cd backend && go build -o bin/server ./cmd/server",
+    "build:frontend": "cd frontend && npm run build",
+    "docker:up": "docker-compose up --build",
+    "docker:down": "docker-compose down -v",
+    "docker:deps": "docker compose up -d postgres pgadmin",
+    "docker:deps:down": "docker compose down",
+    "lint:backend": "cd backend && golangci-lint run ./...",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "deadcode:backend": "cd backend && out=$(go run golang.org/x/tools/cmd/deadcode@v0.45.0 -test ./...); if [ -n \"$out\" ]; then echo \"$out\"; echo 'Unreachable (dead) code found.'; exit 1; fi",
+    "deadcode:frontend": "cd frontend && npm run knip",
+    "deadcode": "npm run deadcode:backend && npm run deadcode:frontend",
+    "arch:backend": "cd backend && go run github.com/fe3dback/go-arch-lint@v1.15.0 check",
+    "arch:frontend": "cd frontend && npm run depcruise",
+    "arch": "npm run arch:backend && npm run arch:frontend",
+    "test:backend": "cd backend && go test ./...",
+    "test:backend:cov": "cd backend && go test -coverprofile=coverage.out ./...",
+    "test:backend:integration": "cd backend && go test -tags=integration ./...",
+    "test:frontend": "cd frontend && npm run test",
+    "e2e": "cd frontend && npm run e2e",
+    "cov:backend": "cd backend && go test -tags=integration -coverpkg=./... -coverprofile=coverage.out ./...",
+    "cov:frontend": "cd frontend && npm run test:cov && sed -i.bak 's|^SF:src/|SF:frontend/src/|' coverage/lcov.info && rm -f coverage/lcov.info.bak",
+    "cov:e2e": "cd frontend && npm run cov:e2e",
+    "cov": "npm run cov:backend && npm run cov:frontend && npm run cov:e2e",
+    "sonar:scan": "docker run --rm -e SONAR_HOST_URL=${SONAR_HOST_URL:-https://sonarcloud.io} -e SONAR_TOKEN -v \"$PWD:/usr/src\" sonarsource/sonar-scanner-cli -Dsonar.qualitygate.wait=true",
+    "sonar": "npm run cov && npm run sonar:scan"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/coverage
+**/coverage-e2e
+**/.nyc_output
+**/playwright-report
+**/test-results
+backend/bin
+backend/server
+backend/uploads
+legacy
+docs
+.git

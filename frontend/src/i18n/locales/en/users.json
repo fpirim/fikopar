@@ -1,0 +1,28 @@
+{
+  "title": "User Management",
+  "dialog": {
+    "editTitle": "Edit User",
+    "createTitle": "New User",
+    "passwordHint": " (empty = unchanged)",
+    "organizations": "Organizations",
+    "orgSearchPlaceholder": "Search and add organizations...",
+    "noResult": "No results",
+    "allSelected": "All organizations selected"
+  },
+  "grid": {
+    "id": "ID",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "organizations": "Organizations",
+    "createdAt": "Created"
+  },
+  "created": "User created",
+  "updated": "User updated",
+  "deleteTitle": "Delete users",
+  "deleteConfirm": "{{count}} user(s) will be deleted. This cannot be undone.",
+  "deletedN": "{{count}} user(s) deleted",
+  "deleteFailedN": "{{count}} user(s) could not be deleted",
+  "deleteFailed": "Delete failed",
+  "printTitle": "Selected Users"
+}

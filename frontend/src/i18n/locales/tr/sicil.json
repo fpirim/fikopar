@@ -1,0 +1,60 @@
+{
+  "title": "Hesap Kartları",
+  "selectOrgPrompt": "Hesap kartlarını görüntülemek için üst menüden bir organizasyon seçin.",
+  "dialog": {
+    "editTitle": "Hesap Kartını Düzenle",
+    "createTitle": "Yeni Hesap Kartı"
+  },
+  "field": {
+    "id": "ID",
+    "hesapNo": "Hesap No",
+    "hesapAdi": "Hesap Adı",
+    "adres": "Adres",
+    "ilce": "İlçe",
+    "sehir": "Şehir",
+    "vDairesi": "Vergi Dairesi",
+    "vNo": "Vergi Numarası",
+    "telefon": "Telefon",
+    "tcNo": "TC Kimlik Numarası",
+    "gun": "Gün",
+    "iskonto": "İskonto",
+    "hesapTipi": "Hesap Tipi"
+  },
+  "grid": {
+    "id": "ID",
+    "hesapNo": "Hesap No",
+    "hesapAdi": "Hesap Adı",
+    "hesapTipi": "Tip",
+    "ilce": "İlçe",
+    "sehir": "Şehir",
+    "tcNo": "TC No",
+    "vNo": "Vergi No",
+    "createdAt": "Oluşturulma"
+  },
+  "hesapTipi": {
+    "FIRMA": "Firma",
+    "MUSTERI": "Müşteri",
+    "BANKA": "Banka"
+  },
+  "telefonBolumu": {
+    "title": "Telefonlar",
+    "add": "Telefon Ekle",
+    "remove": "Sil",
+    "empty": "Henüz telefon eklenmedi."
+  },
+  "telefonTipi": {
+    "CEP": "Cep",
+    "EV": "Ev",
+    "IS": "İş",
+    "FAKS": "Faks",
+    "DIGER": "Diğer"
+  },
+  "created": "Hesap kartı oluşturuldu",
+  "updated": "Hesap kartı güncellendi",
+  "deleteTitle": "Hesap kartlarını sil",
+  "deleteConfirm": "{{count}} hesap kartı silinecek. Bu işlem geri alınamaz.",
+  "deletedN": "{{count}} hesap kartı silindi",
+  "deleteFailedN": "{{count}} hesap kartı silinemedi",
+  "deleteFailed": "Silme işlemi başarısız",
+  "printTitle": "Seçili Hesap Kartları"
+}

@@ -1,0 +1,367 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "fikopar Go (Echo) backend — HTTP traffic, latency, error rate, Go runtime and process metrics. Source: /metrics (echoprometheus subsystem=fikopar) + Go/process collectors.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["fikopar", "backend", "go", "echo"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Prometheus",
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(fikopar_requests_total, job)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Job",
+        "name": "job",
+        "options": [],
+        "query": { "query": "label_values(fikopar_requests_total, job)", "refId": "job" },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(up{job=~\"$job\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": { "query": "label_values(up{job=~\"$job\"}, instance)", "refId": "instance" },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(up{job=~\"$job\"}, env)",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Env",
+        "multi": true,
+        "name": "env",
+        "options": [],
+        "query": { "query": "label_values(up{job=~\"$job\"}, env)", "refId": "env" },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Loki",
+        "name": "loki",
+        "options": [],
+        "query": "loki",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
+      {
+        "current": { "text": "{container=~\"fikopar.*\"}", "value": "{container=~\"fikopar.*\"}" },
+        "hide": 0,
+        "label": "Loki selector",
+        "name": "loki_selector",
+        "options": [ { "text": "{container=~\"fikopar.*\"}", "value": "{container=~\"fikopar.*\"}", "selected": true } ],
+        "query": "{container=~\"fikopar.*\"}",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "fikopar — Backend Overview",
+  "uid": "fikopar-backend",
+  "version": 1,
+  "weekStart": "",
+  "panels": [
+    {
+      "type": "row",
+      "title": "Overview",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Service up",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 2,
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } },
+            { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "up{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}", "legendFormat": "{{instance}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Request rate (req/s)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "id": 3,
+      "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area", "textMode": "auto", "orientation": "auto" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(fikopar_requests_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval]))", "legendFormat": "req/s" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Error rate (5xx %)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "id": 4,
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2, "min": 0, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "red", "value": 0.05 } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "area", "textMode": "auto", "orientation": "auto" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(fikopar_requests_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\", code=~\"5..\"}[$__rate_interval])) / clamp_min(sum(rate(fikopar_requests_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])), 1e-9)", "legendFormat": "5xx ratio" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Latency p95",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "id": 5,
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 3, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.3 }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "area", "textMode": "auto", "orientation": "auto" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(fikopar_request_duration_seconds_bucket{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])))", "legendFormat": "p95" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Traffic",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 10,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Request rate by status code",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 11,
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal", "group": "A" }, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum by (code) (rate(fikopar_requests_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval]))", "legendFormat": "{{code}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Top 10 routes (req/s)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "id": 12,
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "topk(10, sum by (method, url) (rate(fikopar_requests_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])))", "legendFormat": "{{method}} {{url}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "4xx and 5xx error rate",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 13,
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 1, "showPoints": "never" } }, "overrides": [ { "matcher": { "id": "byName", "options": "5xx" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ] }, { "matcher": { "id": "byName", "options": "4xx" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } } ] } ] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(fikopar_requests_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\", code=~\"4..\"}[$__rate_interval]))", "legendFormat": "4xx" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(fikopar_requests_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\", code=~\"5..\"}[$__rate_interval]))", "legendFormat": "5xx" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Error rate (5xx %) over time",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 14,
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 1, "showPoints": "never" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "red", "value": 0.05 } ] } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }, "tooltip": { "mode": "single", "sort": "none" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(fikopar_requests_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\", code=~\"5..\"}[$__rate_interval])) / clamp_min(sum(rate(fikopar_requests_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])), 1e-9)", "legendFormat": "5xx ratio" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Latency",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 20,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency p50 / p95 / p99",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 21,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.50, sum by (le) (rate(fikopar_request_duration_seconds_bucket{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])))", "legendFormat": "p50" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(fikopar_request_duration_seconds_bucket{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])))", "legendFormat": "p95" },
+        { "refId": "C", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.99, sum by (le) (rate(fikopar_request_duration_seconds_bucket{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency p95 per route",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 22,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["max", "lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, sum by (le, url) (rate(fikopar_request_duration_seconds_bucket{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])))", "legendFormat": "{{url}}" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Go runtime & process",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 30,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Goroutines",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 33 },
+      "id": 31,
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "go_goroutines{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}", "legendFormat": "{{instance}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory — heap & RSS",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 33 },
+      "id": 32,
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "go_memstats_heap_inuse_bytes{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}", "legendFormat": "heap inuse {{instance}}" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "process_resident_memory_bytes{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}", "legendFormat": "RSS {{instance}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU usage (cores)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 33 },
+      "id": 33,
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 3, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(process_cpu_seconds_total{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])", "legendFormat": "{{instance}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "GC pause (p75)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 41 },
+      "id": 34,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "go_gc_duration_seconds{job=~\"$job\", instance=~\"$instance\", env=~\"$env\", quantile=\"0.75\"}", "legendFormat": "GC p75 {{instance}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Response size p95",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 41 },
+      "id": 35,
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(fikopar_response_size_bytes_bucket{job=~\"$job\", instance=~\"$instance\", env=~\"$env\"}[$__rate_interval])))", "legendFormat": "response p95" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Logs (Loki) — optional",
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 },
+      "id": 40,
+      "panels": [
+        {
+          "type": "logs",
+          "title": "fikopar error logs (level=error)",
+          "datasource": { "type": "loki", "uid": "${loki}" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 50 },
+          "id": 41,
+          "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "loki", "uid": "${loki}" }, "expr": "$loki_selector | json | level=~\"ERROR|error\"" }
+          ]
+        }
+      ]
+    }
+  ]
+}

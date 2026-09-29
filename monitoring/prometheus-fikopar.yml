@@ -1,0 +1,26 @@
+# Scrape config for the fikopar backend; merge into prometheus.yml.
+# Prometheus must share a Docker network with the backend (target = service name).
+# /metrics is served on the app port; block it at the reverse proxy in production.
+
+scrape_configs:
+  - job_name: fikopar
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - "fikopar-backend:8080"
+        labels:
+          env: "prod"
+          app: "fikopar"
+          component: "backend"
+
+  # Local development (run a local Prometheus; host.docker.internal reaches the host):
+  # - job_name: fikopar-dev
+  #   metrics_path: /metrics
+  #   scrape_interval: 15s
+  #   static_configs:
+  #     - targets: ["host.docker.internal:8080"]
+  #       labels:
+  #         env: "dev"
+  #         app: "fikopar"
+  #         component: "backend"

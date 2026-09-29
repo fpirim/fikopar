@@ -1,0 +1,21 @@
+{
+  "title": "Organization Management",
+  "dialog": {
+    "editTitle": "Edit Organization",
+    "createTitle": "New Organization"
+  },
+  "grid": {
+    "id": "ID",
+    "name": "Name",
+    "slug": "Slug",
+    "createdAt": "Created"
+  },
+  "created": "Organization created",
+  "updated": "Organization updated",
+  "deleteTitle": "Delete organizations",
+  "deleteConfirm": "{{count}} organization(s) will be deleted. This cannot be undone.",
+  "deletedN": "{{count}} organization(s) deleted",
+  "deleteFailedN": "{{count}} organization(s) could not be deleted",
+  "deleteFailed": "Delete failed",
+  "printTitle": "Selected Organizations"
+}

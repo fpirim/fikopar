@@ -1,0 +1,43 @@
+version: 3
+# Layers: repository → services → handlers → router, wired in cmd/server.
+# Lower layers must not import higher ones; models and apierror are shared.
+allow:
+  depOnAnyVendor: true
+
+excludeFiles:
+  - "^.*_test\\.go$"
+
+components:
+  main: { in: cmd/server }
+  config: { in: internal/config }
+  db: { in: internal/db }
+  models: { in: internal/models }
+  apierror: { in: internal/apierror }
+  observability: { in: internal/observability }
+  repository: { in: internal/repository }
+  mocks: { in: internal/repository/mocks }
+  services: { in: internal/services }
+  middleware: { in: internal/middleware }
+  handlers: { in: internal/handlers }
+  router: { in: internal/router }
+  testutil: { in: internal/testutil }
+
+commonComponents:
+  - models
+  - apierror
+
+deps:
+  main:
+    mayDependOn: [config, db, observability, repository, services, handlers, router]
+  router:
+    mayDependOn: [config, services, middleware, handlers]
+  handlers:
+    mayDependOn: [services, repository]
+  middleware:
+    mayDependOn: [services]
+  services:
+    mayDependOn: [config, repository]
+  mocks:
+    mayDependOn: [repository]
+  testutil:
+    mayDependOn: [db]

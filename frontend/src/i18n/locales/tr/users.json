@@ -1,0 +1,28 @@
+{
+  "title": "Kullanıcı Yönetimi",
+  "dialog": {
+    "editTitle": "Kullanıcıyı Düzenle",
+    "createTitle": "Yeni Kullanıcı",
+    "passwordHint": " (boş = değişmez)",
+    "organizations": "Organizasyonlar",
+    "orgSearchPlaceholder": "Organizasyon ara ve ekle...",
+    "noResult": "Sonuç yok",
+    "allSelected": "Tüm organizasyonlar seçili"
+  },
+  "grid": {
+    "id": "ID",
+    "name": "Ad",
+    "email": "E-posta",
+    "role": "Rol",
+    "organizations": "Organizasyonlar",
+    "createdAt": "Oluşturulma"
+  },
+  "created": "Kullanıcı oluşturuldu",
+  "updated": "Kullanıcı güncellendi",
+  "deleteTitle": "Kullanıcıları sil",
+  "deleteConfirm": "{{count}} kullanıcı silinecek. Bu işlem geri alınamaz.",
+  "deletedN": "{{count}} kullanıcı silindi",
+  "deleteFailedN": "{{count}} kullanıcı silinemedi",
+  "deleteFailed": "Silme işlemi başarısız",
+  "printTitle": "Seçili Kullanıcılar"
+}

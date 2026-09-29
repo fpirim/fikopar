@@ -1,0 +1,9 @@
+{
+  "title": "Dashboard",
+  "welcome": "Welcome to fikopar.",
+  "greeting": "Welcome",
+  "status": "Status",
+  "yourOrganizations": "Your organizations",
+  "adminPanel": "Admin Panel",
+  "adminPanelDesc": "You can manage all organizations and users."
+}

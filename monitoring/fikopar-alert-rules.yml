@@ -1,0 +1,103 @@
+# Prometheus alerting rules. Load via prometheus.yml `rule_files`.
+# Scoped to env="prod" so dev never pages; thresholds are starting points.
+groups:
+  - name: fikopar-availability
+    rules:
+      - alert: FikoparDown
+        expr: up{job="fikopar", env="prod"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          app: fikopar
+        annotations:
+          summary: "fikopar backend down (instance {{ $labels.instance }})"
+          description: "fikopar backend has been unscrapeable (up=0) for 2 minutes."
+
+      - alert: FikoparTargetMissing
+        expr: absent(up{job="fikopar", env="prod"})
+        for: 5m
+        labels:
+          severity: critical
+          app: fikopar
+        annotations:
+          summary: "fikopar scrape target missing"
+          description: "No env=prod fikopar target for 5 minutes; check the scrape config."
+
+  - name: fikopar-errors
+    rules:
+      - alert: FikoparHighErrorRate
+        expr: |
+          sum(rate(fikopar_requests_total{env="prod", code=~"5.."}[5m]))
+            /
+          clamp_min(sum(rate(fikopar_requests_total{env="prod"}[5m])), 1e-9)
+            > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          app: fikopar
+        annotations:
+          summary: "fikopar 5xx error rate high (>5%)"
+          description: "More than 5% of requests returned 5xx over 5 minutes. Current: {{ $value | humanizePercentage }}."
+
+      - alert: FikoparCriticalErrorRate
+        expr: |
+          sum(rate(fikopar_requests_total{env="prod", code=~"5.."}[5m]))
+            /
+          clamp_min(sum(rate(fikopar_requests_total{env="prod"}[5m])), 1e-9)
+            > 0.20
+        for: 5m
+        labels:
+          severity: critical
+          app: fikopar
+        annotations:
+          summary: "fikopar 5xx error rate CRITICAL (>20%)"
+          description: "More than 20% of requests returned 5xx over 5 minutes. Current: {{ $value | humanizePercentage }}."
+
+  - name: fikopar-latency
+    rules:
+      - alert: FikoparHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(fikopar_request_duration_seconds_bucket{env="prod"}[5m]))
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          app: fikopar
+        annotations:
+          summary: "fikopar p95 latency high (>1s)"
+          description: "p95 latency above 1s for 10 minutes. Current: {{ $value | humanizeDuration }}."
+
+  - name: fikopar-runtime
+    rules:
+      - alert: FikoparHighMemory
+        # Tune to the container memory limit.
+        expr: process_resident_memory_bytes{job="fikopar", env="prod"} > 400 * 1024 * 1024
+        for: 15m
+        labels:
+          severity: warning
+          app: fikopar
+        annotations:
+          summary: "fikopar memory high (instance {{ $labels.instance }})"
+          description: "RSS above threshold for 15 minutes. Current: {{ $value | humanize1024 }}B."
+
+      - alert: FikoparGoroutineLeak
+        expr: go_goroutines{job="fikopar", env="prod"} > 1000
+        for: 15m
+        labels:
+          severity: warning
+          app: fikopar
+        annotations:
+          summary: "fikopar goroutine count high — possible leak"
+          description: "More than 1000 goroutines for 15 minutes ({{ $value }})."
+
+  # Optional, prone to false positives on quiet systems:
+  # - name: fikopar-traffic
+  #   rules:
+  #     - alert: FikoparNoTraffic
+  #       expr: sum(rate(fikopar_requests_total{env="prod"}[10m])) == 0
+  #       for: 30m
+  #       labels: { severity: warning, app: fikopar }
+  #       annotations:
+  #         summary: "fikopar has received no requests for 30 minutes"
+  #         description: "Check proxy/DNS/health if traffic is expected."

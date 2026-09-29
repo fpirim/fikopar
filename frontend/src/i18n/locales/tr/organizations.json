@@ -1,0 +1,21 @@
+{
+  "title": "Organizasyon Yönetimi",
+  "dialog": {
+    "editTitle": "Organizasyonu Düzenle",
+    "createTitle": "Yeni Organizasyon"
+  },
+  "grid": {
+    "id": "ID",
+    "name": "Ad",
+    "slug": "Slug",
+    "createdAt": "Oluşturulma"
+  },
+  "created": "Organizasyon oluşturuldu",
+  "updated": "Organizasyon güncellendi",
+  "deleteTitle": "Organizasyonları sil",
+  "deleteConfirm": "{{count}} organizasyon silinecek. Bu işlem geri alınamaz.",
+  "deletedN": "{{count}} organizasyon silindi",
+  "deleteFailedN": "{{count}} organizasyon silinemedi",
+  "deleteFailed": "Silme işlemi başarısız",
+  "printTitle": "Seçili Organizasyonlar"
+}
