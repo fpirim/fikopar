@@ -105,6 +105,7 @@
     "pickDepot": {
       "title": "Choose a depot",
       "body": "Each depot has its own till. Pick one to open its cash book."
-    }
+    },
+    "carried": "CARRIED"
   }
 }

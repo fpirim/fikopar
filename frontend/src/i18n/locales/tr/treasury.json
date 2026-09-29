@@ -105,6 +105,7 @@
     "pickDepot": {
       "title": "Depo seçin",
       "body": "Her deponun kendi kasası var. Defterini açmak için bir depo seçin."
-    }
+    },
+    "carried": "DEVİR"
   }
 }

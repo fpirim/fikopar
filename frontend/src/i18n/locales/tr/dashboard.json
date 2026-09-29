@@ -1,9 +1,42 @@
 {
-  "title": "Dashboard",
-  "welcome": "fikopar uygulamasına hoş geldiniz.",
-  "greeting": "Hoş Geldin",
-  "status": "Durum",
-  "yourOrganizations": "Organizasyonların",
-  "adminPanel": "Admin Paneli",
-  "adminPanelDesc": "Tüm organizasyonları ve kullanıcıları yönetebilirsiniz."
+  "title": "Bugün",
+  "dateLine": "{{date}} · TRY",
+  "newReceipt": "Yeni tahsilat",
+  "newInvoice": "Yeni fatura",
+  "receivables": "Alacaklar",
+  "receivablesSub_one": "{{count}} hesap",
+  "receivablesSub_other": "{{count}} hesap",
+  "payables": "Borçlar",
+  "payablesSub_one": "{{count}} tedarikçi",
+  "payablesSub_other": "{{count}} tedarikçi",
+  "cash": "Kasadaki nakit",
+  "cheques": "Vadesi 30 gün içinde çekler",
+  "overdue_one": "{{count}} vadesi geçmiş",
+  "overdue_other": "{{count}} vadesi geçmiş",
+  "noOverdue": "Vadesi geçmiş yok",
+  "latest": "Son belgeler",
+  "all": "Tümü",
+  "col": {
+    "number": "No.",
+    "type": "Tür",
+    "account": "Hesap",
+    "depot": "Depo",
+    "amount": "Tutar"
+  },
+  "kind": {
+    "CASH_VOUCHER": "KASA FİŞİ"
+  },
+  "noLatest": "Henüz belge yok",
+  "due": "Bu hafta vadesi gelenler",
+  "days": "{{days}} G",
+  "noDue": "Bu hafta vadesi gelen yok",
+  "belowMin": "Minimum altı / eksi",
+  "belowMinCounts": "{{below}} minimum altı · {{negative}} eksi",
+  "noBelowMin": "Minimum altında parça yok",
+  "ledgerCheck": "Defter kontrolü {{time}}",
+  "check": {
+    "BALANCED": "DENGEDE",
+    "DRIFT": "FARK VAR",
+    "NOT_RUN": "ÇALIŞMADI"
+  }
 }
