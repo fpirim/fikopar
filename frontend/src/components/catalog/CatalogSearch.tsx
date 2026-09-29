@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Command as CommandPrimitive } from 'cmdk'
 import { Search } from 'lucide-react'
@@ -100,7 +100,13 @@ export default function CatalogSearch({
   const [more, setMore] = useState(false)
   const [selected, setSelected] = useState('')
   const anchorRef = useRef<HTMLDivElement>(null)
+  // Where the focus was when the popup opened (F2 / ⌘K); it goes back there on close.
+  const opener = useRef<HTMLElement | null>(null)
   const text = query.trim()
+
+  useLayoutEffect(() => {
+    if (open) opener.current = document.activeElement as HTMLElement | null
+  }, [open])
   const ready = text.length >= 2
 
   useEffect(() => {
@@ -306,6 +312,12 @@ export default function CatalogSearch({
       sideOffset={6}
       onOpenAutoFocus={(e) => {
         if (!anchor) e.preventDefault()
+      }}
+      onCloseAutoFocus={(e) => {
+        if (!anchor) return
+        e.preventDefault()
+        const back = opener.current?.isConnected ? opener.current : null
+        ;(back ?? anchorRef.current?.querySelector<HTMLElement>('input, button'))?.focus()
       }}
       onInteractOutside={(e) => {
         if (!anchor && anchorRef.current?.contains(e.target as Node)) e.preventDefault()

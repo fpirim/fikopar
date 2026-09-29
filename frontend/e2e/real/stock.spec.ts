@@ -1,4 +1,4 @@
-import { test, expect, seeded, V12 } from './fixtures'
+import { test, expect, seeded, V12, V13 } from './fixtures'
 import { lisakt } from '../fixtures/lisakt'
 
 // F2 flows against the real API. Every test is @v12: run after the F2 backend and frontend merge.
@@ -186,5 +186,58 @@ test.describe('catalog and stock', () => {
     const card = page.getByRole('region', { name: 'Below minimum / negative' })
     await expect(card.getByRole('listitem').first()).toContainText('−')
     await expect(card.getByRole('listitem').filter({ hasText: 'OF-0457' })).toContainText('−3 / 5')
+  })
+
+  test(
+    '"pump 37" finds the HP-37 pumps by a name word and a code fragment',
+    V13,
+    async ({ page }) => {
+      await page.goto('/')
+      await expect(page.getByRole('searchbox', { name: 'Search' })).toBeVisible()
+      await page.keyboard.press('ControlOrMeta+k')
+      await page.getByRole('combobox', { name: 'Part search' }).fill('pump 37')
+      const list = page.getByRole('listbox', { name: 'Catalog search results' })
+      await expect(list.getByRole('option', { name: /HP-3702/ }).first()).toBeVisible()
+      await expect(list.getByRole('option', { name: /HP-3774/ }).first()).toBeVisible()
+      await expect(list).not.toContainText('FL-0092')
+    },
+  )
+
+  test('all depots shows on hand per depot side by side', V13, async ({ page }) => {
+    await page.goto('/parts')
+    await page.getByLabel(/^Filter (Code|Part|Stock no\.?)$/).fill('FL-0092')
+    const row = grid(page).locator('.ag-center-cols-container .ag-row').first()
+    await expect(row).toContainText('FL-0092')
+    await expect(grid(page).getByRole('columnheader', { name: 'Dp 1' })).toBeVisible()
+    await expect(grid(page).getByRole('columnheader', { name: 'Dp 2' })).toBeVisible()
+    const d1 = Number(await row.locator('[col-id^="depot."]').first().textContent())
+    const d2 = Number(await row.locator('[col-id^="depot."]').nth(1).textContent())
+    expect(d1 + d2).toBe(Number(await row.locator('[col-id="onHand"]').textContent()))
+  })
+
+  test('movements filter by the Out column on the server', V13, async ({ page }) => {
+    await page.goto(`/parts/${part('HP-3774')}`)
+    await expect(grid(page)).toContainText(/TRF-2026-/)
+    await page.getByLabel('Filter Out').fill('>= 1')
+    await expect
+      .poll(async () => {
+        const outs = await grid(page)
+          .locator('.ag-center-cols-container .ag-row [col-id="qtyOut"]')
+          .allTextContents()
+        return outs.length > 0 && outs.every((v) => Number(v) >= 1)
+      })
+      .toBe(true)
+  })
+
+  test('the equivalents card lists linked parts both ways', V13, async ({ page }) => {
+    await page.goto(`/parts/${part('CL-1150')}`)
+    const card = page.getByRole('region', { name: 'Equivalents' })
+    await expect(card).toContainText('Clutch disc 12"')
+    await expect(card).toContainText('Transmission')
+    await card.getByRole('link', { name: 'CL-1210' }).click()
+    await expect(page).toHaveURL(new RegExp(`/parts/${part('CL-1210')}`))
+    await expect(
+      page.getByRole('region', { name: 'Equivalents' }).getByRole('link', { name: 'CL-1150' }),
+    ).toBeVisible()
   })
 })

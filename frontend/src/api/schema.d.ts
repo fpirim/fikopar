@@ -239,7 +239,16 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Start page aggregates */
+    /**
+     * Start page aggregates
+     * @description As of `date`, for `depotId` or the whole company. An unknown `depotId` answers 404 ERR_DEPOT_NOT_FOUND.
+     *     - `receivables`: Σ of the positive balances of `120.*` accounts; `accounts` = how many.
+     *     - `payables`: Σ of the credit balances of `320.*` accounts (as a positive amount); `accounts` = how many.
+     *     - `cash`: the CASH role account of each depot (depots without the role are left out); `total` = Σ.
+     *     - `instrumentsDue30`: open receivable instruments due on or before `date` + 30, overdue included;
+     *       `overdueCount` = due before `date`.
+     *     - `dueThisWeek`: open receivable instruments due on or before `date` + 7, overdue first, then by due date.
+     */
     get: operations['getDashboard']
     put?: never
     post?: never
@@ -259,7 +268,11 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Top-bar search over account cards, parts and document numbers */
+    /**
+     * Top-bar search over account cards, parts and document numbers
+     * @description The parts group uses the `searchCatalog` match and ranking, `limit` hits per group. A `q` over 60 characters
+     *     skips the parts group.
+     */
     get: operations['globalSearch']
     put?: never
     post?: never
@@ -1393,8 +1406,12 @@ export interface paths {
      * @description Column ids and filter types: `PartColId`. `search` is OR over stockNo, name, brand and every code (normalized).
      *     The `codes` filter matches any code of the part, normalized. Stock columns (onHand, reserved, available)
      *     are for `depotId`, or summed over depots when it is null; minQty, maxQty and shelf need a `depotId` and are
-     *     null without one. Default sort `stockNo` asc, then `catalogCode`. `totals` has onHand, reserved and
-     *     available. XLSX carries every filtered row (at most 100 000) with the same columns.
+     *     null without one. With `depotId` null each row also has `stockByDepot` (every depot of the company, depot code
+     *     order, zeros included); it is omitted with a `depotId` and has no column ids (no filter or sort).
+     *     `stock=IN_STOCK` = available > 0 in the scope. `unfilteredCount` = parts in the scope (`catalogId`,
+     *     `includeInactive`) before column filters, `search` and `stock`. Default sort `stockNo` asc, then
+     *     `catalogCode`. `totals` has onHand, reserved and available. XLSX carries every filtered row (at most 100 000)
+     *     with the same columns.
      */
     post: operations['gridParts']
     delete?: never
@@ -1415,10 +1432,14 @@ export interface paths {
     }
     /**
      * Part picker (F2 on an invoice line, typing in a line)
-     * @description `q` is matched against stock no and every code (MANUFACTURER, OEM, ALT, EQUIVALENT) after normalization
-     *     (upper case, only 0-9 A-Z), and against the name word by word (every word must occur, case- and
-     *     Turkish-dotless-i-insensitive). Rank: 1 exact code or stock no, 2 prefix, 3 substring (normalized `q` of
-     *     3+ characters), 4 name; then stock no, then catalog code. Inactive parts are left out.
+     * @description The whole `q`, normalized (upper case, only 0-9 A-Z), is matched against stock no and every code
+     *     (MANUFACTURER, OEM, ALT, EQUIVALENT): rank 1 exact, 2 prefix, 3 substring (normalized `q` of 3+ characters).
+     *     Rank 4 (words): `q` is split on spaces and every word must occur in the name (case- and
+     *     Turkish-dotless-i-insensitive) or, normalized, as a substring of the stock no or any code; `pump 37` finds a
+     *     pump named "Hydraulic pump" with code `HP-3712`. A rank-4 hit has `matchKind` NAME and `matchedCode` the
+     *     first code (stock no, then MANUFACTURER, OEM, ALT, EQUIVALENT) a word occurs in, or null. A word without
+     *     letters or digits matches the name only; a `q` without any skips ranks 1–3. Order: rank, then stock no,
+     *     then catalog code. Inactive parts are left out.
      *     Each hit has on hand and available for every depot of the company (zero rows included) and the list price of
      *     its catalog valid on `date`.
      *
@@ -1475,6 +1496,7 @@ export interface paths {
      * Create part in a catalog, optionally with its first list price
      * @description 409 ERR_PART_CODE_EXISTS when the stock no exists in the catalog; 422 ERR_CATALOG_NOT_FOUND (`catalogId`),
      *     ERR_PART_NOT_FOUND (`codes[i].equivalentPartId`). The same stock no may exist in another catalog.
+     *     `initialPrice` is a MANUAL price row and emits `PriceChanged` like `setPartPrice`.
      */
     post: operations['createPart']
     delete?: never
@@ -1514,7 +1536,7 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Get part with codes, current and next list price */
+    /** Get part with codes, equivalents, current and next list price */
     get: operations['getPart']
     /**
      * Update part; `codes` replaces the code list; deactivate with `isActive` false (parts are never deleted)
@@ -1569,7 +1591,8 @@ export interface paths {
     /**
      * Min, max and shelf of a part in one depot (upsert)
      * @description `If-Match` is the `version` of that depot row in `getPartStock`; `"0"` creates it. 422 ERR_INVALID_REQUEST
-     *     (`maxQty`) when max < min.
+     *     (`maxQty`) when max < min. PUT semantics: the body replaces all three fields, an omitted field is cleared
+     *     (`minQty` 0, `maxQty` null, `shelf` empty).
      */
     put: operations['setPartDepotSettings']
     post?: never
@@ -1627,6 +1650,9 @@ export interface paths {
      *     by header name (`PriceImportTarget` names, Turkish aliases in `listPriceImportPresets`); if `code` or `price`
      *     stay unmapped the job is NEEDS_MAPPING with `headers` and `sample`, and `updatePriceImport` sends the mapping.
      *     A file whose SHA-256 was already applied to the catalog sets `duplicateOfImportId` (warning only).
+     *     A file over 10 MiB answers 400 ERR_FILE_TOO_LARGE and creates no job. The idempotency request hash is the
+     *     file SHA-256 plus the form fields, so a retry with a new multipart boundary replays.
+     *     A NEW row without a description takes the stock no as the part name.
      *     400 ERR_NO_FILE_UPLOADED, ERR_FILE_TOO_LARGE; 422 ERR_CATALOG_NOT_FOUND.
      */
     post: operations['createPriceImport']
@@ -1679,8 +1705,10 @@ export interface paths {
     /**
      * Preview diff rows (file vs catalog); XLSX via Accept
      * @description `change` picks the tab; a row with PRICE and ATTRIBUTES shows under both. Column ids: rowNo, stockNo,
-     *     description, brand, price, currentPrice, priceChangePct, validFrom, changes, errors. Default sort rowNo, MISSING
-     *     rows (rowNo null) last by stock no. `totals` is empty.
+     *     description, brand, price, currentPrice, priceChangePct, validFrom, changes, errors. `description` and `brand`
+     *     filter and sort the file value, else the current value (MISSING rows). Default sort rowNo, MISSING rows
+     *     (rowNo null) last by stock no. `unfilteredCount` = rows of the selected tab before column filters.
+     *     `totals` is empty.
      */
     post: operations['gridPriceImportRows']
     delete?: never
@@ -1774,7 +1802,7 @@ export interface paths {
     /**
      * On hand per part and depot (projection of movements); below-minimum and negative lists
      * @description `belowMin` = minQty > 0 and onHand < minQty; `negative` = onHand < 0. Order: onHand asc for NEGATIVE,
-     *     otherwise onHand − minQty asc, then stock no.
+     *     otherwise onHand − minQty asc, then stock no. An unknown `depotId` returns an empty list.
      */
     get: operations['listStockLevels']
     put?: never
@@ -1802,9 +1830,13 @@ export interface paths {
      * @description Ledger order is (date, id). `runningOnHand` is the on hand after the movement in that order, per depot
      *     (`depotId`) or over all depots (`depotId` null); it is set only when `partId` is given and the sort is `date`
      *     (asc or desc), otherwise null. It counts every movement of the part, so column filters hide rows without
-     *     changing it. `openingOnHand` / `closingOnHand` bracket the `date` filter range (same scope).
-     *     Column ids: date, kind, label, sourceNo, sicilName, stockNo, name, depotId, qty, delta, unitCost; default sort
-     *     date desc, id desc. `totals`: qtyIn, qtyOut (Σ over filtered rows).
+     *     changing it. `openingOnHand` / `closingOnHand` bracket the `date` filter range (same scope); without a date
+     *     filter opening is 0 and closing is the on hand through today. Both need `partId` and are null without it.
+     *     Column ids: date, kind, label, sourceNo, sicilName, stockNo, name, depotId, qty, qtyIn, qtyOut, delta, unitCost;
+     *     `qtyIn` / `qtyOut` are number columns (null on rows of the other direction, `blank` matches those). Default
+     *     sort date desc, id desc. `totals`: qtyIn, qtyOut (Σ over filtered rows). A transfer is two rows
+     *     (TRANSFER_OUT, TRANSFER_IN), each with `otherDepotId`. Until documents exist (F3) `label` comes from the source
+     *     (TRANSFER, COUNT, OPENING for legacy imports) and `documentId`, `documentType`, `sicilName` are null.
      */
     post: operations['gridStockMovements']
     delete?: never
@@ -1979,7 +2011,11 @@ export interface paths {
       }
       cookie?: never
     }
-    get?: never
+    /**
+     * One count line with its ETag (re-read after a 412 on autosave)
+     * @description Any count status. 404 ERR_STOCK_COUNT_NOT_FOUND, ERR_STOCK_COUNT_LINE_NOT_FOUND (a line of another count too).
+     */
+    get: operations['getStockCountLine']
     put?: never
     post?: never
     delete?: never
@@ -2009,7 +2045,8 @@ export interface paths {
     put?: never
     /**
      * Post differences; OPEN → FINALIZED, one ADJUST movement per line with a difference
-     * @description `uncounted`: SKIP leaves lines without a count as they are; ZERO treats them as counted 0.
+     * @description `uncounted`: SKIP leaves lines without a count as they are; ZERO sets `countedQty` 0 on them (countedBy /
+     *     countedAt = the finalizing user and time), so they show their difference afterwards.
      *     Difference = counted − systemQty (frozen); movements after `startedAt` stay on top, so on hand after =
      *     on hand now + difference. ADJUST_IN / ADJUST_OUT dated `countDate`, `unitCost` = snapshot of
      *     `last_purchase_cost(countDate)` with `costSource` (ADR-0008). One transaction; negative results are allowed
@@ -2756,8 +2793,9 @@ export interface components {
       /**
        * @description The four steps of the screen, in order. CLOSE_DOCUMENTS ← NO_DRAFT_DOCUMENTS, STOCK_COUNTS ←
        *     STOCK_COUNTS_POSTED and YEAR_END_COUNTS, ACCOUNT_BALANCES ← LEDGER_BALANCED, OPEN_YEAR ← YEAR_NOT_OPENED and the post.
-       *     A failing blocking check makes its step BLOCKED; the first step not DONE is CURRENT; all four are
-       *     DONE when status is POSTED.
+       *     A failing blocking check makes its step BLOCKED; a failing warning (YEAR_END_COUNTS) is shown in
+       *     `checks` but does not keep its step from DONE. The first step not DONE is CURRENT; all four are DONE
+       *     when status is POSTED.
        */
       steps: {
         /** @enum {string} */
@@ -3411,6 +3449,7 @@ export interface components {
        * @enum {string}
        */
       kind: 'MANUFACTURER' | 'OEM' | 'ALT' | 'EQUIVALENT'
+      /** @description For EQUIVALENT the linked part's stock no: the server stores it from `equivalentPartId` and ignores the sent value */
       code: string
       /** @description Upper case, 0-9 A-Z only; unique per part and kind */
       readonly normalizedCode?: string
@@ -3456,11 +3495,20 @@ export interface components {
       }
       /** @description Sum over depots */
       onHand?: components['schemas']['SignedQuantity']
+      /** @description Parts linked by EQUIVALENT codes, either direction, by stock no */
+      readonly equivalents: components['schemas']['PartEquivalent'][]
       /** Format: date-time */
       createdAt?: string
       /** Format: date-time */
       updatedAt?: string
       version: number
+    }
+    PartEquivalent: {
+      partId: number
+      stockNo: string
+      name: string
+      catalogId: number
+      catalogName: string
     }
     /**
      * @description gridParts column ids. text: stockNo, name, type, brand, catalogCode, codes, unit, shelf, isActive ("true" /
@@ -3534,6 +3582,13 @@ export interface components {
       belowMin: boolean
       /** @description With depotId: onHand < 0; without: in any depot */
       negative: boolean
+      /** @description Only when the request depotId is null: every depot of the company, depot code order, zeros included */
+      stockByDepot?: {
+        depotId: number
+        depotCode: string
+        onHand: components['schemas']['SignedQuantity']
+        available: components['schemas']['SignedQuantity']
+      }[]
       isActive: boolean
       /** Format: date-time */
       updatedAt?: string
@@ -3646,18 +3701,24 @@ export interface components {
       | 'equivalentCode'
     /**
      * @description Source of one target. CSV / XLSX: `header` (case-insensitive, trimmed) or `index` (1-based) or `letter` (XLSX).
-     *     FIXED_WIDTH: `start` (1-based) and `length`; `scale` = implied decimals of an unsigned zoned number.
+     *     FIXED_WIDTH: `start` (1-based) and `length`; `scale` = implied decimals of an unsigned zoned number (0 when omitted).
      */
-    PriceImportColumn: {
+    PriceImportColumnWrite: {
       header?: string
       index?: number
       letter?: string
       start?: number
       length?: number
-      /** @default 0 */
-      scale: number
+      scale?: number
     }
-    PriceImportMapping: {
+    /** @description One column of an effective mapping; an omitted `scale` is 0. */
+    PriceImportColumn: components['schemas']['PriceImportColumnWrite']
+    /**
+     * @description Request side (`createPriceImport`, `updatePriceImport`); every field is optional. Omitted fields come from the
+     *     preset, then the defaults: format from the file extension, encoding UTF-8, decimalSeparator `,`, dateFormat
+     *     dd.mm.yyyy, headerRow 1, listSeparator `|`; unmapped columns are matched by header name.
+     */
+    PriceImportMappingWrite: {
       /**
        * @description Fills format, encoding, dateFormat and columns; fields given here override
        * @enum {string|null}
@@ -3670,33 +3731,44 @@ export interface components {
       format?: 'CSV' | 'XLSX' | 'FIXED_WIDTH'
       /**
        * @description CSV and FIXED_WIDTH
-       * @default UTF-8
        * @enum {string}
        */
-      encoding: 'UTF-8' | 'CP857' | 'WINDOWS-1254'
+      encoding?: 'UTF-8' | 'CP857' | 'WINDOWS-1254'
       /** @description CSV; detected from ; , or tab when omitted */
       delimiter?: string
-      /**
-       * @default ,
-       * @enum {string}
-       */
-      decimalSeparator: ',' | '.'
+      /** @enum {string} */
+      decimalSeparator?: ',' | '.'
       /**
        * @description Text dates; XLSX date cells are read as dates
-       * @default dd.mm.yyyy
        * @enum {string}
        */
-      dateFormat: 'dd.mm.yyyy' | 'yyyy-mm-dd' | 'yyyymmdd'
+      dateFormat?: 'dd.mm.yyyy' | 'yyyy-mm-dd' | 'yyyymmdd'
       /** @description XLSX sheet name; first sheet when omitted */
       sheet?: string
-      /**
-       * @description 0 = no header (CSV / XLSX); data starts on the next row
-       * @default 1
-       */
-      headerRow: number
-      /** @default | */
-      listSeparator: string
+      /** @description 0 = no header (CSV / XLSX); data starts on the next row */
+      headerRow?: number
+      listSeparator?: string
       columns?: {
+        [key: string]: components['schemas']['PriceImportColumnWrite']
+      }
+    }
+    /** @description Effective mapping (responses) after the preset, the defaults and auto-mapping; `delimiter` and `sheet` only when set. */
+    PriceImportMapping: {
+      /** @enum {string|null} */
+      preset?: 'LISAKT' | null
+      /** @enum {string} */
+      format: 'CSV' | 'XLSX' | 'FIXED_WIDTH'
+      /** @enum {string} */
+      encoding: 'UTF-8' | 'CP857' | 'WINDOWS-1254'
+      delimiter?: string
+      /** @enum {string} */
+      decimalSeparator: ',' | '.'
+      /** @enum {string} */
+      dateFormat: 'dd.mm.yyyy' | 'yyyy-mm-dd' | 'yyyymmdd'
+      sheet?: string
+      headerRow: number
+      listSeparator: string
+      columns: {
         [key: string]: components['schemas']['PriceImportColumn']
       }
     }
@@ -3708,7 +3780,10 @@ export interface components {
      *         "preset": "LISAKT",
      *         "format": "FIXED_WIDTH",
      *         "encoding": "CP857",
+     *         "decimalSeparator": ".",
      *         "dateFormat": "yyyymmdd",
+     *         "headerRow": 0,
+     *         "listSeparator": "|",
      *         "columns": {
      *           "op": {
      *             "start": 1,
@@ -3798,8 +3873,8 @@ export interface components {
       fileSize: number
       /** @enum {string} */
       format: 'CSV' | 'XLSX' | 'FIXED_WIDTH'
-      /** @description Effective mapping (after preset and auto-mapping) */
-      mapping?: components['schemas']['PriceImportMapping']
+      /** @description Effective mapping (after preset, defaults and auto-mapping); null when the sent mapping could not be resolved (FAILED ERR_IMPORT_FORMAT) */
+      mapping?: components['schemas']['PriceImportMapping'] | null
       /** Format: date */
       validFrom: string
       /**
@@ -3876,7 +3951,7 @@ export interface components {
        * @description Errors: REQUIRED, INVALID_NUMBER, INVALID_DATE, INVALID_PERCENT, NEGATIVE_PRICE, TOO_LONG, DUPLICATE_IN_FILE
        *     (same stock no twice), PRICE_EXISTS (a different price already on that validFrom), CATALOG_MISMATCH (LISAKT
        *     KATNO ≠ job catalog), UNKNOWN_OP. Warnings: BACKDATED (validFrom before the latest price), OP_MISMATCH
-       *     (insert of an existing part or update of an unknown one), EQUIVALENT_NOT_FOUND, INACTIVE_PART (reactivated).
+       *     (insert of an existing part, update of an unknown one, op 0 for an unknown part: no change), EQUIVALENT_NOT_FOUND, INACTIVE_PART (reactivated).
        * @enum {string}
        */
       code:
@@ -3914,6 +3989,7 @@ export interface components {
       file?: components['schemas']['PriceImportFields'] | null
       /** @description Catalog now; price = valid on the row validFrom */
       current?: components['schemas']['PriceImportFields'] | null
+      /** @description Targets that differ; PRICE rows list `price` */
       changedFields?: components['schemas']['PriceImportTarget'][]
       priceChangePct?: string | null
       errors: components['schemas']['PriceImportIssue'][]
@@ -3972,6 +4048,10 @@ export interface components {
       qty: components['schemas']['Quantity']
       /** @description +qty for IN kinds, −qty for OUT kinds */
       delta: components['schemas']['SignedQuantity']
+      /** @description qty for IN, ADJUST_IN, TRANSFER_IN; null otherwise */
+      qtyIn?: components['schemas']['Quantity'] | null
+      /** @description qty for OUT, ADJUST_OUT, TRANSFER_OUT; null otherwise */
+      qtyOut?: components['schemas']['Quantity'] | null
       unitCost?: components['schemas']['Money4'] | null
       /** @enum {string} */
       sourceType: 'document' | 'stock_count' | 'transfer' | 'legacy_import'
@@ -3988,7 +4068,10 @@ export interface components {
       runningOnHand?: components['schemas']['SignedQuantity'] | null
       /** Format: date */
       date: string
-      /** Format: date-time */
+      /**
+       * Format: date-time
+       * @description Wall clock at insert (clock_timestamp()), not transaction start
+       */
       occurredAt: string
     }
     StockTransferCreate: {
@@ -4069,7 +4152,8 @@ export interface components {
       status: 'OPEN' | 'FINALIZED' | 'CANCELLED'
       /**
        * Format: date-time
-       * @description Freeze instant of systemQty
+       * @description Freeze instant of systemQty (clock_timestamp()). A movement committed after it but stamped before it
+       *     (long transaction) counts as before the freeze.
        */
       startedAt: string
       lineCount: number
@@ -4867,6 +4951,7 @@ export interface operations {
       }
       401: components['responses']['Unauthorized']
       403: components['responses']['Forbidden']
+      404: components['responses']['NotFound']
     }
   }
   globalSearch: {
@@ -7250,7 +7335,7 @@ export interface operations {
            * @description For rows without their own valid_from
            */
           validFrom: string
-          mapping?: components['schemas']['PriceImportMapping']
+          mapping?: components['schemas']['PriceImportMappingWrite']
         }
       }
     }
@@ -7296,7 +7381,7 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': {
-          mapping?: components['schemas']['PriceImportMapping']
+          mapping?: components['schemas']['PriceImportMappingWrite']
           /** Format: date */
           validFrom?: string
         }
@@ -7770,6 +7855,34 @@ export interface operations {
       401: components['responses']['Unauthorized']
       409: components['responses']['Conflict']
       422: components['responses']['Unprocessable']
+    }
+  }
+  getStockCountLine: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        countId: components['parameters']['CountId']
+        lineId: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Line */
+      200: {
+        headers: {
+          ETag: components['headers']['ETag']
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StockCountLine']
+        }
+      }
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
     }
   }
   setStockCountLine: {

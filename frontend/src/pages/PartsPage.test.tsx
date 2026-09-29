@@ -33,6 +33,26 @@ describe('PartsPage', () => {
     expect(screen.queryByRole('columnheader', { name: 'Raf' })).not.toBeInTheDocument()
   })
 
+  it('shows on hand per depot side by side under all depots', async () => {
+    renderApp('/parts')
+    const hp = await findHp()
+    expect(screen.getByRole('columnheader', { name: 'Dp 1' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Dp 2' })).toBeInTheDocument()
+    const idx = hp.closest('.ag-row')!.getAttribute('row-index')
+    const cell = (c: string) =>
+      document.querySelector(
+        `.ag-center-cols-container .ag-row[row-index="${idx}"] [col-id="${c}"]`,
+      )
+    expect(cell('depot.1')).toHaveTextContent('10')
+    expect(cell('depot.2')).toHaveTextContent('4')
+  })
+
+  it('hides the per-depot columns when a depot is chosen', async () => {
+    renderApp('/parts?depot=1')
+    await findHp()
+    expect(screen.queryByRole('columnheader', { name: 'Dp 1' })).not.toBeInTheDocument()
+  })
+
   it('scopes stock columns to the top-bar depot and shows min, max and shelf', async () => {
     const calls = capture('post', '/api/orgs/:orgId/catalog/parts/grid')
     renderApp('/parts?depot=1')
@@ -77,7 +97,7 @@ describe('PartsPage', () => {
     const calls = capture('post', '/api/orgs/:orgId/catalog/parts/grid')
     renderApp('/parts')
     await firstPart()
-    await userEvent.type(screen.getByLabelText('OEM / alt. filtresi'), '3774612')
+    await userEvent.type(screen.getByLabelText('OEM / alternatif filtresi'), '3774612')
     await waitFor(() =>
       expect(last(calls).body).toMatchObject({
         filterModel: { codes: { filterType: 'text', type: 'contains', filter: '3774612' } },

@@ -92,12 +92,16 @@ describe('StockCountPage', () => {
 
   it('shows who counted first on 412 and keeps the own count on request', async () => {
     const saves = capture('patch', LINE)
+    const reads = capture('get', LINE)
+    const grids = capture('post', '/api/orgs/:orgId/stock/counts/:countId/lines/grid')
     await shelfA0()
     await count('BE-0620', '32{Enter}')
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent('Başkası saydı')
     expect(dialog).toHaveTextContent('a.kaya, BE-0620 için')
     expect(dialog).toHaveTextContent('31')
+    expect(reads).toHaveLength(1)
+    expect(grids.some((g) => JSON.stringify(g.body).includes('BE-0620'))).toBe(false)
     await userEvent.click(within(dialog).getByRole('button', { name: '32 kalsın' }))
     await waitFor(() => expect(saves).toHaveLength(2))
     expect(saves[1].headers.get('If-Match')).toBe('"3"')

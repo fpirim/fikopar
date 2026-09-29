@@ -69,7 +69,7 @@ function PartView({ orgId, partId }: Readonly<{ orgId: number; partId: number }>
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3.5">
-      <Header part={p} depotId={depotId}>
+      <Header part={p}>
         <Button variant="outline" onClick={() => setDialog({ kind: 'price' })}>
           {t('newPrice')}
         </Button>
@@ -104,8 +104,8 @@ function PartView({ orgId, partId }: Readonly<{ orgId: number; partId: number }>
           </Button>
         </div>
       )}
-      <div className="flex items-start gap-4">
-        <Panel className="min-w-0 flex-1 overflow-hidden">
+      <div className="flex flex-wrap items-start gap-4">
+        <Panel className="min-w-fit flex-1 overflow-hidden">
           <DepotTable
             levels={stock.data?.depots ?? []}
             total={stock.data?.total ?? null}
@@ -113,9 +113,12 @@ function PartView({ orgId, partId }: Readonly<{ orgId: number; partId: number }>
             onEdit={(level) => setDialog({ kind: 'settings', level })}
           />
         </Panel>
-        <Panel className="w-[380px] shrink-0 overflow-hidden">
-          <PriceTable prices={prices.data ?? []} next={p.nextPrice ?? null} />
-        </Panel>
+        <div className="flex w-fit min-w-[380px] shrink-0 flex-col gap-4">
+          <Panel className="overflow-hidden">
+            <PriceTable prices={prices.data ?? []} next={p.nextPrice ?? null} />
+          </Panel>
+          {p.equivalents.length > 0 && <Equivalents part={p} depotId={depotId} />}
+        </div>
       </div>
       <Movements
         orgId={orgId}
@@ -168,14 +171,9 @@ function PartView({ orgId, partId }: Readonly<{ orgId: number; partId: number }>
   )
 }
 
-function Header({
-  part,
-  depotId,
-  children,
-}: Readonly<{ part: Part; depotId: number | null; children: React.ReactNode }>) {
+function Header({ part, children }: Readonly<{ part: Part; children: React.ReactNode }>) {
   const { t } = useTranslation('parts')
   const codes = part.codes ?? []
-  const equivalents = codes.filter((c) => c.kind === 'EQUIVALENT' && c.equivalentPartId)
   return (
     <div className="flex items-start gap-3">
       <div className="min-w-0 flex-1">
@@ -192,20 +190,6 @@ function Header({
                 {`${c.kind === 'MANUFACTURER' ? 'MFR' : c.kind} ${c.code}`}
               </Chip>
             ))}
-          {equivalents.length > 0 && (
-            <span className="flex items-center gap-1.5 whitespace-nowrap">
-              {t('equivalents')}
-              {equivalents.map((c) => (
-                <Link
-                  key={c.code}
-                  to={withDepot(`/parts/${c.equivalentPartId}`, depotId)}
-                  className="font-mono"
-                >
-                  {c.code}
-                </Link>
-              ))}
-            </span>
-          )}
           <span className="whitespace-nowrap">
             {[
               t('priceList', { catalog: part.catalogName ?? part.catalogCode }),
@@ -219,6 +203,38 @@ function Header({
       </div>
       {children}
     </div>
+  )
+}
+
+// Parts linked by EQUIVALENT codes, either direction.
+function Equivalents({ part, depotId }: Readonly<{ part: Part; depotId: number | null }>) {
+  const { t } = useTranslation('parts')
+  return (
+    <Panel aria-labelledby="equivalents-h" className="overflow-hidden">
+      <h2
+        id="equivalents-h"
+        className="border-b border-fk-border px-3.5 py-3 text-15 font-semibold"
+      >
+        {t('equivalents')}
+      </h2>
+      <ul>
+        {part.equivalents.map((e) => (
+          <li
+            key={e.partId}
+            className="flex h-[34px] items-center gap-2.5 border-b border-fk-divider px-3.5 text-grid last:border-b-0"
+          >
+            <Link
+              to={withDepot(`/parts/${e.partId}`, depotId)}
+              className="shrink-0 whitespace-nowrap font-mono"
+            >
+              {e.stockNo}
+            </Link>
+            <span className="min-w-0 flex-1 truncate">{e.name}</span>
+            <span className="shrink-0 whitespace-nowrap text-fk-muted">{e.catalogName}</span>
+          </li>
+        ))}
+      </ul>
+    </Panel>
   )
 }
 

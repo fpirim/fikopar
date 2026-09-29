@@ -1,4 +1,4 @@
-import { test, expect, grid, pinnedBottom, clipped } from './fixtures'
+import { test, expect, grid, pinnedBottom, clipped, cutControls } from './fixtures'
 
 const rows = (page: import('@playwright/test').Page) =>
   grid(page).locator('.ag-center-cols-container .ag-row')
@@ -131,4 +131,74 @@ test('movements filter by type', async ({ page }) => {
   await page.getByLabel('Filter Type').selectOption('TRANSFER')
   await expect(rows(page)).toHaveCount(2)
   await expect(rows(page).first()).toContainText('1 → 2')
+})
+
+test('all depots shows on hand per depot side by side, nothing cut', async ({ page }) => {
+  await page.goto('/parts')
+  await page.getByLabel('Filter Part').fill('HP-3774')
+  await expect(rows(page)).toHaveCount(1)
+  await expect(grid(page).getByRole('columnheader', { name: 'Dp 1' })).toBeVisible()
+  await expect(rows(page).first().locator('[col-id="depot.1"]')).toHaveText('10')
+  await expect(rows(page).first().locator('[col-id="depot.2"]')).toHaveText('4')
+  expect(await clipped(page, ['stockNo', 'codes', 'depot.1', 'depot.2'])).toEqual([])
+  expect(await cutText(page)).toEqual([])
+})
+
+test('movements filter by the Out column on the server', async ({ page }) => {
+  await page.goto('/parts/1001')
+  await expect(grid(page)).toContainText('SF-2026-1-000418')
+  await page.getByLabel('Filter Out').fill('>= 2')
+  await expect
+    .poll(async () => {
+      const outs = await rows(page).locator('[col-id="qtyOut"]').allTextContents()
+      return outs.length > 0 && outs.every((v) => Number(v) >= 2)
+    })
+    .toBe(true)
+})
+
+test('the equivalents card links both parts', async ({ page }) => {
+  await page.goto('/parts/1005')
+  const card = page.getByRole('region', { name: 'Equivalents' })
+  await expect(card).toContainText('Clutch disc 12"')
+  await card.getByRole('link', { name: 'CL-1210' }).click()
+  await expect(page.getByRole('heading', { name: 'Clutch disc 12"' })).toBeVisible()
+  await expect(
+    page.getByRole('region', { name: 'Equivalents' }).getByRole('link', { name: 'CL-1150' }),
+  ).toBeVisible()
+})
+
+for (const lang of ['en', 'tr'] as const) {
+  test.describe(`${lang} 1152`, () => {
+    test.use({ lang, viewport: { width: 1152, height: 800 } })
+    test('parts toolbar and part card fit at 1152', async ({ page }) => {
+      await page.goto('/parts')
+      await expect(rows(page).first()).toBeVisible()
+      expect(await cutControls(page)).toEqual([])
+      await page.goto('/parts/1001')
+      await expect(grid(page)).toContainText('SF-2026-1-000418')
+      expect(await cutControls(page)).toEqual([])
+    })
+  })
+}
+
+test('a large price change fits its column', async ({ page }) => {
+  await page.goto('/parts/1001')
+  const prices = page.getByRole('table', { name: 'List prices' })
+  await expect(prices).toContainText('12,400.00')
+  await page.getByRole('button', { name: 'New price' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Price').fill('987,654,321')
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.type('15.10.2026')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await expect(dialog).toBeHidden()
+  await expect(prices.locator('tbody tr').first()).toContainText('987,654,321.00')
+  expect(await cutText(page)).toEqual([])
+  const room = await prices.evaluate((t) => {
+    const panel = t.closest('section')!
+    return t.scrollWidth <= panel.clientWidth + 1
+  })
+  expect(room).toBe(true)
 })

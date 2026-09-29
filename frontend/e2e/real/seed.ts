@@ -255,6 +255,7 @@ interface SeedPart {
   price: number
   oem?: string
   alt?: string
+  eq?: string
   d1?: [number, number, number, string]
   d2?: [number, number, number, string]
 }
@@ -298,6 +299,7 @@ const PARTS: SeedPart[] = [
     name: 'Clutch disc 12"',
     catalog: 31,
     price: 4100,
+    eq: 'CL-1150',
     d1: [5, 2, 10, 'A-05-3'],
   },
   {
@@ -448,6 +450,7 @@ async function stock(
     const codes = [
       ...(p.oem ? [{ kind: 'OEM', code: p.oem }] : []),
       ...(p.alt ? [{ kind: 'ALT', code: p.alt }] : []),
+      ...(p.eq ? [{ kind: 'EQUIVALENT', code: p.eq, equivalentPartId: parts[p.eq] }] : []),
     ]
     const made = await api.call<{ id: number }>('POST', `${o}/catalog/parts`, {
       catalogId: catalogs[String(p.catalog)],

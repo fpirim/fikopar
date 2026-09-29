@@ -72,19 +72,16 @@ export default function Movements({
   )
   const grid = useInfiniteGrid<StockMovement>(fetchPage, [orgId, partId, depotId, version])
 
-  const qty = (colId: 'in' | 'out'): ColDef<StockMovement> => ({
+  const qty = (colId: 'qtyIn' | 'qtyOut'): ColDef<StockMovement> => ({
     colId,
-    headerName: t(`mcol.${colId}`),
+    field: colId,
+    headerName: t(`mcol.${colId === 'qtyIn' ? 'in' : 'out'}`),
     flex: 0,
     width: QTY_W,
-    sortable: false,
     ...numCol,
-    valueGetter: (p) => {
-      const d = Number(p.data?.delta ?? 0)
-      return colId === 'in' ? (d > 0 ? d : null) : d < 0 ? -d : null
-    },
-    valueFormatter: (p) => (p.value === null ? '—' : formatQty(p.value)),
-    cellClassRules: { 'fk-muted': (p) => p.value === null },
+    ...exprFilter({ kind: 'number', placeholder: t('grid:fk.positive') }),
+    valueFormatter: (p) => (p.value === null || p.value === undefined ? '—' : formatQty(p.value)),
+    cellClassRules: { 'fk-muted': (p) => p.value === null || p.value === undefined },
   })
 
   const columnDefs = useMemo<ColDef<StockMovement>[]>(
@@ -163,8 +160,8 @@ export default function Movements({
           return code(m.depotId)
         },
       },
-      qty('in'),
-      qty('out'),
+      qty('qtyIn'),
+      qty('qtyOut'),
       {
         colId: 'runningOnHand',
         field: 'runningOnHand',

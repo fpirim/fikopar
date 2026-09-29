@@ -52,6 +52,18 @@ test('Esc closes the popup and marks show the matched words', async ({ page }) =
   await expect(input).toBeHidden()
 })
 
+test('Esc gives the focus back to where the search was opened', async ({ page }) => {
+  await page.goto('/balances')
+  const search = page.getByRole('searchbox', { name: 'Search' })
+  await search.click()
+  await page.keyboard.press('F2')
+  const input = page.getByRole('combobox', { name: 'Part search' })
+  await expect(input).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(input).toBeHidden()
+  await expect(search).toBeFocused()
+})
+
 for (const lang of ['en', 'tr'] as const) {
   test.describe(lang, () => {
     test.use({ lang })

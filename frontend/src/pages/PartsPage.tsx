@@ -7,6 +7,7 @@ import { exportParts, gridParts, listCatalogs } from '../api/endpoints'
 import type { GridRequest, PartColId, PartRow, PartsRequest, StockOnly } from '../api/types'
 import { useApi } from '../hooks/useApi'
 import { useDepot, withDepot } from '../hooks/useDepot'
+import { useDepots } from '../hooks/useDepots'
 import { useDownload } from '../hooks/useDownload'
 import { useInfiniteGrid } from '../hooks/useInfiniteGrid'
 import { useOrgId } from '../hooks/useOrgId'
@@ -61,6 +62,8 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
   const gridRef = useRef<AgGridReact>(null)
   const download = useDownload()
   const catalogs = useApi(() => listCatalogs(orgId), [orgId]).data ?? []
+  const all = useDepots()
+  const depots = useMemo(() => [...all].sort((a, b) => a.code.localeCompare(b.code)), [all])
 
   const setParam = (key: string, value: string | null) =>
     setParams((p) => {
@@ -148,6 +151,24 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
         valueGetter: (p) => (p.data && !p.node?.rowPinned ? codeSummary(p.data.codes) : ''),
       },
       qty('onHand'),
+      ...(depotId
+        ? []
+        : depots.map(
+            (d): ColDef<Row> => ({
+              colId: `depot.${d.id}`,
+              headerName: t('col.depot', { code: d.code }),
+              flex: 0,
+              width: monoWidth(6),
+              sortable: false,
+              ...numCol,
+              valueGetter: (p) =>
+                p.node?.rowPinned
+                  ? null
+                  : (p.data?.stockByDepot?.find((s) => s.depotId === d.id)?.onHand ?? null),
+              valueFormatter: (p) => (p.value === null ? '' : formatQty(p.value)),
+              cellClassRules: { 'fk-neg': (p) => Number(p.value) < 0 },
+            }),
+          )),
       qty('available'),
       qty('minQty'),
       qty('maxQty'),
@@ -203,7 +224,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, i18n.language, depotId],
+    [t, i18n.language, depotId, depots],
   )
 
   const labels = Object.fromEntries(
@@ -260,7 +281,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
           <Link to={withDepot('/parts/import', depotId)}>{t('importPriceList')}</Link>
         </Button>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Segmented
           label={t('stockFilter')}
           size="sm"

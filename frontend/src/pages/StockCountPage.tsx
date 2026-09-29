@@ -89,7 +89,7 @@ function Count({ orgId, countId }: Readonly<{ orgId: number; countId: number }>)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Link
           to={withDepot('/stock-counts', depotId)}
           className="sr-only focus:not-sr-only focus:text-13"
@@ -110,52 +110,54 @@ function Count({ orgId, countId }: Readonly<{ orgId: number; countId: number }>)
             </span>
           )}
         </span>
-        <Button
-          variant="outline"
-          disabled={download.busy !== null}
-          onClick={() =>
-            void download.run('xlsx', `${count.countNo}.xlsx`, () =>
-              exportStockCountLines(orgId, count.id, { ...requestRef.current?.(), ...scope }),
-            )
-          }
-        >
-          {t('grid:fk.excel')}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" disabled={download.busy !== null}>
-              {t('sheet.button')}
-              <ChevronDown aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {SHEETS.map((s) => (
-              <DropdownMenuItem
-                key={s}
-                onSelect={() =>
-                  void download.run('sheet', `${count.countNo}-${s.toLowerCase()}.pdf`, () =>
-                    printCountSheet(orgId, count.id, {
-                      sheet: s === 'WITH_SYSTEM' ? 'WITH_SYSTEM' : 'BLIND',
-                      only: s === 'NOT_COUNTED' ? 'NOT_COUNTED' : undefined,
-                      shelfFrom: shelfFrom || undefined,
-                      shelfTo: shelfTo || undefined,
-                    }),
-                  )
-                }
-              >
-                {t(`sheet.${s}`)}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {open && (
-          <>
-            <Button variant="outline" onClick={() => setDialog('cancel')}>
-              {t('cancel.button')}
-            </Button>
-            <Button onClick={() => setDialog('post')}>{t('post.button')}</Button>
-          </>
-        )}
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          <Button
+            variant="outline"
+            disabled={download.busy !== null}
+            onClick={() =>
+              void download.run('xlsx', `${count.countNo}.xlsx`, () =>
+                exportStockCountLines(orgId, count.id, { ...requestRef.current?.(), ...scope }),
+              )
+            }
+          >
+            {t('grid:fk.excel')}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={download.busy !== null}>
+                {t('sheet.button')}
+                <ChevronDown aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {SHEETS.map((s) => (
+                <DropdownMenuItem
+                  key={s}
+                  onSelect={() =>
+                    void download.run('sheet', `${count.countNo}-${s.toLowerCase()}.pdf`, () =>
+                      printCountSheet(orgId, count.id, {
+                        sheet: s === 'WITH_SYSTEM' ? 'WITH_SYSTEM' : 'BLIND',
+                        only: s === 'NOT_COUNTED' ? 'NOT_COUNTED' : undefined,
+                        shelfFrom: shelfFrom || undefined,
+                        shelfTo: shelfTo || undefined,
+                      }),
+                    )
+                  }
+                >
+                  {t(`sheet.${s}`)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {open && (
+            <>
+              <Button variant="outline" onClick={() => setDialog('cancel')}>
+                {t('cancel.button')}
+              </Button>
+              <Button onClick={() => setDialog('post')}>{t('post.button')}</Button>
+            </>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-4">
         <div

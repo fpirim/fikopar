@@ -65,8 +65,9 @@ export type CatalogSearchResult = S['CatalogSearchResult']
 export type Price = S['Price']
 export type PriceWrite = S['PriceWrite']
 export type PriceImport = S['PriceImport']
-type PriceImportMapping = S['PriceImportMapping']
-export type PriceImportColumn = S['PriceImportColumn']
+export type PriceImportMapping = S['PriceImportMapping']
+export type PriceImportMappingWrite = S['PriceImportMappingWrite']
+export type PriceImportColumnWrite = S['PriceImportColumnWrite']
 export type PriceImportTarget = S['PriceImportTarget']
 export type PriceImportPreset = S['PriceImportPreset']
 export type PriceImportRow = S['PriceImportRow']
@@ -120,8 +121,4 @@ export type ImportApply = {
   skipErrorRows?: boolean
   applyAttributes?: boolean
   missing?: 'KEEP' | 'DEACTIVATE'
-}
-// Request side of a mapping: the generated type marks defaulted fields as required.
-export type MappingWrite = Partial<Omit<PriceImportMapping, 'columns'>> & {
-  columns?: Partial<Record<PriceImportTarget, Partial<PriceImportColumn>>>
 }

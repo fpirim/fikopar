@@ -15,8 +15,9 @@ import type {
   PriceImport,
   PriceImportFields,
   PriceImportIssue,
-  MappingWrite,
-  PriceImportColumn,
+  PriceImportMappingWrite,
+  PriceImportColumnWrite,
+  PriceImportMapping,
   PriceImportPreset,
   PriceImportRow,
   PriceImportTarget,
@@ -156,6 +157,23 @@ function level(p: MockPart, depotId: number): StockLevel {
 const codesOut = (codes: PartCode[]): PartCode[] =>
   codes.map((c) => ({ ...c, normalizedCode: norm(c.code) }))
 
+// Parts linked by EQUIVALENT codes, either direction, by stock no.
+function equivalentsOf(p: MockPart): MockPart[] {
+  const ids = new Set(
+    p.codes
+      .filter((c) => c.kind === 'EQUIVALENT' && c.equivalentPartId)
+      .map((c) => c.equivalentPartId!),
+  )
+  for (const o of st.db.parts) {
+    if (o.codes.some((c) => c.kind === 'EQUIVALENT' && c.equivalentPartId === p.id)) ids.add(o.id)
+  }
+  ids.delete(p.id)
+  return [...ids]
+    .map((id) => part(id))
+    .filter((x): x is MockPart => Boolean(x))
+    .sort((a, b) => a.stockNo.localeCompare(b.stockNo))
+}
+
 function toPart(p: MockPart): Part {
   const c = catalog(p.catalogId)!
   const current = priceOn(p.id)
@@ -179,6 +197,13 @@ function toPart(p: MockPart): Part {
     listPriceValidFrom: current?.validFrom ?? null,
     nextPrice: next ? { price: money4(next.price), validFrom: next.validFrom } : null,
     onHand: q(DEPOT_IDS.reduce((s, d) => s + onHand(p.id, d), 0)),
+    equivalents: equivalentsOf(p).map((e) => ({
+      partId: e.id,
+      stockNo: e.stockNo,
+      name: e.name,
+      catalogId: e.catalogId,
+      catalogName: catalog(e.catalogId)!.name,
+    })),
     createdAt: '2026-01-02T08:00:00Z',
     updatedAt: p.updatedAt,
     version: p.version,
@@ -213,6 +238,16 @@ function partRow(p: MockPart, depotId: number | null, priceDate = today): PartRo
     shelf: one ? one.shelf || null : null,
     belowMin: levels.some((l) => l.belowMin),
     negative: levels.some((l) => l.negative),
+    ...(depotId
+      ? {}
+      : {
+          stockByDepot: levels.map((l) => ({
+            depotId: l.depotId!,
+            depotCode: String(l.depotId),
+            onHand: l.onHand,
+            available: l.available,
+          })),
+        }),
     isActive: p.isActive,
     updatedAt: p.updatedAt,
     version: p.version,
@@ -333,8 +368,10 @@ function hitOf(
   }
 }
 
-// Ranked search. Every word of `q` must match the stock no, a code or the name; the rank comes
-// from the best code match of the whole query (exact, prefix, substring) or the name.
+// Ranked search: the whole query against the stock no and codes (1 exact, 2 prefix, 3 substring),
+// else every word in the name or in a code (4).
+const KINDS: PartCode['kind'][] = ['MANUFACTURER', 'OEM', 'ALT', 'EQUIVALENT']
+
 export function catalogSearch(
   text: string,
   opts: { catalogId?: number | null; date?: string; inStockDepotId?: number | null } = {},
@@ -349,10 +386,14 @@ export function catalogSearch(
     if (opts.inStockDepotId && Number(level(p, opts.inStockDepotId).available) <= 0) continue
     const codes: [CatalogHit['matchKind'], string][] = [
       ['STOCK_NO', p.stockNo],
-      ...p.codes.map((c) => [c.kind, c.code] as [CatalogHit['matchKind'], string]),
+      ...KINDS.flatMap((k) =>
+        p.codes
+          .filter((c) => c.kind === k)
+          .map((c) => [c.kind, c.code] as [CatalogHit['matchKind'], string]),
+      ),
     ]
     let best: { rank: Rank; kind: CatalogHit['matchKind']; code: string } | null = null
-    for (const [kind, code] of codes) {
+    for (const [kind, code] of nq ? codes : []) {
       const n = norm(code)
       const rank: Rank | null =
         n === nq ? 1 : n.startsWith(nq) ? 2 : nq.length >= 3 && n.includes(nq) ? 3 : null
@@ -360,9 +401,9 @@ export function catalogSearch(
     }
     if (!best) {
       const name = fold(p.name)
-      const all = words.every(
-        (w) => name.includes(fold(w)) || codes.some(([, c]) => norm(c).includes(norm(w))),
-      )
+      const inCode = (w: string) =>
+        norm(w) !== '' && codes.some(([, c]) => norm(c).includes(norm(w)))
+      const all = words.every((w) => name.includes(fold(w)) || inCode(w))
       if (!all || !words.length) continue
       const code = codes.find(([, c]) => words.some((w) => norm(w) && norm(c).includes(norm(w))))
       best = { rank: 4, kind: 'NAME', code: code?.[1] ?? '' }
@@ -390,6 +431,8 @@ function movementOut(m: MockMovement, running: number | null): StockMovement {
     label: m.label,
     qty: q(m.qty),
     delta: q(delta(m)),
+    qtyIn: delta(m) > 0 ? q(m.qty) : null,
+    qtyOut: delta(m) < 0 ? q(m.qty) : null,
     unitCost: m.unitCost === null ? null : money4(m.unitCost),
     sourceType: m.sourceType,
     sourceId: m.transferId ? String(m.transferId) : null,
@@ -430,6 +473,8 @@ function movementsGrid(req: MovementsRequest) {
     name: (r) => r.name,
     depotId: (r) => String(r.depotId),
     qty: (r) => Number(r.qty),
+    qtyIn: (r) => (r.qtyIn == null ? null : Number(r.qtyIn)),
+    qtyOut: (r) => (r.qtyOut == null ? null : Number(r.qtyOut)),
     delta: (r) => Number(r.delta),
     unitCost: (r) => (r.unitCost ? Number(r.unitCost) : null),
   }
@@ -744,7 +789,7 @@ function finalize(
 // ---- Price list imports ----------------------------------------------------------------------
 
 interface MockImport extends Omit<PriceImport, 'mapping'> {
-  mapping?: MappingWrite
+  mapping?: PriceImportMappingWrite | null
   rows: PriceImportRow[]
   raw: string[][]
   applied?: boolean
@@ -752,7 +797,8 @@ interface MockImport extends Omit<PriceImport, 'mapping'> {
 
 const imports: MockImport[] = []
 
-const columns = (c: Record<string, Partial<PriceImportColumn>>) => c as MappingWrite['columns']
+const columns = (c: Record<string, PriceImportColumnWrite>) =>
+  c as PriceImportMappingWrite['columns']
 
 const PRESETS = [
   {
@@ -762,7 +808,10 @@ const PRESETS = [
       preset: 'LISAKT',
       format: 'FIXED_WIDTH',
       encoding: 'CP857',
+      decimalSeparator: '.',
       dateFormat: 'yyyymmdd',
+      headerRow: 0,
+      listSeparator: '|',
       columns: columns({
         op: { start: 1, length: 1 },
         catalogCode: { start: 2, length: 4 },
@@ -811,7 +860,7 @@ function parseCsv(text: string, delimiter?: string): string[][] {
   return lines.map((l) => l.split(sep).map((c) => c.trim().replace(/^"|"$/g, '')))
 }
 
-function autoMap(headers: string[]): MappingWrite['columns'] {
+function autoMap(headers: string[]): PriceImportMappingWrite['columns'] {
   const cols: Record<string, { header: string }> = {}
   for (const [target, names] of Object.entries(ALIASES)) {
     const h = headers.find((x) => names.some((n) => fold(n) === fold(x.trim())))
@@ -834,7 +883,7 @@ function day(text: string | undefined): string | null | undefined {
 }
 
 function buildRows(job: MockImport) {
-  const mapping: MappingWrite = job.mapping ?? {}
+  const mapping: PriceImportMappingWrite = job.mapping ?? {}
   const sep = mapping.decimalSeparator ?? ','
   const [head, ...data] = job.raw
   const col = (target: PriceImportTarget) => {
@@ -994,11 +1043,25 @@ function buildRows(job: MockImport) {
 }
 
 function jobOut(j: MockImport): PriceImport {
-  const { rows: _r, raw: _raw, applied: _a, ...out } = j
+  const { rows: _r, raw: _raw, applied: _a, mapping, ...out } = j
   void _r
   void _raw
   void _a
-  return out as PriceImport
+  return { ...out, mapping: mapping ? effective(mapping, j.format) : null }
+}
+
+// Response side: the preset and the defaults filled in.
+function effective(m: PriceImportMappingWrite, format: PriceImport['format']): PriceImportMapping {
+  return {
+    ...m,
+    format: m.format ?? format,
+    encoding: m.encoding ?? 'UTF-8',
+    decimalSeparator: m.decimalSeparator ?? ',',
+    dateFormat: m.dateFormat ?? 'dd.mm.yyyy',
+    headerRow: m.headerRow ?? 1,
+    listSeparator: m.listSeparator ?? '|',
+    columns: m.columns ?? {},
+  }
 }
 
 function resolveMapping(job: MockImport) {
@@ -1056,7 +1119,7 @@ async function createImport(request: Request): Promise<{ status: number; body: J
   const mapping = mappingPart
     ? (JSON.parse(
         typeof mappingPart === 'string' ? mappingPart : await mappingPart.text(),
-      ) as MappingWrite)
+      ) as PriceImportMappingWrite)
     : undefined
   const text = await file.text()
   const name = file.name.toLowerCase()
@@ -1396,18 +1459,13 @@ export const stockHandlers = [
     const stale = precondition(request, s?.version ?? 0)
     if (stale) return stale
     const body = (await request.json()) as PartDepotSettings
-    const min = Number(body.minQty ?? s?.minQty ?? 0)
-    const max =
-      body.maxQty === undefined
-        ? (s?.maxQty ?? null)
-        : body.maxQty === null
-          ? null
-          : Number(body.maxQty)
+    const min = Number(body.minQty ?? 0)
+    const max = body.maxQty === undefined || body.maxQty === null ? null : Number(body.maxQty)
     if (max !== null && max < min) return err(422, 'ERR_INVALID_REQUEST', { field: 'maxQty' })
     st.db.settings.set(k, {
       minQty: min,
       maxQty: max,
-      shelf: body.shelf ?? s?.shelf ?? '',
+      shelf: body.shelf ?? '',
       reserved: s?.reserved ?? 0,
       version: (s?.version ?? 0) + 1,
     })
@@ -1533,6 +1591,13 @@ export const stockHandlers = [
       return { status: 201, body: lineOut(c, l) as unknown as JsonBodyType }
     })
   }),
+  http.get(`${O}/stock/counts/:countId/lines/:lineId`, ({ params }) => {
+    const c = count(Number(params.countId))
+    if (!c) return err(404, 'ERR_STOCK_COUNT_NOT_FOUND')
+    const l = c.lines.find((x) => x.id === Number(params.lineId))
+    if (!l) return err(404, 'ERR_STOCK_COUNT_LINE_NOT_FOUND')
+    return HttpResponse.json(lineOut(c, l), { headers: etag(l.version) })
+  }),
   http.patch(`${O}/stock/counts/:countId/lines/:lineId`, async ({ params, request }) => {
     const c = count(Number(params.countId))
     const l = c?.lines.find((x) => x.id === Number(params.lineId))
@@ -1620,7 +1685,7 @@ export const stockHandlers = [
     if (stale) return stale
     if (j.status !== 'READY' && j.status !== 'NEEDS_MAPPING')
       return err(409, 'ERR_INVALID_STATE_TRANSITION')
-    const body = (await request.json()) as { mapping?: MappingWrite; validFrom?: string }
+    const body = (await request.json()) as { mapping?: PriceImportMappingWrite; validFrom?: string }
     if (body.mapping) j.mapping = { ...j.mapping, ...body.mapping }
     if (body.validFrom) j.validFrom = body.validFrom
     j.version++

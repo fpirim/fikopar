@@ -6,7 +6,7 @@ type Props = ICellEditorParams & { ariaLabel: (stockNo: string) => string }
 
 // Typing a digit on the cell starts here with that digit; Enter or double click edits the value.
 const CountedEditor = forwardRef<unknown, Props>(function CountedEditor(props, ref) {
-  const typed = props.eventKey && /^[\d.,]$/.test(props.eventKey) ? props.eventKey : null
+  const typed = props.eventKey && /^[\d.,−-]$/.test(props.eventKey) ? props.eventKey : null
   const cleared = props.eventKey === 'Backspace' || props.eventKey === 'Delete'
   const current =
     props.value === null || props.value === undefined
