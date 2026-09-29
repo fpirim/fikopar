@@ -158,4 +158,5 @@ type CatalogHit struct {
 	Unit               string       `json:"unit" gorm:"column:unit"`
 	PackageQty         int          `json:"packageQty" gorm:"column:package_qty"`
 	Rank               int          `json:"-" gorm:"column:rank"`
+	Total              int          `json:"-" gorm:"column:total"`
 }

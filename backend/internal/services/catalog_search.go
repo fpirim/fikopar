@@ -70,13 +70,17 @@ func searchCatalog(rd *repository.Q, orgID uint, in SearchRequest) (*SearchResul
 	if has {
 		sq.After = &after
 	}
-	total, err := rd.SearchCount(orgID, sq, searchCap+1)
+	hits, err := rd.SearchPage(orgID, sq, searchCap+1)
 	if err != nil {
 		return nil, err
 	}
-	hits, err := rd.SearchPage(orgID, sq)
-	if err != nil {
-		return nil, err
+	total := 0
+	if len(hits) > 0 {
+		total = hits[0].Total
+	} else if has {
+		if total, err = rd.SearchCount(orgID, sq, searchCap+1); err != nil {
+			return nil, err
+		}
 	}
 	res := &SearchResult{Total: min(total, searchCap), TotalCapped: total > searchCap, Date: sq.Date}
 	if len(hits) > in.Limit {

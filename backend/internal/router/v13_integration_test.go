@@ -22,6 +22,8 @@ func TestV13_SearchWordsMatchNameOrCode(t *testing.T) {
 	f.part(t, "K-2", "Water pump", `,"codes":[{"kind":"MANUFACTURER","code":"W-100"},{"kind":"ALT","code":"old 5537"}]`)
 	f.part(t, "G-37", "Gear", "")
 	f.part(t, "HP-3799", "Hydraulic pump", `,"isActive":false`)
+	f.part(t, "K-3", "Oil filter", `,"codes":[{"kind":"ALT","code":"a-37"},{"kind":"OEM","code":"o-37"}]`)
+	f.part(t, "P-37", "Oil seal", `,"codes":[{"kind":"OEM","code":"x-37"}]`)
 
 	r := f.search(t, "q="+url.QueryEscape("pump 37"))
 	require.Equal(t, []string{"HP-3712", "K-1", "K-2"}, stockNos(r.Items))
@@ -35,6 +37,11 @@ func TestV13_SearchWordsMatchNameOrCode(t *testing.T) {
 	assert.Equal(t, "oe-37.99", *r.Items[1].MatchedCode)
 	require.NotNil(t, r.Items[2].MatchedCode)
 	assert.Equal(t, "old 5537", *r.Items[2].MatchedCode)
+
+	r = f.search(t, "q="+url.QueryEscape("oil 37"))
+	require.Equal(t, []string{"K-3", "P-37"}, stockNos(r.Items))
+	assert.Equal(t, "o-37", *r.Items[0].MatchedCode, "OEM before ALT")
+	assert.Equal(t, "P-37", *r.Items[1].MatchedCode, "stock no first")
 
 	r = f.search(t, "q="+url.QueryEscape("37 PUMP hydraulıc"))
 	assert.Equal(t, []string{"HP-3712"}, stockNos(r.Items), "every word, any order")

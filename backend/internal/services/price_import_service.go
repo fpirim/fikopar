@@ -51,31 +51,31 @@ type ImportResult struct {
 
 // PriceImport is the contract's job.
 type PriceImport struct {
-	ID                  uint              `json:"id"`
-	CatalogID           uint              `json:"catalogId"`
-	CatalogCode         int               `json:"catalogCode"`
-	FileName            string            `json:"fileName"`
-	FileSha256          string            `json:"fileSha256"`
-	FileSize            int               `json:"fileSize"`
-	Format              string            `json:"format"`
+	ID                  uint               `json:"id"`
+	CatalogID           uint               `json:"catalogId"`
+	CatalogCode         int                `json:"catalogCode"`
+	FileName            string             `json:"fileName"`
+	FileSha256          string             `json:"fileSha256"`
+	FileSize            int                `json:"fileSize"`
+	Format              string             `json:"format"`
 	Mapping             *pricefile.Mapping `json:"mapping"`
-	ValidFrom           models.Date       `json:"validFrom"`
-	Status              string            `json:"status"`
-	FailureCode         *string           `json:"failureCode"`
-	FailureDetail       *string           `json:"failureDetail"`
-	Headers             []string          `json:"headers"`
-	Sample              [][]string        `json:"sample"`
-	UnmappedTargets     []string          `json:"unmappedTargets"`
-	Counts              ImportCounts      `json:"counts"`
-	CatalogVersion      *int64            `json:"catalogVersion"`
-	DuplicateOfImportID *uint             `json:"duplicateOfImportId"`
-	Result              *ImportResult     `json:"result"`
-	CreatedBy           *string           `json:"createdBy"`
-	CreatedAt           time.Time         `json:"createdAt"`
-	ExpiresAt           time.Time         `json:"expiresAt"`
-	AppliedBy           *string           `json:"appliedBy"`
-	AppliedAt           *time.Time        `json:"appliedAt"`
-	Version             int               `json:"version"`
+	ValidFrom           models.Date        `json:"validFrom"`
+	Status              string             `json:"status"`
+	FailureCode         *string            `json:"failureCode"`
+	FailureDetail       *string            `json:"failureDetail"`
+	Headers             []string           `json:"headers"`
+	Sample              [][]string         `json:"sample"`
+	UnmappedTargets     []string           `json:"unmappedTargets"`
+	Counts              ImportCounts       `json:"counts"`
+	CatalogVersion      *int64             `json:"catalogVersion"`
+	DuplicateOfImportID *uint              `json:"duplicateOfImportId"`
+	Result              *ImportResult      `json:"result"`
+	CreatedBy           *string            `json:"createdBy"`
+	CreatedAt           time.Time          `json:"createdAt"`
+	ExpiresAt           time.Time          `json:"expiresAt"`
+	AppliedBy           *string            `json:"appliedBy"`
+	AppliedAt           *time.Time         `json:"appliedAt"`
+	Version             int                `json:"version"`
 }
 
 // ImportFields is the contract's PriceImportFields.

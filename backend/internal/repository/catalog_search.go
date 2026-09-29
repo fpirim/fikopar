@@ -28,7 +28,7 @@ type SearchCursor struct {
 
 // searchCandidates ranks every match per part: 1 exact code or stock no, 2 prefix, 3 substring (3+ characters),
 // 4 every word in the name or a code. Prefixes use the text_pattern_ops indexes, substrings and words the trigram
-// indexes; the word sets are intersected.
+// indexes. A single word of 3+ characters leaves its code match to rank 3.
 func searchCandidates(orgID uint, sq SearchQuery) (string, []any) {
 	var parts []string
 	var args []any
@@ -48,18 +48,18 @@ func searchCandidates(orgID uint, sq SearchQuery) (string, []any) {
 		args = append(args, sq.Norm, sq.Norm+"%", orgID, pattern, sq.Norm, sq.Norm+"%", orgID, pattern)
 	}
 	if len(sq.Words) > 0 {
-		sets := make([]string, len(sq.Words))
+		cond := make([]string, len(sq.Words))
+		args = append(args, orgID)
 		for i, w := range sq.Words {
-			sets[i] = `SELECT p.id FROM parts p WHERE p.org_id = ? AND p.name_fold LIKE ?`
-			args = append(args, orgID, "%"+escapeLike(w)+"%")
-			if n := wordNorm(sq, i); n != "" {
-				sets[i] += ` UNION SELECT p.id FROM parts p WHERE p.org_id = ? AND p.stock_no_norm LIKE ?
-					UNION SELECT pc.part_id FROM part_codes pc WHERE pc.org_id = ? AND pc.normalized_code LIKE ?`
-				args = append(args, orgID, "%"+n+"%", orgID, "%"+n+"%")
+			cond[i] = `p.name_fold LIKE ?`
+			args = append(args, "%"+escapeLike(w)+"%")
+			if n := wordNorm(sq, i); n != "" && (len(sq.Words) > 1 || len(n) < 3) {
+				cond[i] = `(` + cond[i] + ` OR p.stock_no_norm LIKE ?
+					OR p.id IN (SELECT pc.part_id FROM part_codes pc WHERE pc.org_id = ? AND pc.normalized_code LIKE ?))`
+				args = append(args, "%"+n+"%", orgID, "%"+n+"%")
 			}
-			sets[i] = `(` + sets[i] + `)`
 		}
-		parts = append(parts, `SELECT w.id, 4, 9, 'NAME', NULL FROM (`+strings.Join(sets, " INTERSECT ")+`) w`)
+		parts = append(parts, `SELECT p.id, 4, 9, 'NAME', NULL FROM parts p WHERE p.org_id = ? AND `+strings.Join(cond, " AND "))
 	}
 	return strings.Join(parts, " UNION ALL "), args
 }
@@ -108,8 +108,9 @@ func (q *Q) SearchCount(orgID uint, sq SearchQuery, limit int) (int, error) {
 	return n, err
 }
 
-// SearchPage returns one ranked page with the list price on sq.Date.
-func (q *Q) SearchPage(orgID uint, sq SearchQuery) ([]models.CatalogHit, error) {
+// SearchPage returns one ranked page with the list price on sq.Date; every row carries the match count up to
+// limit, so the candidates are ranked once.
+func (q *Q) SearchPage(orgID uint, sq SearchQuery, limit int) ([]models.CatalogHit, error) {
 	base, args := q.searchBase(orgID, sq)
 	where := ``
 	if sq.After != nil {
@@ -117,7 +118,7 @@ func (q *Q) SearchPage(orgID uint, sq SearchQuery) ([]models.CatalogHit, error) 
 		args = append(args, sq.After.Rank, sq.After.StockNo, sq.After.CatalogCode, sq.After.PartID)
 	}
 	pats := textArray(wordPatterns(sq))
-	args = append(args, sq.Limit, pats, pats, orgID, sq.Date)
+	args = append(args, sq.Limit, pats, pats, limit, orgID, sq.Date)
 	return list[models.CatalogHit](q.db, base+`,
 		page AS (SELECT * FROM hits h`+where+` ORDER BY h.rank, h.stock_no, h.catalog_code, h.part_id LIMIT ?)
 		SELECT page.part_id, page.rank, page.match_kind, page.catalog_id, page.catalog_code, page.stock_no, page.name,
@@ -130,7 +131,8 @@ func (q *Q) SearchPage(orgID uint, sq SearchQuery) ([]models.CatalogHit, error) 
 		           FROM part_codes pc WHERE pc.part_id = page.part_id AND pc.normalized_code LIKE ANY(?::text[])) x
 		         ORDER BY x.ord, x.id LIMIT 1)
 		       ELSE page.matched_code END AS matched_code,
-		       lp.price AS list_price, lp.valid_from AS list_price_valid_from
+		       lp.price AS list_price, lp.valid_from AS list_price_valid_from,
+		       (SELECT count(*) FROM (SELECT 1 FROM hits LIMIT ?) n) AS total
 		FROM page LEFT JOIN LATERAL price_on(?, page.part_id, ?::date) lp ON true
 		ORDER BY page.rank, page.stock_no, page.catalog_code, page.part_id`, args...)
 }
