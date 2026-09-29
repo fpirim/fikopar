@@ -42,12 +42,39 @@ describe('PartPage', () => {
     )
   })
 
-  it('links equivalents to their part', async () => {
+  it('links equivalents to their part with name and price list', async () => {
     renderApp('/parts/1005')
-    expect(await screen.findByRole('link', { name: 'CL-1210' })).toHaveAttribute(
+    const card = await screen.findByRole('region', { name: 'Muadiller' })
+    expect(within(card).getByRole('link', { name: 'CL-1210' })).toHaveAttribute(
       'href',
       '/parts/1006',
     )
+    expect(card).toHaveTextContent(/CL-1210.*Clutch/)
+  })
+
+  it('lists equivalents linked from the other part too', async () => {
+    renderApp('/parts/1006')
+    const card = await screen.findByRole('region', { name: 'Muadiller' })
+    expect(within(card).getByRole('link', { name: 'CL-1150' })).toHaveAttribute(
+      'href',
+      '/parts/1005',
+    )
+  })
+
+  it('filters movements by the server In and Out columns', async () => {
+    const calls = capture('post', '/api/orgs/:orgId/stock/movements/grid')
+    renderApp(HP)
+    await screen.findByText('SF-2026-1-000418')
+    const header = document.querySelector('.ag-header-cell[col-id="qtyOut"]')
+    expect(header).not.toBeNull()
+    const input = screen.getByLabelText(/Çıkış filtresi/)
+    await userEvent.type(input, '>=2')
+    await waitFor(() =>
+      expect(calls[calls.length - 1].body).toMatchObject({
+        filterModel: { qtyOut: { filterType: 'number', type: 'greaterThanOrEqual', filter: 2 } },
+      }),
+    )
+    expect(document.querySelector('.ag-row [col-id="qtyOut"]')).toHaveTextContent('2')
   })
 
   it('lists price history newest first with change and the current price', async () => {
