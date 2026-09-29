@@ -22,7 +22,13 @@
     "cov:e2e": "npm run e2e:cov && nyc report && sed -i.bak -E 's#^SF:(.*/)?(src/)#SF:frontend/src/#' coverage-e2e/lcov.info && rm -f coverage-e2e/lcov.info.bak",
     "gen:api": "openapi-typescript ../api/openapi.yaml -o src/api/schema.d.ts && prettier --write src/api/schema.d.ts",
     "e2e:msw": "playwright test --config playwright.msw.config.ts",
-    "screens": "SCREENS=1 playwright test --config playwright.msw.config.ts screens"
+    "screens": "SCREENS=1 playwright test --config playwright.msw.config.ts screens",
+    "stack:e2e": "docker compose -f ../docker-compose.yml -p fikopar-e2e --profile e2e up -d --build --wait e2e-db e2e-api",
+    "stack:e2e:down": "docker compose -f ../docker-compose.yml -p fikopar-e2e --profile e2e down -v",
+    "seed": "node --experimental-strip-types e2e/real/seed.ts",
+    "dev:real": "VITE_API_TARGET=${E2E_API_URL:-http://localhost:18080} vite",
+    "e2e:real": "playwright test --config playwright.real.config.ts --grep-invert @v11",
+    "e2e:real:v11": "playwright test --config playwright.real.config.ts"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",

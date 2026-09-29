@@ -5,11 +5,14 @@ export const test = base.extend<{ page: Page; lang: 'en' | 'tr'; admin: boolean 
   lang: ['en', { option: true }],
   admin: [false, { option: true }],
   page: async ({ page, lang, admin }, use) => {
-    await page.addInitScript(([l, token]) => {
-      localStorage.setItem('token', token)
-      localStorage.setItem('selectedOrganizationId', '1')
-      if (!localStorage.getItem('lang')) localStorage.setItem('lang', l)
-    }, [lang, admin ? 'msw-admin' : 'msw-token'] as const)
+    await page.addInitScript(
+      ([l, token]) => {
+        localStorage.setItem('token', token)
+        localStorage.setItem('selectedOrganizationId', '1')
+        if (!localStorage.getItem('lang')) localStorage.setItem('lang', l)
+      },
+      [lang, admin ? 'msw-admin' : 'msw-token'] as const,
+    )
     // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(page)
   },
@@ -41,8 +44,7 @@ export async function clipped(page: Page): Promise<string[]> {
       const cs = getComputedStyle(sel)
       ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
       const label = sel.selectedOptions[0]?.text ?? ''
-      const room =
-        sel.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 14
+      const room = sel.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 14
       if (ctx.measureText(label).width > room) out.push(`select ${sel.ariaLabel}: ${label}`)
     }
     return out

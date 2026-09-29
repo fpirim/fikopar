@@ -10,7 +10,9 @@ test('document entry: postings, trail and the owner refusal', async ({ page }) =
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Reason').fill('Wrong customer')
   await dialog.getByRole('button', { name: 'Post reversal' }).click()
-  await expect(dialog.getByRole('alert')).toContainText('This entry belongs to SF-2026-1-000418; reverse it there')
+  await expect(dialog.getByRole('alert')).toContainText(
+    'This entry belongs to SF-2026-1-000418; reverse it there',
+  )
 })
 
 test('manual entry reverses and links both ways', async ({ page }) => {

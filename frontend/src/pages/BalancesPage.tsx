@@ -14,7 +14,7 @@ import {
   printReminderLetters,
   printStatements,
 } from '../api/endpoints'
-import type { BalanceColId, BalanceRow, GridRequest, SicilTipi } from '../api/types'
+import type { BalanceColId, BalanceRow, BalanceTotals, GridRequest, SicilTipi } from '../api/types'
 import { useDepot, withDepot } from '../hooks/useDepot'
 import { useDownload } from '../hooks/useDownload'
 import { useInfiniteGrid } from '../hooks/useInfiniteGrid'
@@ -214,14 +214,15 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
     const label = grid.filtered.length
       ? `${shown} · ${t('grid:fk.filters', { count: grid.filtered.length })}`
       : shown
+    const totals = info.totals as BalanceTotals | null
     return [
       {
         accountId: 0,
         label,
-        debitTotal: info.totals?.debitTotal ?? '',
-        creditTotal: info.totals?.creditTotal ?? '',
-        balance: info.totals?.balance ?? '',
-        overdue: info.totals?.overdue ?? '',
+        debitTotal: totals?.debitTotal ?? '',
+        creditTotal: totals?.creditTotal ?? '',
+        balance: totals?.balance ?? '',
+        overdue: totals?.overdue ?? '',
       },
     ]
   }, [grid.info, grid.filtered, t])
