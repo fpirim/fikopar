@@ -14,7 +14,7 @@ import (
 
 var appendOnly = []string{
 	"postings", "journal_entries", "receipts", "cash_vouchers", "opening_balances",
-	"carry_forward_runs", "cash_counts", "instrument_events", "audit_events", "outbox",
+	"carry_forward_runs", "cash_counts", "instrument_events", "audit_events", "outbox", "prices", "stock_movements",
 }
 
 func TestAppendOnlyTablesRefuseTruncate(t *testing.T) {

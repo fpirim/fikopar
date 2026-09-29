@@ -27,6 +27,10 @@ type Handlers struct {
 	Ledger  *handlers.LedgerHandler
 	Receipt *handlers.ReceiptHandler
 	Report  *handlers.ReportHandler
+	Catalog *handlers.CatalogHandler
+	Stock   *handlers.StockHandler
+	Import  *handlers.PriceImportHandler
+	Count   *handlers.StockCountHandler
 }
 
 type Services struct {
@@ -133,6 +137,53 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.POST("/cash-vouchers/:voucherId/void", h.Receipt.VoidVoucher)
 	org.GET("/cash-counts", h.Receipt.ListCounts)
 	org.POST("/cash-counts", h.Receipt.CreateCount)
+	org.GET("/dashboard", h.Report.Dashboard)
+
+	const catalogPath = "/catalog/catalogs/:catalogId"
+	org.GET("/catalog/catalogs", h.Catalog.ListCatalogs)
+	org.POST("/catalog/catalogs", h.Catalog.CreateCatalog)
+	org.GET(catalogPath, h.Catalog.GetCatalog)
+	org.PUT(catalogPath, h.Catalog.UpdateCatalog)
+	org.GET(catalogPath+"/prices", h.Catalog.ListPrices)
+	org.POST(catalogPath+"/prices", h.Catalog.SetPrices)
+
+	const partPath = "/catalog/parts/:partId"
+	org.POST("/catalog/parts/grid", h.Catalog.GridParts)
+	org.GET("/catalog/search", h.Catalog.Search)
+	org.POST("/catalog/parts/resolve", h.Catalog.Resolve)
+	org.POST("/catalog/parts", h.Catalog.CreatePart)
+	org.GET("/catalog/parts/lookup", h.Catalog.Lookup)
+	org.GET(partPath, h.Catalog.GetPart)
+	org.PUT(partPath, h.Catalog.UpdatePart)
+	org.GET(partPath+"/stock", h.Stock.PartStock)
+	org.PUT(partPath+"/depots/:depotId", h.Stock.SetDepotSettings)
+	org.GET(partPath+"/prices", h.Catalog.PriceHistory)
+	org.POST(partPath+"/prices", h.Catalog.SetPartPrice)
+
+	const importPath = "/catalog/imports/:importId"
+	org.GET("/catalog/imports", h.Import.List)
+	org.POST("/catalog/imports", h.Import.Create)
+	org.GET(importPath, h.Import.Get)
+	org.PATCH(importPath, h.Import.Update)
+	org.POST(importPath+"/rows/grid", h.Import.GridRows)
+	org.POST(importPath+"/apply", h.Import.Apply)
+	org.POST(importPath+"/discard", h.Import.Discard)
+	org.GET("/catalog/import-presets", h.Import.Presets)
+
+	org.GET("/stock/levels", h.Stock.Levels)
+	org.POST("/stock/movements/grid", h.Stock.Movements)
+	org.POST("/stock/transfers", h.Stock.Transfer)
+	org.GET("/stock/transfers/:transferId", h.Stock.GetTransfer)
+
+	const countPath = "/stock/counts/:countId"
+	org.GET("/stock/counts", h.Count.List)
+	org.POST("/stock/counts", h.Count.Open)
+	org.GET(countPath, h.Count.Get)
+	org.POST(countPath+"/lines/grid", h.Count.GridLines)
+	org.POST(countPath+"/lines", h.Count.AddLine)
+	org.PATCH(countPath+"/lines/:lineId", h.Count.SetLine)
+	org.POST(countPath+"/finalize", h.Count.Finalize)
+	org.POST(countPath+"/cancel", h.Count.Cancel)
 
 	// Admin only
 	admin := api.Group("/admin")

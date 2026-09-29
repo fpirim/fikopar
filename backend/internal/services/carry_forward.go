@@ -239,9 +239,23 @@ func carryForwardChecks(q *repository.Q, orgID uint, closeDate models.Date, post
 	if !balanced.OK {
 		balanced.Detail = fmt.Sprintf("net %s, %d drifting balances", net, drift)
 	}
+	open, err := q.OpenCountsThrough(orgID, closeDate)
+	if err != nil {
+		return nil, err
+	}
+	counts := CFCheck{Code: "STOCK_COUNTS_POSTED", OK: len(open) == 0, Blocking: true, Detail: strings.Join(open, ", ")}
+	uncounted, err := q.DepotsWithoutFinalizedCount(orgID, closeDate.Year())
+	if err != nil {
+		return nil, err
+	}
+	yearEnd := CFCheck{Code: "YEAR_END_COUNTS", OK: len(uncounted) == 0, Blocking: false}
+	if !yearEnd.OK {
+		yearEnd.Detail = "depots " + strings.Join(uncounted, ", ")
+	}
 	return []CFCheck{
 		{Code: "NO_DRAFT_DOCUMENTS", OK: true, Blocking: true},
-		{Code: "STOCK_COUNTS_POSTED", OK: true, Blocking: false},
+		counts,
+		yearEnd,
 		balanced,
 		{Code: "YEAR_NOT_OPENED", OK: !posted, Blocking: true},
 	}, nil

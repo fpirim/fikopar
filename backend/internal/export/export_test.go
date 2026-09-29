@@ -96,3 +96,17 @@ func TestFormatMoney(t *testing.T) {
 	assert.Equal(t, "0.05", formatMoney(models.Money(5)))
 	assert.Equal(t, "1,000,000.00", formatMoney(models.Money(100000000)))
 }
+
+func TestXLSX_DecimalCells(t *testing.T) {
+	q := models.Dec4(-25000)
+	var none *models.Dec4
+	b, err := XLSX("Stock", Table{Columns: []Column{{Title: "Qty", Kind: Number}, {Title: "Min", Kind: Number}},
+		Rows: [][]any{{q, &q}, {models.Dec4(10000), none}}})
+	require.NoError(t, err)
+	sheet := readZip(t, b)["xl/worksheets/sheet1.xml"]
+	assert.Contains(t, sheet, `<c r="A2"><v>-2.5</v></c>`)
+	assert.Contains(t, sheet, `<c r="B2"><v>-2.5</v></c>`)
+	assert.NotContains(t, sheet, `r="B3"`)
+	assert.Equal(t, "-2.5", cellText(&q))
+	assert.Equal(t, "", cellText(none))
+}

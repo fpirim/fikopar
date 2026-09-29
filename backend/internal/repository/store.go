@@ -54,7 +54,12 @@ func IsForeignKeyViolation(err error) bool {
 	return pgCode(err) == "23503" || (err != nil && strings.Contains(err.Error(), "SQLSTATE 23503"))
 }
 
+var errNotFound = gorm.ErrRecordNotFound
+
 func IsNotFound(err error) bool { return errors.Is(err, gorm.ErrRecordNotFound) }
+
+// IsCheckViolation matches CHECK constraints and trigger guards raised as check_violation.
+func IsCheckViolation(err error) bool { return pgCode(err) == "23514" }
 
 // first scans exactly one row or returns gorm.ErrRecordNotFound.
 func first[T any](db *gorm.DB, sql string, args ...any) (*T, error) {
@@ -75,3 +80,25 @@ func list[T any](db *gorm.DB, sql string, args ...any) ([]T, error) {
 }
 
 func uintText(id uint) string { return strconv.FormatUint(uint64(id), 10) }
+
+// uintArray renders ids as a Postgres array literal for `= ANY(?::bigint[])`.
+func uintArray(ids []uint) string {
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = uintText(id)
+	}
+	return "{" + strings.Join(parts, ",") + "}"
+}
+
+// textArray renders a text[] literal; nil stays NULL.
+func textArray(vals []string) *string {
+	if vals == nil {
+		return nil
+	}
+	parts := make([]string, len(vals))
+	for i, v := range vals {
+		parts[i] = `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(v) + `"`
+	}
+	s := "{" + strings.Join(parts, ",") + "}"
+	return &s
+}

@@ -154,7 +154,7 @@ func (q *Q) EntryTrail(orgID, entryID uint) ([]models.TrailItem, error) {
 type OutboxEvent struct {
 	ID               string    `gorm:"column:id"`
 	OrgID            uint      `gorm:"column:org_id"`
-	DepotID          uint      `gorm:"column:depot_id"`
+	DepotID          *uint     `gorm:"column:depot_id"`
 	EventType        string    `gorm:"column:event_type"`
 	EventVersion     int       `gorm:"column:event_version"`
 	AggregateType    string    `gorm:"column:aggregate_type"`
