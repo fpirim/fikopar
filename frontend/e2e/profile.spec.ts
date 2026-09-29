@@ -34,7 +34,8 @@ test('keeps the avatar after a name-only update', async ({ page }) => {
   // Now change only the name and save again.
   await page.locator('input[type="text"]').first().fill('Avatar Keeper')
   await page.getByRole('button', { name: 'Güncelle' }).click()
-  await expect(page.getByText('Profil güncellendi')).toBeVisible()
+  // The first save's toast may still be up.
+  await expect(page.getByText('Profil güncellendi').last()).toBeVisible()
 
   // Reload from the server: the avatar must still be there.
   await page.goto('/profile')

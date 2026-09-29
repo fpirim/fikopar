@@ -46,7 +46,7 @@ flowchart LR
 - Writes use optimistic locking (ETag/If-Match) and Idempotency-Key.
 - Deploys are pulled: CI pushes an image to GHCR and sends the digest to the host with an HMAC signature.
 
-Decisions: [docs/adr](docs/adr/). Contracts ([v1.1, frozen](docs/CONTRACTS.md)): [domain model](docs/domain-model.md), [screens](docs/screens.md), [OpenAPI](api/openapi.yaml), [events](api/events/), [draft migrations](backend/migrations/draft/). Look and feel: [brand](docs/brand.md).
+Decisions: [docs/adr](docs/adr/). Contracts ([v1.2, frozen](docs/CONTRACTS.md)): [domain model](docs/domain-model.md), [screens](docs/screens.md), [OpenAPI](api/openapi.yaml), [events](api/events/), [draft migrations](backend/migrations/draft/). Look and feel: [brand](docs/brand.md).
 
 ## Run
 

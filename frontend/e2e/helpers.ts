@@ -12,5 +12,6 @@ export async function login(page: Page, email: string, password: string) {
 
 export async function loginAsAdmin(page: Page) {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('banner')).toContainText(/Gösterge paneli|Dashboard/)
 }

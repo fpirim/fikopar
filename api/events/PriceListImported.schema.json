@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fikopar.fpirim.me/schemas/events/PriceListImported.schema.json",
+  "title": "PriceListImported",
+  "description": "A price list import was applied (one event per job; no PriceChanged per row). Changed rows: price_import_rows / prices.import_id. depotId is null.",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "PriceListImported"
+    },
+    "version": {
+      "const": 1
+    },
+    "aggregateType": {
+      "const": "price_import"
+    },
+    "depotId": {
+      "type": "null"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "importId",
+        "catalogId",
+        "fileName",
+        "fileSha256",
+        "validFrom",
+        "missing",
+        "partsCreated",
+        "pricesInserted",
+        "partsUpdated",
+        "partsDeactivated",
+        "rowsSkipped"
+      ],
+      "properties": {
+        "importId": {
+          "type": "integer"
+        },
+        "catalogId": {
+          "type": "integer"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "fileSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "validFrom": {
+          "type": "string",
+          "format": "date"
+        },
+        "missing": {
+          "enum": [
+            "KEEP",
+            "DEACTIVATE"
+          ]
+        },
+        "partsCreated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pricesInserted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partsUpdated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partsDeactivated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rowsSkipped": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

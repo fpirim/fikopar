@@ -20,7 +20,7 @@ type Envelope struct {
 	Version          int             `json:"version"`
 	OccurredAt       time.Time       `json:"occurredAt"`
 	OrgID            uint            `json:"orgId"`
-	DepotID          uint            `json:"depotId"`
+	DepotID          *uint           `json:"depotId"`
 	AggregateType    string          `json:"aggregateType"`
 	AggregateID      string          `json:"aggregateId"`
 	AggregateVersion *int            `json:"aggregateVersion,omitempty"`
@@ -37,18 +37,23 @@ type Consumer interface {
 	Handle(ctx context.Context, q *repository.Q, env Envelope) error
 }
 
+// emit appends an outbox row; depotID 0 is a company-wide event (depotId null).
 func emit(ctx context.Context, q *repository.Q, orgID, depotID uint, eventType, aggregateType string, aggregateID uint, aggregateVersion *int, payload any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 	a := actorFrom(ctx)
+	var depot *uint
+	if depotID != 0 {
+		depot = &depotID
+	}
 	var corr *string
 	if a.RequestID != "" {
 		corr = &a.RequestID
 	}
 	return q.AppendOutbox(repository.OutboxEvent{
-		ID: uuid.NewString(), OrgID: orgID, DepotID: depotID, EventType: eventType, EventVersion: 1,
+		ID: uuid.NewString(), OrgID: orgID, DepotID: depot, EventType: eventType, EventVersion: 1,
 		AggregateType: aggregateType, AggregateID: strconv.FormatUint(uint64(aggregateID), 10),
 		AggregateVersion: aggregateVersion, Payload: string(body), CorrelationID: corr, ActorUserID: a.userID(),
 	})

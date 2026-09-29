@@ -46,8 +46,8 @@ export const demoUser: User = {
 }
 
 export const depots: Depot[] = [
-  { id: 1, code: '1', name: 'Depot 1', vatRate: '20', allowNegativeStock: false, version: 1 },
-  { id: 2, code: '2', name: 'Depot 2', vatRate: '20', allowNegativeStock: false, version: 1 },
+  { id: 1, code: '1', name: 'Depot 1', vatRate: '20', version: 1 },
+  { id: 2, code: '2', name: 'Depot 2', vatRate: '20', version: 1 },
 ]
 
 interface Party {
@@ -605,12 +605,14 @@ function cash(
     income: m(Math.max(amount, 0)),
     expense: m(Math.max(-amount, 0)),
     runningBalance: '0.00',
+    resetsBalance: kind === 'OPENING',
   }
 }
 
 function cashLines(): CashLine[] {
   return [
-    cash(1, '2026-01-01', 'OTHER', null, null, 'Opening', 21480),
+    cash(1, '2025-12-19', 'COLLECTION', 'TAH-2025-1-000388', 'Kaya Ziraat', 'Collection', 4000),
+    cash(1, '2026-01-01', 'OPENING', null, null, 'Opening', 21480),
     cash(1, '2026-09-08', 'COLLECTION', 'TAH-2026-1-000207', 'Beyşehir Tarım', 'Collection', 18000),
     cash(1, '2026-09-15', 'EXPENSE', 'GDR-2026-1-000036', null, 'Office supplies', -1264.5),
     cash(1, '2026-09-23', 'COLLECTION', 'TAH-2026-1-000224', 'Öztürk Tarım', 'Collection', 12400),
@@ -619,7 +621,7 @@ function cashLines(): CashLine[] {
     cash(1, '2026-09-26', 'COLLECTION', 'TAH-2026-1-000228', 'Aksoy Tarım', 'Collection', 25000),
     cash(1, '2026-09-27', 'BANK_DEPOSIT', 'VRM-2026-1-000012', null, 'Deposit to [BANK A]', -15000),
     cash(1, '2026-09-29', 'COLLECTION', 'TAH-2026-1-000233', 'Kaya Ziraat', 'Collection', 15000),
-    cash(2, '2026-01-01', 'OTHER', null, null, 'Opening', 8200),
+    cash(2, '2026-01-01', 'OPENING', null, null, 'Opening', 8200),
     cash(
       2,
       '2026-09-21',

@@ -1,6 +1,6 @@
 # 8. Stock count differences at last purchase cost
 
-Status: Accepted · 2026-09-29
+Status: Accepted · 2026-09-29 · amended by [ADR-0011](0011-contracts-v1-2.md) (fallback = the part's catalog price)
 
 ## Context
 A count posts ADJUST movements; the report needs a money value per difference. There is no costing

@@ -22,6 +22,11 @@ test('admin performs full CRUD on an organization', async ({ page }) => {
   await page.getByRole('button', { name: 'Oluştur' }).click()
   await expect(page.getByRole('heading', { name: 'Yeni Organizasyon' })).toBeHidden()
 
+  // Rows are in id order and earlier runs leave companies behind: the new one is last.
+  await page
+    .locator('.ag-body-viewport')
+    .first()
+    .evaluate((el) => (el.scrollTop = el.scrollHeight))
   await expect(page.getByText(slug).first()).toBeVisible()
 
   const row = page.locator('.ag-center-cols-container .ag-row').filter({ hasText: slug }).first()

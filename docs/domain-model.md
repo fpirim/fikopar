@@ -31,8 +31,8 @@ events from the transactional outbox ([ADR-0004](adr/0004-transactional-outbox.m
 | **Receipts** | Receipt | Payment methods; cheque/note receipts register the instrument |
 | **Cash** | CashVoucher, CashCount, cash book (view) | Till per depot; expenses and bank transfers post like receipts |
 | **Instruments** | Instrument (4 types), InstrumentEvent | State machine, partial collection; every money step posts through a receipt/entry |
-| **Catalog** | Part, PartCode (OEM / equivalent), PriceList, Price (history) | Code search, effective-dated prices |
-| **Stock** | Depot, PartDepot (min/max/shelf), StockMovement, StockLevel (projection), StockTransfer, StockCount, StockCountLine | Movement ledger per depot, counts |
+| **Catalog** | Catalog (= price list), Part, PartCode (manufacturer / OEM / ALT / equivalent), Price (history), PriceImport | Code search, effective-dated prices, previewed imports |
+| **Stock** | Depot, PartDepot (min/max/shelf), StockMovement, StockLevel (projection), StockTransfer, StockCount, StockCountLine | Movement ledger per depot, negative allowed, counts with frozen system quantity |
 | **Audit** | AuditEvent | Append-only |
 | **Migration** | MigrationRun, file results, quarantine | Copybook parser, reconciliation, parallel run |
 
@@ -119,17 +119,75 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
 
 **Instruments** `{depot_id, instrument_no, type: RECEIVABLE_CHEQUE|RECEIVABLE_NOTE|PAYABLE_CHEQUE|PAYABLE_NOTE, serial_no, amount, remaining, issue_date, due_date, sicil_id, drawer_name, drawer_tax_no, bank_name, bank_branch, bank_city, account_no, status, version}` and append-only `InstrumentEvent {seq, action, from_status, to_status, amount?, remaining_after, counterparty_sicil_id?, receipt_id?, journal_entry_id?}`.
 
-**Catalog & Stock**
-- `Part {catalog_no, stock_no, name, type, brand, unit, vat_pct, package_qty}`, `PartCode {kind: MANUFACTURER|OEM|EQUIVALENT, code, normalized_code}`, `PartDepot {min_qty, max_qty, shelf}`.
-- `PriceList {kind: SALES|SUPPLIER, supplier_sicil_id?, is_default}`, `Price {part_id, price, valid_from}` — append-only history.
-- `StockMovement {part_id, depot_id, kind: IN|OUT|ADJUST_IN|ADJUST_OUT|TRANSFER_IN|TRANSFER_OUT, qty > 0, movement_date, source}`; `StockLevel {part_id, depot_id, on_hand, reserved}`; `StockTransfer {transfer_no, from_depot, to_depot}` owns a pair of movements per line.
-- `StockCount {depot_id, year, count_no, shelf range, status: OPEN|FINALIZED|CANCELLED, uncounted: SKIP|ZERO}`, `StockCountLine {part_id, shelf, counted_qty?, counted_by, counted_at, system_qty, unit_cost, cost_source, version}`. Lines are created when the count opens; each counted quantity is saved on its own (autosave, per-line lock). Posting differences writes ADJUST movements.
+**Catalog & Stock** (v1.2, [ADR-0011](adr/0011-contracts-v1-2.md))
+- `Catalog {code (KATNO), name, supplier_sicil_id?, currency TRY, is_active, content_version, version}` — a catalog **is**
+  a price list (legacy KATLOG). `content_version` moves with every part or price change in it.
+- `Part {catalog_id, stock_no, name, type, brand, unit, vat_pct, package_qty, is_active, version}` — belongs to exactly one
+  catalog, fixed after create; `stock_no` unique per catalog. Parts are deactivated, never deleted.
+- `PartCode {kind: MANUFACTURER|OEM|ALT|EQUIVALENT, code, normalized_code, equivalent_part_id?}` — ALT is a free
+  alternative or old code; EQUIVALENT (muadil) links another part and its `code` is that part's stock no (v1.3).
+  Codes match after normalization (Turkish letters folded to ASCII, upper case, 0-9 A-Z); names match case- and
+  Turkish-letter-insensitively (v1.3 erratum). Search: the whole query against codes (exact, prefix,
+  substring), then word by word, each word in the name or in a code.
+- `Price {part_id, price, valid_from, source: MANUAL|IMPORT|LEGACY, import_id?}` — append-only list price history, one row
+  per (part, valid_from). **Price on D** = the row with the latest `valid_from` ≤ D (`price_on()`); a row is valid until
+  the day before the next one, so periods never overlap. Future-dated rows are allowed and take effect on their day.
+  A correction is a new row, never an update.
+- `PriceImport {catalog_id, file, format: CSV|XLSX|FIXED_WIDTH, mapping, valid_from, status, catalog_version, counts, result, version}`
+  with `PriceImportRow {row_no?, part_id?, parsed, current, changes[], errors[], warnings[]}`. Upload → parse → preview
+  diff (NEW, PRICE, ATTRIBUTES, UNCHANGED, MISSING, DELETE, per-row errors) → apply once with `If-Match` on the job and an
+  `Idempotency-Key`. Apply is one transaction and is refused if the catalog moved since the preview (`ERR_IMPORT_STALE`).
+  Presets: LISAKT (below).
+- `PartDepot {min_qty, max_qty, shelf}` per depot; no row reads as 0 / none / "" (version 0). Written whole (PUT):
+  an omitted field is cleared.
+- `StockMovement {part_id, depot_id, kind: IN|OUT|ADJUST_IN|ADJUST_OUT|TRANSFER_IN|TRANSFER_OUT, qty > 0, movement_date, occurred_at, unit_cost?, source}`
+  — append-only. Ledger order is (movement_date, id); running on-hand follows it. ADJUST only from counts, TRANSFER only from transfers.
+  `occurred_at` is `clock_timestamp()` (wall clock at insert), as is a count's `started_at`.
+- `StockLevel {part_id, depot_id, on_hand, reserved}` — projection written by the movement insert in the same transaction.
+  **on_hand may be negative.** available = on_hand − reserved. belowMin = min_qty > 0 and on_hand < min_qty.
+- `StockTransfer {transfer_no (TRF of the source depot), from_depot, to_depot, date}` — one transaction: per line a
+  TRANSFER_OUT and a TRANSFER_IN, all lines or none.
+- `StockCount {depot_id, count_no (SAY), count_date, started_at, shelf range, status: OPEN|FINALIZED|CANCELLED, uncounted: SKIP|ZERO}`,
+  `StockCountLine {part_id, shelf, system_qty, counted_qty?, counted_by, counted_at, added, unit_cost, cost_source, version}`.
+  One OPEN count per depot. `system_qty` = on hand from movements with `occurred_at` ≤ `started_at` (`on_hand_at()`),
+  frozen, also for lines added later; one line per part. Each counted quantity is saved on its own (autosave, `If-Match` on
+  the line version, +1 per save). Finalize writes one ADJUST per line with counted − system ≠ 0, dated `count_date`;
+  movements after `started_at` stay on top (on hand after = on hand now + difference). A movement committed after
+  `started_at` but stamped before it (long transaction) counts as before the freeze. `uncounted = ZERO` writes
+  `counted_qty` 0 on the uncounted lines at finalize.
+- **Negative stock.** Posting, cancelling, transfers and count finalize never fail on stock. Their responses carry
+  `warnings[]` `{code: NEGATIVE_STOCK, partId, depotId, onHandAfter}`; stock lists and the dashboard filter NEGATIVE.
 - **Count valuation.** A difference is valued at the **last purchase cost**: `net_amount / qty` (after both
   discounts, before VAT) of the line on the latest POSTED `PURCHASE_INVOICE` or `PURCHASE_INVOICE_WITH_WAYBILL`
   for the part in the company, from any depot, dated on or before the count date (ties: later `posted_at`,
-  then higher line id). Returns, waybills and price differences are ignored. Without a purchase the price
-  valid on the count date in the default price list is used and flagged `LIST_PRICE`; without either the line
-  is `NONE` and has no value. Cost and source are snapshotted at finalize (`last_purchase_cost()`).
+  then higher line id). Returns, waybills and price differences are ignored. Without a purchase the list price of
+  the part's catalog on the count date is used and flagged `LIST_PRICE`; without either the line
+  is `NONE` and has no value. Cost and source are snapshotted at finalize (`last_purchase_cost()`). Until documents
+  exist (F3) the function has the LIST_PRICE and NONE branches only; F3 replaces it with the `0004_documents` version.
+- **Closed years** apply to stock too: no movement dated in a closed year (`ERR_YEAR_CLOSED`).
+- **Carry-forward stock checks.** `STOCK_COUNTS_POSTED` (blocking): no OPEN count dated on or before 31 December of
+  Y − 1. `YEAR_END_COUNTS` (warning): every depot has a FINALIZED count dated in Y − 1.
+
+**LISAKT preset** (legacy `LISAKT.CBL`, line-sequential, CP857, 319 bytes per record; positions 1-based):
+
+| Field | Pos | Len | Target | Note |
+|---|---|---|---|---|
+| OK-OP `9` | 1 | 1 | op | 0 DELETE (deactivate), 1 insert, 2 update; the diff decides, a mismatch is a warning |
+| OK-KATNO `9999` | 2 | 4 | catalogCode | must equal the job's catalog, else row error CATALOG_MISMATCH |
+| OK-STNO `X(15)` | 6 | 15 | code | stock no |
+| OK-PRCNO `X(30)` | 21 | 30 | manufacturerCode | |
+| OK-OEMNO `X(30)` | 51 | 30 | oem | |
+| OK-TIPI `X(30)` | 81 | 30 | type | |
+| OK-CINSI `X(60)` | 111 | 60 | description | |
+| OK-MARKA `X(30)` | 171 | 30 | brand | |
+| OK-MIN / OK-MAX `9(12)V9999` | 201 / 217 | 16 / 16 | — | ignored; min/max are per depot |
+| OK-FIYAT `9(10)V9999` | 233 | 14 | price | scale 4 |
+| OK-NOTE `X(10)` | 247 | 10 | — | ignored |
+| OK-DEG `9(8)` | 257 | 8 | validFrom | YYYYMMDD; 00000000 → job validFrom |
+| OK-PAKET `9(5)` | 265 | 5 | packQty | |
+| OK-SIRA `9(15)` | 270 | 15 | — | ignored |
+| OK-BKATNO `9999` + OK-BSTNO `X(15)` | 285 / 289 | 4 / 15 | equivalentCatalogCode, equivalentCode | EQUIVALENT link; unknown part → warning |
+| OK-BISKONTO, OK-BKDV `9(4)V9999` | 304 / 312 | 8 / 8 | — | ignored |
 
 **Migration** `MigrationRun {run_no, dry_run, status, counts, ledger_diff}` with one result per legacy file (read / imported / rejected, control rule and totals, MATCH | QUARANTINE | MISMATCH) and quarantined raw records.
 
@@ -145,6 +203,7 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
 | L6 | Balance "as of D" and statements include postings dated D (`<=`). Balance as of D = opening entries of the latest active run year Y ≤ D + postings from 1 January Y to D | Query contract (`ledger_start()`); tests on the boundary day |
 | L7 | No journal entry is dated in a closed year (before the latest active run's year); `ERR_YEAR_CLOSED`. Reopening a year reverses its opening entries on 1 January; a later carried year must be reopened first | `journal_entries_year_open` trigger; one active run per year; run and opening guards |
 | L8 | A statement crossing 1 January of a carried year restarts the running balance at the opening entry (`resetsBalance`); `closingBalance` = balance as of `to` (L6) | Query contract |
+| L9 | The cash book does the same: the CASH opening of a carried year is an OPENING line with `resetsBalance`; totals leave it out; `closingBalance` = balance as of `to` | Query contract |
 | D1 | Document status DRAFT → POSTED → CANCELLED only; POSTED documents are not edited | Trigger |
 | D2 | Waybills (incl. return waybills) never post to the ledger; price-difference invoices never move stock | Triggers on `journal_entries` and `stock_movements` |
 | D3 | A document posts at most once to the ledger and once per line to stock | `UNIQUE(org, source_type, source_id)` on entries; unique source on movements |
@@ -153,9 +212,14 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
 | R1 | Receipts are immutable except for voiding once; instrument receipts change only through the instrument | `receipts_guard` trigger |
 | I1 | Instruments move only along the state machine; each money-moving step issues a receipt/entry in the same TX | Trigger + service |
 | I2 | 0 ≤ remaining ≤ amount; remaining only decreases; remaining = amount − Σ event amounts; COLLECTED/PAID ⇔ remaining = 0 | CHECKs + trigger; event `remaining_after` |
-| S1 | `on_hand` never negative unless the depot allows it | Row lock on `stock_levels` + trigger |
-| S2 | `on_hand` = Σ movements per (part, depot); movements and prices are append-only | Triggers; reconciliation |
-| S3 | A count line is saved only while its count is OPEN; posting uses the system quantity and last purchase cost at that moment | Service; snapshot columns; CHECK `unit_cost` ⇔ `cost_source` |
+| S1 | `on_hand` may be negative; stock-moving operations succeed and return `NEGATIVE_STOCK` warnings | Service (no DB check since v1.2) |
+| S2 | `on_hand` = Σ movements per (part, depot); movements are append-only; ADJUST only from counts, TRANSFER only from transfers | Movement insert trigger updates `stock_levels`; `stock_level_drift` view; append-only trigger; CHECKs |
+| S3 | One OPEN count per depot. `system_qty` is frozen at `started_at`; a line is saved only while the count is OPEN and each save moves its version by one; finalize posts counted − system at the last purchase cost of that moment | Partial unique index; `stock_count_lines_guard`, `stock_counts_transition`; CHECK `unit_cost` ⇔ `cost_source` |
+| S4 | A transfer moves each part once out of the source and once into the target, in one transaction | `UNIQUE(transfer_id, part_id, kind)`; service TX |
+| S5 | No stock movement is dated in a closed year | `stock_movements_year_open` trigger |
+| P1 | A part belongs to one catalog, fixed; stock no unique per catalog | FK + `parts_guard`; `UNIQUE(org, catalog, stock_no)` |
+| P2 | One price per (part, valid_from); prices are append-only; price on D = latest `valid_from` ≤ D, so periods never overlap | `UNIQUE(part_id, valid_from)`; append-only trigger; `price_on()`, `price_periods` |
+| P3 | An import is applied at most once, only from READY and only against the catalog version it previewed | `price_imports_transition` trigger; `catalog_version` vs `catalogs.content_version`; `If-Match`, `Idempotency-Key` |
 | C1 | Cash counts are immutable; vouchers are voided by reversal | Append-only trigger; service |
 | X1 | Idempotency key unique per (org, key) with request hash; replay / 422 / 409 | `idempotency_keys` |
 | X2 | Optimistic lock on mutable aggregates (`version`, `If-Match`), sicils and carry-forward previews included | Repository |
@@ -199,6 +263,24 @@ stateDiagram-v2
   PROTESTED --> RETURNED
 ```
 
+Stock count: `OPEN → FINALIZED` (ADJUST movements) `| CANCELLED` (none). Price import:
+
+```mermaid
+stateDiagram-v2
+  [*] --> PARSING: upload
+  PARSING --> NEEDS_MAPPING
+  PARSING --> READY
+  PARSING --> FAILED
+  NEEDS_MAPPING --> PARSING: mapping
+  READY --> PARSING: mapping / refresh
+  READY --> APPLYING: apply (If-Match)
+  APPLYING --> APPLIED
+  APPLYING --> READY: rollback
+  NEEDS_MAPPING --> DISCARDED
+  READY --> DISCARDED
+  READY --> EXPIRED: 7 days
+```
+
 Payable instruments: `ISSUED → PAID | RETURNED`. Entries: register `DR 101 / CR 120.<customer>`;
 deposit `DR 101.bank / CR 101`; collect `DR 100|102 / CR 101` for the collected amount; bounce
 `DR 101 / CR 101.bank` (or `CR 320.<endorsee>`); endorse `DR 320.<supplier> / CR 101`; protest and return
@@ -211,7 +293,8 @@ one transaction. An in-process relay delivers at least once; the ledger consumer
 (skipped for waybills) and the stock consumer writes movements (skipped for price differences and
 for documents that bill a waybill). Both are idempotent on the source key and emit
 `LedgerEntryPosted` / `StockMoved`. Receipts and instrument operations post synchronously and emit
-`ReceiptPosted` / `InstrumentStatusChanged`. Envelope: [`api/events/envelope.schema.json`](../api/events/envelope.schema.json).
+`ReceiptPosted` / `InstrumentStatusChanged`. Transfers and count finalize emit `StockMoved` per movement. A manual
+price emits `PriceChanged`; an applied import emits one `PriceListImported` (company-wide events, `depotId` null). Envelope: [`api/events/envelope.schema.json`](../api/events/envelope.schema.json).
 
 ## 7. Live system gaps addressed
 
@@ -259,9 +342,9 @@ Legacy document numbers are kept as imported; new numbers use the prefix series.
 | **SICIL** `SC-KAYIT` | `SC-HESAPNO X(15)` | `HESAPADI X(50)`, `YETKILI X(40)`, `ADRES1-3 X(40)`, `POSKOD X(6)`, `MAHALLE/ILCE/IL/ULKE X(20)`, `VDA X(30)`, `VNO X(10)`, `TCNO X(11)`, `TSNO X(11)`, `MERSIS X(20)`, `TUR XXX`, `KREDI 9(14)V9999`, `GUN 99999`, `ISKONTO1/2 9(4)V9999`, `PLKOD 9(4)` | `sicils.hesap_no, hesap_adi, adres (ADRES1-3 joined), ilce, sehir(IL), v_dairesi, v_no, tc_no, gun, iskonto(ISKONTO1), sicil_tipi(TUR)`; new: `contacts[0](YETKILI)`, `postal_code`, `district`, `country`, `trade_reg_no(TSNO)`, `mersis_no`, `credit_limit(KREDI)`, `discount2`, `sales_rep_code(PLKOD)` | `TUR` → `FIRMA/MUSTERI/BANKA` via a mapping table (confirmed in F5); also creates ledger Account `120.<hesapNo>` or `320.<hesapNo>` |
 | **SICILTEL** `SCT-KAYIT` | `HESAPNO X(15) + SIRA 9(10)` | `TEL 9(12)`, `DAHILI X(5)`, `TIP 9` | `sicil_telefons(numara, tipi)` | numeric phone → E.164 string; `DAHILI` → extension; `TIP` → CEP/EV/IS/FAKS/DIGER (code table confirmed in F5) |
 | **SICILKOD** `SK-KAYIT` | `HESAPNO + KOD 9999` | — | `sicil_tags` (later) | Grouping codes (TIPKOD names) |
-| **STOK** `ST-KAYIT` | `KATNO 9999 + STNO X(15)` | `PRCNO X(30)`, `OEMNO X(30)`, `TIPI X(30)`, `CINSI X(60)`, `MARKA X(30)`, `MIN/MAX 9(12)V9999`, `FIYAT 9(10)V9999`, `NOTE X(10)`, `DEG` date, `PAKET 9(5)`, `SIRA 9(15)` | `parts(catalog_no, stock_no, name(CINSI), type(TIPI), brand, package_qty)`; `part_depots(min_qty, max_qty)` for each depot; `part_codes(MANUFACTURER=PRCNO, OEM=OEMNO)`; `prices(price=FIYAT, valid_from=DEG)` | `KATNO` = catalog (KATLOG) |
+| **STOK** `ST-KAYIT` | `KATNO 9999 + STNO X(15)` | `PRCNO X(30)`, `OEMNO X(30)`, `TIPI X(30)`, `CINSI X(60)`, `MARKA X(30)`, `MIN/MAX 9(12)V9999`, `FIYAT 9(10)V9999`, `NOTE X(10)`, `DEG` date, `PAKET 9(5)`, `SIRA 9(15)` | `parts(catalog_id ← KATNO, stock_no, name(CINSI), type(TIPI), brand, package_qty)`; `part_depots(min_qty, max_qty)` for each depot; `part_codes(MANUFACTURER=PRCNO, OEM=OEMNO)`; `prices(price=FIYAT, valid_from=DEG, source=LEGACY)` | `KATNO` = catalog (KATLOG); price lists later arrive through LISAKT or CSV/XLSX imports |
 | **STOKBAG** `SB-KAYIT` | `KATNO+STNO+SIRA` | `BAG-KATNO`, `BAG-STNO`, `ISK`, `KDV` | `part_codes(kind=EQUIVALENT)` linking to the other part | muadil (equivalent part) cross-reference |
-| **KATLOG** `KT-KAYIT` | `KATNO 9999` | `ACIKLAMA X(60)`, `HESAPNO X(15)` | `price_lists(kind=SUPPLIER, code=KATNO, name, supplier_sicil_id)` | supplier catalogue |
+| **KATLOG** `KT-KAYIT` | `KATNO 9999` | `ACIKLAMA X(60)`, `HESAPNO X(15)` | `catalogs(code=KATNO, name, supplier_sicil_id)` | supplier catalogue = price list |
 | **STKADT** `STA-KAYIT` | `KATNO+STNO+YIL 9999+DEPONO 9999` | `GIR 9(12)V9999`, `CIK 9(12)V9999` | opening `stock_movements` per (part, depot): `IN = GIR`, `OUT = CIK` for the migration year | yearly totals only; reconciliation compares `on_hand = GIR − CIK` |
 | **DEPO** `DP-KAYIT` | `DP-NO 9999` | `ADI X(30)`, `KDV 9(4)V9999` | `depots(code, name, vat_rate)` | |
 | **CARHAR** `CH-KAYIT` | `HESAPNO+DEPONO+TARIH+SIRA 9(10)` | `TIP 99`, `EVRAKNO X(15)`, `ACIKLAMA X(60)`, `VADE X(15)`, `BORC 9(13)V99`, `ALACAK 9(13)V99` | one `journal_entries` (depot = DEPONO) + 2 `postings` per row: `BORC>0` → DR `120/320.<hesapNo>`, CR counter-account by `TIP`; `ALACAK>0` → mirror | source_type=`legacy_import`, source_id=key; one of BORC/ALACAK is zero |
@@ -303,6 +386,8 @@ status and total; stock `GIR − CIK` vs `stock_levels.on_hand` per depot. The r
 | **iskonto** | Discount (legacy supports two cascaded discounts) |
 | **KDV** | VAT |
 | **muadil** | Equivalent / interchangeable part (aftermarket cross-reference) |
+| **katalog / fiyat listesi** | Catalog / price list: one per supplier (KATNO); every part is in exactly one |
+| **eksi stok** | Negative stock: allowed, reported as a warning |
 | **OEM no / parça no** | Original-equipment part number / manufacturer part number |
 | **irsaliye / fatura** | Waybill (dispatch note) / invoice |
 | **iade irsaliyesi** | Return waybill: moves returned goods, billed later by the return invoice |

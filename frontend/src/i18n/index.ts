@@ -17,6 +17,9 @@ import enShell from './locales/en/shell.json'
 import enBalances from './locales/en/balances.json'
 import enLedger from './locales/en/ledger.json'
 import enTreasury from './locales/en/treasury.json'
+import enParts from './locales/en/parts.json'
+import enCounts from './locales/en/counts.json'
+import enCatalog from './locales/en/catalog.json'
 
 import trCommon from './locales/tr/common.json'
 import trNav from './locales/tr/nav.json'
@@ -32,6 +35,9 @@ import trShell from './locales/tr/shell.json'
 import trBalances from './locales/tr/balances.json'
 import trLedger from './locales/tr/ledger.json'
 import trTreasury from './locales/tr/treasury.json'
+import trParts from './locales/tr/parts.json'
+import trCounts from './locales/tr/counts.json'
+import trCatalog from './locales/tr/catalog.json'
 
 const resources = {
   en: {
@@ -49,6 +55,9 @@ const resources = {
     balances: enBalances,
     ledger: enLedger,
     treasury: enTreasury,
+    parts: enParts,
+    counts: enCounts,
+    catalog: enCatalog,
   },
   tr: {
     common: trCommon,
@@ -65,6 +74,9 @@ const resources = {
     balances: trBalances,
     ledger: trLedger,
     treasury: trTreasury,
+    parts: trParts,
+    counts: trCounts,
+    catalog: trCatalog,
   },
 } as const
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fikopar.fpirim.me/schemas/events/StockMoved.schema.json",
   "title": "StockMoved",
-  "description": "Stock on hand changed for one part in one depot.",
+  "description": "Stock on hand changed for one part in one depot. onHandAfter may be negative (v1.2).",
   "allOf": [
     {
       "$ref": "envelope.schema.json"
@@ -51,7 +51,8 @@
           "pattern": "^\\d{1,14}(\\.\\d{1,4})?$"
         },
         "onHandAfter": {
-          "type": "string"
+          "type": "string",
+          "pattern": "^-?\\d{1,14}(\\.\\d{1,4})?$"
         },
         "sourceType": {
           "enum": [

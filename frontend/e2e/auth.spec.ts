@@ -11,7 +11,8 @@ test('rejects wrong credentials with an inline error', async ({ page }) => {
 test('logs in as admin and reaches the dashboard', async ({ page }) => {
   await loginAsAdmin(page)
   await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByText('Hoş Geldin', { exact: true })).toBeVisible()
+  // No company picked yet: the dashboard asks for one.
+  await expect(page.getByText('Soldaki menüden bir şirket seçin.')).toBeVisible()
 })
 
 test('logs out back to the login page', async ({ page }) => {

@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { Blob as NodeBlob, File as NodeFile } from 'node:buffer'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import { cleanup, configure } from '@testing-library/react'
 import i18n from '../i18n'
@@ -6,6 +7,10 @@ import { server } from '../mocks/node'
 import { resetDb } from '../mocks/handlers'
 
 configure({ asyncUtilTimeout: 5000 })
+
+// Node's fetch only serializes its own FormData / Blob / File; jsdom's arrive as "[object FormData]".
+const NodeFormData = (await new Response(new URLSearchParams('x=1')).formData()).constructor
+Object.assign(globalThis, { FormData: NodeFormData, Blob: NodeBlob, File: NodeFile })
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'warn' }))
 afterAll(() => server.close())

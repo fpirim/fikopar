@@ -139,3 +139,20 @@
 .ag-theme-alpine.fk-grid.fk-dense {
   --ag-cell-horizontal-padding: 8px;
 }
+
+/* Stock count: the Counted column is where typing goes. */
+.ag-theme-alpine.fk-grid .ag-header-cell.fk-editable-head {
+  background-color: #f6f1e4;
+}
+
+.ag-theme-alpine.fk-grid .ag-cell.fk-editable:not(.ag-cell-inline-editing) {
+  background-color: #fffdf6;
+}
+
+.ag-theme-alpine.fk-grid .ag-cell.fk-editable.ag-cell-inline-editing {
+  padding: 0;
+}
+
+.ag-theme-alpine.fk-grid .ag-cell.fk-pos {
+  color: var(--fk-chip-green-fg);
+}

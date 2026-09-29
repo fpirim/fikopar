@@ -81,6 +81,29 @@ var (
 	MethodNotAvailable       = &APIError{"ERR_METHOD_NOT_AVAILABLE", http.StatusBadRequest}
 	YearClosed               = &APIError{"ERR_YEAR_CLOSED", http.StatusConflict}
 	NotCarriedForward        = &APIError{"ERR_NOT_CARRIED_FORWARD", http.StatusConflict}
+
+	PartNotFound           = &APIError{"ERR_PART_NOT_FOUND", http.StatusNotFound}
+	PartCodeExists         = &APIError{"ERR_PART_CODE_EXISTS", http.StatusConflict}
+	PartInactive           = &APIError{"ERR_PART_INACTIVE", http.StatusUnprocessableEntity}
+	PartNotInCatalog       = &APIError{"ERR_PART_NOT_IN_CATALOG", http.StatusUnprocessableEntity}
+	PartCatalogImmutable   = &APIError{"ERR_PART_CATALOG_IMMUTABLE", http.StatusUnprocessableEntity}
+	CatalogNotFound        = &APIError{"ERR_CATALOG_NOT_FOUND", http.StatusNotFound}
+	CatalogCodeExists      = &APIError{"ERR_CATALOG_CODE_EXISTS", http.StatusConflict}
+	CatalogCodeImmutable   = &APIError{"ERR_CATALOG_CODE_IMMUTABLE", http.StatusUnprocessableEntity}
+	PriceExists            = &APIError{"ERR_PRICE_EXISTS", http.StatusConflict}
+	ImportNotFound         = &APIError{"ERR_IMPORT_NOT_FOUND", http.StatusNotFound}
+	ImportFormat           = &APIError{"ERR_IMPORT_FORMAT", http.StatusBadRequest}
+	ImportTooManyRows      = &APIError{"ERR_IMPORT_TOO_MANY_ROWS", http.StatusBadRequest}
+	ImportStale            = &APIError{"ERR_IMPORT_STALE", http.StatusConflict}
+	ImportHasErrors        = &APIError{"ERR_IMPORT_HAS_ERRORS", http.StatusUnprocessableEntity}
+	StockCountNotFound     = &APIError{"ERR_STOCK_COUNT_NOT_FOUND", http.StatusNotFound}
+	StockCountNotOpen      = &APIError{"ERR_STOCK_COUNT_NOT_OPEN", http.StatusConflict}
+	StockCountOpenExists   = &APIError{"ERR_STOCK_COUNT_OPEN_EXISTS", http.StatusConflict}
+	StockCountLineNotFound = &APIError{"ERR_STOCK_COUNT_LINE_NOT_FOUND", http.StatusNotFound}
+	StockCountLineExists   = &APIError{"ERR_STOCK_COUNT_LINE_EXISTS", http.StatusConflict}
+	TransferNotFound       = &APIError{"ERR_TRANSFER_NOT_FOUND", http.StatusNotFound}
+	DuplicateLine          = &APIError{"ERR_DUPLICATE_LINE", http.StatusUnprocessableEntity}
+	SameDepot              = &APIError{"ERR_SAME_DEPOT", http.StatusUnprocessableEntity}
 )
 
 // Owner names the document, receipt, instrument or voucher that owns a journal entry.

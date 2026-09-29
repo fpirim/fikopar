@@ -92,6 +92,9 @@ function sortRows<T>(rows: T[], sortModel: SortModel, cols: Record<string, Gette
       const get = cols[k.colId!]
       const av = get(a)
       const bv = get(b)
+      const an0 = av === null || av === undefined
+      const bn0 = bv === null || bv === undefined
+      if (an0 !== bn0) return an0 ? 1 : -1
       const an = typeof av === 'number' || (av !== '' && !Number.isNaN(Number(av)))
       const cmp =
         an && typeof bv !== 'undefined'

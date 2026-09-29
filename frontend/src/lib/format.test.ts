@@ -6,6 +6,7 @@ import {
   formatDateTime,
   formatDay,
   formatMoney,
+  formatQty,
   formatTime,
   moneyToNumber,
   numberSeparators,
@@ -109,5 +110,20 @@ describe('parseAmount', () => {
     await i18n.changeLanguage('tr')
     expect(parseAmount('15.000,5')).toBe('15000.50')
     expect(parseAmount('abc')).toBeNull()
+  })
+})
+
+describe('formatQty', () => {
+  it('formats signed quantities in the UI language', async () => {
+    await i18n.changeLanguage('en')
+    expect(formatQty('12')).toBe('12')
+    expect(formatQty('-3')).toBe('−3')
+    expect(formatQty('2.5', { sign: true })).toBe('+2.5')
+    expect(formatQty('12500')).toBe('12,500')
+    expect(formatQty(0, { sign: true })).toBe('0')
+    expect(formatQty(null)).toBe('')
+    expect(formatQty('x')).toBe('')
+    await i18n.changeLanguage('tr')
+    expect(formatQty('2.5')).toBe('2,5')
   })
 })

@@ -69,7 +69,7 @@ type ActivityItem struct {
 
 type SearchResult struct {
 	Accounts  []SearchAccountHit `json:"accounts"`
-	Parts     []any              `json:"parts"`
+	Parts     []CatalogHit       `json:"parts"`
 	Documents []ActivityItem     `json:"documents"`
 }
 

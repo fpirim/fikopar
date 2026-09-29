@@ -75,11 +75,14 @@ func ProvisionAppRole(owner *gorm.DB, password string) error {
 
 // Migrate brings the identity tables up with AutoMigrate, then applies the SQL files in
 // migrations/ once each, in name order, under an advisory lock.
-func Migrate(db *gorm.DB) error {
+func Migrate(db *gorm.DB) error { return MigrateFS(db, migrations.FS) }
+
+// MigrateFS is Migrate over the given SQL files (a prefix of migrations/ in upgrade tests).
+func MigrateFS(db *gorm.DB, files fs.FS) error {
 	if err := db.AutoMigrate(&models.User{}, &models.Organization{}, &models.UserOrganization{}, &models.Sicil{}, &models.SicilTelefon{}); err != nil {
 		return err
 	}
-	return ApplySQL(db, migrations.FS)
+	return ApplySQL(db, files)
 }
 
 const migrationLock = 7_310_201

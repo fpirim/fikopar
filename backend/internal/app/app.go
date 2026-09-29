@@ -42,6 +42,10 @@ func New(db *gorm.DB, cfg *config.Config) *App {
 		Ledger:  handlers.NewLedgerHandler(services.NewLedgerService(store), services.NewNumberSeriesService(store), idem),
 		Receipt: handlers.NewReceiptHandler(receiptService, cashService, idem, reports),
 		Report:  reports,
+		Catalog: handlers.NewCatalogHandler(services.NewCatalogService(store), idem),
+		Stock:   handlers.NewStockHandler(services.NewStockService(store), idem),
+		Import:  handlers.NewPriceImportHandler(services.NewPriceImportService(store), idem),
+		Count:   handlers.NewStockCountHandler(services.NewStockCountService(store), idem),
 	}, router.Services{Auth: authService, Membership: services.NewMembershipService(orgRepo)}, cfg)
 	return &App{Echo: e, UserService: userService, Relay: services.NewOutboxRelay(store, services.LedgerCheck{})}
 }

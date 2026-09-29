@@ -86,6 +86,23 @@ func App(t *testing.T) *gorm.DB {
 	return gdb
 }
 
+// EmptyDatabase creates an unmigrated database in the package's container and connects to it as the owner.
+func EmptyDatabase(t *testing.T, name string) *gorm.DB {
+	t.Helper()
+	require.NoError(t, owner.Exec(`CREATE DATABASE `+name).Error)
+	u, _ := url.Parse(ownerDSN)
+	u.Path = "/" + name
+	gdb, err := gorm.Open(postgres.Open(u.String()), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := gdb.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+		owner.Exec(`DROP DATABASE IF EXISTS ` + name + ` WITH (FORCE)`)
+	})
+	return gdb
+}
+
 // SetupTestDB spins up a throwaway PostgreSQL container, migrates the schema,
 // and returns a connected *gorm.DB. The container is terminated via t.Cleanup.
 func SetupTestDB(t *testing.T) *gorm.DB {

@@ -3,13 +3,12 @@ package models
 import "time"
 
 type Depot struct {
-	ID                 uint   `json:"id" gorm:"column:id"`
-	OrgID              uint   `json:"-" gorm:"column:org_id"`
-	Code               string `json:"code" gorm:"column:code"`
-	Name               string `json:"name" gorm:"column:name"`
-	VatRate            string `json:"vatRate" gorm:"column:vat_rate"`
-	AllowNegativeStock bool   `json:"allowNegativeStock" gorm:"column:allow_negative_stock"`
-	Version            int    `json:"version" gorm:"column:version"`
+	ID      uint   `json:"id" gorm:"column:id"`
+	OrgID   uint   `json:"-" gorm:"column:org_id"`
+	Code    string `json:"code" gorm:"column:code"`
+	Name    string `json:"name" gorm:"column:name"`
+	VatRate string `json:"vatRate" gorm:"column:vat_rate"`
+	Version int    `json:"version" gorm:"column:version"`
 }
 
 type NumberSeries struct {

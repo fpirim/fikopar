@@ -132,7 +132,7 @@ func columnWidths(cols []Column, total float64) []float64 {
 }
 
 func align(k Kind) string {
-	if k == MoneyCol || k == Int {
+	if k == MoneyCol || k == Int || k == Number {
 		return "R"
 	}
 	return "L"
@@ -160,6 +160,11 @@ func cellText(v any) string {
 	case models.Date:
 		return x.String()
 	case *models.Date:
+		if x == nil {
+			return ""
+		}
+		return x.String()
+	case *models.Dec4:
 		if x == nil {
 			return ""
 		}

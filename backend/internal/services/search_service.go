@@ -11,8 +11,8 @@ import (
 	"github.com/fpirim/fikopar/backend/internal/repository"
 )
 
-// Search is the top-bar search: cards (with their current account) and document numbers.
-// Parts arrive with the catalog (F2).
+// Search is the top-bar search: cards (with their current account), parts (catalog search ranking) and
+// document numbers.
 func (s *ReportService) Search(ctx context.Context, orgID uint, term string, limit int) (*models.SearchResult, error) {
 	term = strings.TrimSpace(term)
 	switch {
@@ -32,7 +32,15 @@ func (s *ReportService) Search(ctx context.Context, orgID uint, term string, lim
 	if err != nil {
 		return nil, err
 	}
-	return &models.SearchResult{Accounts: accounts, Parts: []any{}, Documents: docs}, nil
+	res := &models.SearchResult{Accounts: accounts, Parts: []models.CatalogHit{}, Documents: docs}
+	if len([]rune(term)) <= 60 {
+		parts, err := searchCatalog(q, orgID, SearchRequest{Q: term, Limit: limit})
+		if err != nil {
+			return nil, err
+		}
+		res.Parts = parts.Items
+	}
+	return res, nil
 }
 
 // SicilSummary is the credit panel of a card as of a date (today when nil).

@@ -1,0 +1,137 @@
+{
+  "title": "Stock counts",
+  "none": "No counts yet.",
+  "allCounts": "All counts",
+  "depotN": "Depot {{code}}",
+  "list": {
+    "countNo": "Count",
+    "depot": "Depot",
+    "countDate": "Count date",
+    "status": "Status",
+    "progress": "Counted",
+    "differences": "Differences",
+    "value": "Value"
+  },
+  "status": {
+    "OPEN": "IN PROGRESS",
+    "FINALIZED": "FINALIZED",
+    "CANCELLED": "CANCELLED"
+  },
+  "start": {
+    "button": "Start count",
+    "title": "Start a stock count",
+    "depot": "Depot",
+    "countDate": "Count date",
+    "shelfFrom": "Shelf from",
+    "shelfTo": "Shelf to",
+    "shelfHint": "Empty = every part with stock or a shelf in the depot.",
+    "submit": "Start",
+    "openExists": "Depot {{code}} already has an open count:"
+  },
+  "head": {
+    "started": "Depot {{code}} · started {{date}}",
+    "countDate": "count date {{date}}",
+    "lines": "{{counted}} / {{total}} lines",
+    "progress": "Counted lines"
+  },
+  "sheet": {
+    "button": "Count sheet PDF",
+    "BLIND": "Blind sheet",
+    "WITH_SYSTEM": "Sheet with system quantity",
+    "NOT_COUNTED": "Recount sheet (not counted)"
+  },
+  "only": {
+    "label": "Show",
+    "DIFFERENCES": "Differences only",
+    "NOT_COUNTED": "Not counted",
+    "COUNTED": "Counted"
+  },
+  "shelfFrom": "Shelf from",
+  "shelfTo": "Shelf to",
+  "hint": {
+    "type": "type to count",
+    "next": "next row",
+    "undo": "undo",
+    "saved": "autosaved"
+  },
+  "col": {
+    "shelf": "Shelf",
+    "part": "Part",
+    "name": "Description",
+    "system": "System",
+    "counted": "Counted",
+    "difference": "Difference",
+    "value": "Value",
+    "countedBy": "Counted by"
+  },
+  "filter": {
+    "startsWith": "Starts with…",
+    "blank": "=",
+    "counter": "Name"
+  },
+  "countedOf": "Counted {{no}}",
+  "shelfSuffix": "shelf {{shelf}}",
+  "flag": {
+    "moved": "MOVED {{qty}}",
+    "movedTitle": "{{qty}} moved since the count started; recount this part",
+    "LIST_PRICE": "LIST",
+    "LIST_PRICETitle": "No purchase cost; valued at list price",
+    "NONE": "NO COST",
+    "NONETitle": "No purchase cost and no list price; not valued"
+  },
+  "save": {
+    "saving": "Saving",
+    "saved": "Saved",
+    "failed": "Not saved: {{reason}}",
+    "invalid": "Enter a quantity of 0 or more"
+  },
+  "conflict": {
+    "title": "Counted by someone else",
+    "message": "{{by}} counted {{qty}} for {{no}} at {{time}}. You entered {{mine}}.",
+    "keep": "Keep {{qty}}",
+    "take": "Use {{qty}}"
+  },
+  "post": {
+    "button": "Post differences",
+    "title": "Post differences · {{no}}",
+    "counted": "Counted lines",
+    "notCounted": "Not counted",
+    "differences": "Lines with a difference",
+    "valueIn": "Value in",
+    "valueOut": "Value out",
+    "net": "Net",
+    "costNote": "Valued at the last purchase cost as of {{date}}.",
+    "unvalued_one": "{{count}} line is valued at list price or has no cost.",
+    "unvalued_other": "{{count}} lines are valued at list price or have no cost.",
+    "uncounted": "Lines not counted",
+    "SKIP": "Leave unchanged",
+    "ZERO": "Count as 0",
+    "submit": "Post",
+    "posted_one": "{{no}} posted · {{count}} adjustment",
+    "posted_other": "{{no}} posted · {{count}} adjustments",
+    "negative": "Negative stock after posting",
+    "negativeLine": "{{no}} · Depot {{code}}: {{qty}}",
+    "done": "Done"
+  },
+  "cancel": {
+    "button": "Cancel count",
+    "title": "Cancel {{no}}",
+    "reason": "Reason",
+    "reasonShort": "Enter at least 3 characters",
+    "submit": "Cancel count",
+    "keep": "Keep counting",
+    "cancelled": "{{no}} cancelled"
+  },
+  "stale": {
+    "title": "The count changed",
+    "message": "Someone posted or cancelled this count. Reload to see it."
+  },
+  "add": {
+    "button": "Add part",
+    "title": "Add a part to {{no}}",
+    "part": "Stock no or code",
+    "counted": "Counted",
+    "submit": "Add",
+    "added": "{{no}} added to the count"
+  }
+}

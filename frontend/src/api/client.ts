@@ -57,7 +57,8 @@ async function send(method: string, path: string, opts: RequestOptions): Promise
   const headers = new Headers({ Accept: opts.accept ?? 'application/json' })
   const token = localStorage.getItem('token')
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  if (opts.body !== undefined) headers.set('Content-Type', 'application/json')
+  const form = opts.body instanceof FormData
+  if (opts.body !== undefined && !form) headers.set('Content-Type', 'application/json')
   if (opts.ifMatch) headers.set('If-Match', opts.ifMatch)
   if (method === 'POST' && !opts.safe) {
     headers.set('Idempotency-Key', opts.idempotencyKey ?? newIdempotencyKey())
@@ -65,7 +66,10 @@ async function send(method: string, path: string, opts: RequestOptions): Promise
   const res = await fetch(buildUrl(path, opts.query), {
     method,
     headers,
-    body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    body:
+      form || opts.body === undefined
+        ? (opts.body as FormData | undefined)
+        : JSON.stringify(opts.body),
     signal: opts.signal,
   })
   if (!res.ok) throw await toError(res)

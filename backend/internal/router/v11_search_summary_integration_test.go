@@ -151,6 +151,7 @@ func TestV11_GlobalSearchFindsCardsWithAccountsAndDocuments(t *testing.T) {
 	assert.Equal(t, "2026-03-20", d.Date)
 	assert.Equal(t, "100.00", d.Amount)
 	assert.Equal(t, f.depot, d.DepotID)
+	assert.Empty(t, search("q=TAH_2026").Documents, "LIKE wildcards are literal")
 
 	other := f.seedOrg(t, "search-other", f.userID)
 	rec := f.do(t, http.MethodGet, orgPath(other, "/search?q=firma"), f.token, "")
