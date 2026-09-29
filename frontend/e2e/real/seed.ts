@@ -16,6 +16,10 @@ export interface Seeded {
   depots: Record<string, number>
   accounts: Record<string, number>
   sicils: Record<string, number>
+  // v1.2 catalog and stock: catalog code → id, stock no → part id, the open count of depot 2.
+  catalogs: Record<string, number>
+  parts: Record<string, number>
+  openCountId: number | null
 }
 
 const API = process.env.E2E_API_URL || 'http://localhost:18080'
@@ -107,8 +111,9 @@ const money = (n: number) => n.toFixed(2)
 class Api {
   token = ''
 
-  async call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async call<T>(method: string, path: string, body?: unknown, ifMatch?: number): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' }
+    if (ifMatch !== undefined) headers['If-Match'] = `"${ifMatch}"`
     if (this.token) headers.Authorization = `Bearer ${this.token}`
     if (body !== undefined) headers['Content-Type'] = 'application/json'
     if (method === 'POST') headers['Idempotency-Key'] = randomUUID()
@@ -238,7 +243,269 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
   const entries = await api.call<{ items: unknown[] }>('GET', `${o}/ledger/entries?limit=1`)
   if (entries.items.length === 0) await activity(api, o, depot, acc, sic)
 
-  return { token: api.token, orgId, depots: depot, accounts: acc, sicils: sic }
+  const stocked = await stock(api, o, depot)
+  return { token: api.token, orgId, depots: depot, accounts: acc, sicils: sic, ...stocked }
+}
+
+// Parts from the mockups; depot rows are [on hand, min, max, shelf].
+interface SeedPart {
+  stockNo: string
+  name: string
+  catalog: number
+  price: number
+  oem?: string
+  alt?: string
+  d1?: [number, number, number, string]
+  d2?: [number, number, number, string]
+}
+
+const CATALOGS: [number, string][] = [
+  [12, 'Hydraulics 2026'],
+  [20, 'Filters & seals'],
+  [31, 'Transmission'],
+]
+
+const PARTS: SeedPart[] = [
+  {
+    stockNo: 'HP-3702',
+    name: 'Hydraulic pump, 2-cyl.',
+    catalog: 12,
+    price: 9850,
+    oem: '3774611M91',
+    d1: [6, 2, 12, 'A-04-1'],
+    d2: [1, 0, 4, 'H-11-2'],
+  },
+  {
+    stockNo: 'HP-3774',
+    name: 'Hydraulic pump, 3-cyl.',
+    catalog: 12,
+    price: 10700,
+    oem: '3774612M91',
+    alt: 'K9-3774',
+    d1: [12, 6, 20, 'A-04-2'],
+    d2: [2, 2, 8, 'H-11-1'],
+  },
+  {
+    stockNo: 'CL-1150',
+    name: 'Clutch disc 11"',
+    catalog: 31,
+    price: 3650,
+    d1: [3, 8, 16, 'A-05-1'],
+    d2: [2, 2, 6, 'F-05-1'],
+  },
+  {
+    stockNo: 'CL-1210',
+    name: 'Clutch disc 12"',
+    catalog: 31,
+    price: 4100,
+    d1: [5, 2, 10, 'A-05-3'],
+  },
+  {
+    stockNo: 'FL-0092',
+    name: 'Fuel filter set',
+    catalog: 20,
+    price: 265,
+    d1: [12, 40, 80, 'B-01-1'],
+    d2: [30, 20, 60, 'E-01-1'],
+  },
+  {
+    stockNo: 'BR-2210',
+    name: 'Brake lining pair',
+    catalog: 31,
+    price: 375,
+    d1: [0, 10, 30, 'B-02-2'],
+    d2: [6, 4, 12, 'F-02-2'],
+  },
+  {
+    stockNo: 'OF-0457',
+    name: 'Oil filter, hydraulic',
+    catalog: 20,
+    price: 540,
+    d1: [2, 5, 20, 'B-03-1'],
+  },
+  {
+    stockNo: 'GS-4410',
+    name: 'Gasket set, head',
+    catalog: 20,
+    price: 1290,
+    d1: [18, 4, 24, 'A-06-1'],
+  },
+  {
+    stockNo: 'GS-4418',
+    name: 'Gasket set, sump',
+    catalog: 20,
+    price: 640,
+    d1: [9, 2, 12, 'A-06-2'],
+  },
+  {
+    stockNo: 'BE-0620',
+    name: 'V-belt 13×1250',
+    catalog: 31,
+    price: 185,
+    d1: [32, 10, 50, 'A-07-1'],
+    d2: [8, 0, 20, 'F-07-1'],
+  },
+]
+
+const FAMILIES: [string, string, number][] = [
+  ['HV', 'Control valve', 12],
+  ['SE', 'Seal kit', 20],
+  ['BG', 'Bearing', 31],
+]
+
+// Thirty more parts, three families of ten, both depots.
+for (const [f, [prefix, base, catalog]] of FAMILIES.entries()) {
+  for (let i = 0; i < 10; i++) {
+    const n = 1000 + f * 100 + i * 7
+    PARTS.push({
+      stockNo: `${prefix}-${n}`,
+      name: `${base}, ${['small', 'medium', 'large', 'heavy duty', 'kit'][i % 5]}`,
+      catalog,
+      price: 120 + i * 45 + f * 300,
+      oem: i % 2 ? `${n}${prefix}${i}` : undefined,
+      d1: [i + 2, i % 3 ? 0 : 3, 20, `C-${String(i + 1).padStart(2, '0')}-${f + 1}`],
+      d2: [i % 4, 0, 10, `G-${String(i + 1).padStart(2, '0')}-${f + 1}`],
+    })
+  }
+}
+
+interface Row {
+  id: number
+  partId: number
+  version: number
+}
+
+async function count(
+  api: Api,
+  o: string,
+  depotId: number,
+  countDate: string,
+  target: Map<number, number>,
+  finalize: boolean,
+): Promise<number> {
+  const c = await api.call<{ id: number; version: number }>('POST', `${o}/stock/counts`, {
+    depotId,
+    countDate,
+  })
+  const lines = await api.call<{ rows: Row[] }>('POST', `${o}/stock/counts/${c.id}/lines/grid`, {
+    startRow: 0,
+    endRow: 1000,
+  })
+  if (!finalize) return c.id
+  for (const l of lines.rows) {
+    const qty = target.get(l.partId)
+    if (qty === undefined) continue
+    await api.call(
+      'PATCH',
+      `${o}/stock/counts/${c.id}/lines/${l.id}`,
+      { countedQty: String(qty) },
+      l.version,
+    )
+  }
+  await api.call('POST', `${o}/stock/counts/${c.id}/finalize`, { uncounted: 'SKIP' }, c.version)
+  return c.id
+}
+
+async function stock(
+  api: Api,
+  o: string,
+  depot: Record<string, number>,
+): Promise<Pick<Seeded, 'catalogs' | 'parts' | 'openCountId'>> {
+  const listCatalogs = () =>
+    api.call<{ id: number; code: number }[]>('GET', `${o}/catalog/catalogs`)
+  let cats: { id: number; code: number }[]
+  try {
+    cats = await listCatalogs()
+  } catch (e) {
+    // A backend before v1.2 has no catalog: seed the ledger only.
+    if (String(e).includes('→ 404')) return { catalogs: {}, parts: {}, openCountId: null }
+    throw e
+  }
+  const fresh = cats.length === 0
+  for (const [code, name] of CATALOGS) {
+    if (!cats.some((c) => c.code === code)) {
+      await api.call('POST', `${o}/catalog/catalogs`, { code, name })
+    }
+  }
+  cats = await listCatalogs()
+  const catalogs = Object.fromEntries(cats.map((c) => [String(c.code), c.id]))
+
+  const grid = await api.call<{ rows: { id: number; stockNo: string }[] }>(
+    'POST',
+    `${o}/catalog/parts/grid`,
+    { startRow: 0, endRow: 1000, includeInactive: true },
+  )
+  const parts: Record<string, number> = Object.fromEntries(grid.rows.map((r) => [r.stockNo, r.id]))
+  if (!fresh) {
+    const open = await api.call<{ id: number }[]>(
+      'GET',
+      `${o}/stock/counts?status=OPEN&depotId=${depot['2']}`,
+    )
+    return { catalogs, parts, openCountId: open[0]?.id ?? null }
+  }
+
+  for (const p of PARTS) {
+    const codes = [
+      ...(p.oem ? [{ kind: 'OEM', code: p.oem }] : []),
+      ...(p.alt ? [{ kind: 'ALT', code: p.alt }] : []),
+    ]
+    const made = await api.call<{ id: number }>('POST', `${o}/catalog/parts`, {
+      catalogId: catalogs[String(p.catalog)],
+      stockNo: p.stockNo,
+      name: p.name,
+      brand: '[BRAND A]',
+      unit: 'PCS',
+      packageQty: 1,
+      vatPct: '20',
+      codes,
+      initialPrice: { price: money(p.price), validFrom: '2026-01-02' },
+    })
+    parts[p.stockNo] = made.id
+    for (const [d, row] of [
+      ['1', p.d1],
+      ['2', p.d2],
+    ] as const) {
+      if (!row) continue
+      await api.call(
+        'PUT',
+        `${o}/catalog/parts/${made.id}/depots/${depot[d]}`,
+        { minQty: String(row[1]), maxQty: String(row[2]), shelf: row[3] },
+        0,
+      )
+    }
+  }
+
+  // HP-3774 history as in mockup 09, plus a price that starts after today.
+  const hp = parts['HP-3774']
+  for (const [validFrom, price] of [
+    ['2026-04-01', 11600],
+    ['2026-09-01', 12400],
+    ['2026-10-15', 13100],
+  ] as const) {
+    await api.call('POST', `${o}/catalog/parts/${hp}/prices`, { price: money(price), validFrom })
+  }
+
+  // On hand from a January count per depot, then a transfer that drives OF-0457 negative.
+  for (const d of ['1', '2'] as const) {
+    const target = new Map<number, number>()
+    for (const p of PARTS) {
+      const row = d === '1' ? p.d1 : p.d2
+      if (row) target.set(parts[p.stockNo], row[0])
+    }
+    await count(api, o, depot[d], '2026-01-02', target, true)
+  }
+  await api.call('POST', `${o}/stock/transfers`, {
+    fromDepotId: depot['1'],
+    toDepotId: depot['2'],
+    date: '2026-09-15',
+    note: 'Seed transfer',
+    lines: [
+      { partId: parts['HP-3774'], qty: '2' },
+      { partId: parts['OF-0457'], qty: '5' },
+    ],
+  })
+  const openCountId = await count(api, o, depot['2'], '2026-09-28', new Map(), false)
+  return { catalogs, parts, openCountId }
 }
 
 async function activity(
