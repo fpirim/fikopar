@@ -30,11 +30,14 @@ CREATE TABLE depots (
 
 -- One counter per (company, depot, prefix, year). Several document types may share a prefix
 -- (SF: sales invoice with or without waybill). Rendered as SF-2026-1-000418.
+-- Prefix list: docs/domain-model.md, "Number prefixes".
 CREATE TABLE number_series (
   id         bigserial PRIMARY KEY,
   org_id     bigint    NOT NULL,
   depot_id   bigint    NOT NULL,
-  prefix     text      NOT NULL CHECK (prefix ~ '^[A-Z]{1,4}$'),
+  prefix     text      NOT NULL CHECK (prefix IN (
+               'SF','SIR','SI','SIRI','AF','AIR','AI','AIRI','FF','TAH','TED',
+               'AC','AS','BC','BS','GDR','VRM','TRF','SAY','J')),
   year       int       NOT NULL CHECK (year BETWEEN 2000 AND 2999),
   width      int       NOT NULL DEFAULT 6 CHECK (width BETWEEN 4 AND 10),
   next_value bigint    NOT NULL DEFAULT 1 CHECK (next_value > 0),

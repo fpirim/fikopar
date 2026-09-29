@@ -118,7 +118,7 @@ CREATE TABLE stock_movements (
   qty         numeric(18,4) NOT NULL CHECK (qty > 0),
   unit_cost   numeric(18,4) CHECK (unit_cost IS NULL OR unit_cost >= 0),
   source_type text          NOT NULL CHECK (source_type IN ('document','stock_count','transfer','legacy_import')),
-  source_id   text,
+  source_id   text,                            -- document: document_lines.id; stock_count: stock_count_lines.id
   transfer_id bigint,
   movement_date date        NOT NULL,
   occurred_at timestamptz   NOT NULL DEFAULT now(),
@@ -198,10 +198,12 @@ CREATE TABLE stock_count_lines (
   counted_by  bigint        REFERENCES users(id),
   counted_at  timestamptz,
   system_qty  numeric(18,4),                   -- snapshot taken at finalize
-  unit_cost   numeric(18,4),                   -- values the difference; snapshot at finalize
+  unit_cost   numeric(18,4) CHECK (unit_cost IS NULL OR unit_cost >= 0),  -- last_purchase_cost(); snapshot at finalize
+  cost_source text          CHECK (cost_source IN ('LAST_PURCHASE','LIST_PRICE','NONE')),
   version     int           NOT NULL DEFAULT 1,
   UNIQUE (count_id, part_id, shelf),
   FOREIGN KEY (org_id, count_id) REFERENCES stock_counts (org_id, id) ON DELETE CASCADE,
   FOREIGN KEY (org_id, part_id)  REFERENCES parts (org_id, id),
-  CHECK ((counted_qty IS NULL) = (counted_at IS NULL))
+  CHECK ((counted_qty IS NULL) = (counted_at IS NULL)),
+  CHECK ((unit_cost IS NULL) = (cost_source IS NULL OR cost_source = 'NONE'))
 );

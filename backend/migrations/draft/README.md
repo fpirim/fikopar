@@ -5,3 +5,6 @@ Not wired. The app still uses GORM `AutoMigrate` for the existing tables (`organ
 real migration tool when F1 starts. Provisional; revised against the live-system inventory.
 
 Apply in order: `0001_common.sql` … `0006_migration.sql`. `sicils`, `users` and `organizations` must exist first.
+
+`check/run.sh` applies them to a throwaway `postgres:16` (with stub `organizations`, `users`, `sicils`) and
+runs `check/invariants.sql`.

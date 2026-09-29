@@ -1139,7 +1139,9 @@ paths:
       tags: [Documents]
       operationId: postDocument
       summary: DRAFT → POSTED; allocates the number, emits DocumentPosted (ledger entry and stock movements follow)
-      description: 422 ERR_INSUFFICIENT_STOCK unless the depot allows negative stock; 422 ERR_CREDIT_LIMIT_EXCEEDED over the card's limit.
+      description: |
+        422 ERR_INSUFFICIENT_STOCK unless the depot allows negative stock; 422 ERR_CREDIT_LIMIT_EXCEEDED over the card's limit;
+        422 ERR_WAYBILL_INVALID when `waybillDocumentId` is not a POSTED, unbilled waybill of the matching type, sicil and depot.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
@@ -1158,6 +1160,7 @@ paths:
       tags: [Documents]
       operationId: cancelDocument
       summary: Cancel; a POSTED document is cancelled by reversal entries and opposite stock movements
+      description: 409 ERR_WAYBILL_BILLED for a waybill billed by a document that is not cancelled.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
@@ -2426,6 +2429,8 @@ components:
         - ERR_DOCUMENT_EMPTY
         - ERR_DOCUMENT_NOT_DRAFT
         - ERR_LINKED_DOCUMENT_INVALID
+        - ERR_WAYBILL_INVALID
+        - ERR_WAYBILL_BILLED
         - ERR_CREDIT_LIMIT_EXCEEDED
         - ERR_INSTRUMENT_NOT_FOUND
         - ERR_INSTRUMENT_DUPLICATE
@@ -2762,12 +2767,8 @@ components:
         version: { type: integer }
     NumberPrefix:
       type: string
-      description: |
-        SF sales invoice (with or without waybill), SIR sales waybill, SI sales return, AF purchase invoice,
-        AIR purchase waybill, AI purchase return, FF price difference, TAH collection, TED payment,
-        AC / AS receivable cheque / note, BC / BS payable cheque / note, GDR expense, VRM bank transfer,
-        TRF stock transfer, SAY stock count, J journal entry.
-      enum: [SF, SIR, SI, AF, AIR, AI, FF, TAH, TED, AC, AS, BC, BS, GDR, VRM, TRF, SAY, J]
+      description: 'Meaning per prefix: docs/domain-model.md, "Number prefixes". Imported legacy numbers keep their own format.'
+      enum: [SF, SIR, SI, SIRI, AF, AIR, AI, AIRI, FF, TAH, TED, AC, AS, BC, BS, GDR, VRM, TRF, SAY, J]
 
     AccountType: { type: string, enum: [ASSET, LIABILITY, EQUITY, INCOME, EXPENSE] }
     Side: { type: string, enum: [DEBIT, CREDIT] }
@@ -3007,17 +3008,20 @@ components:
     DocumentType:
       type: string
       description: |
-        Waybills move stock only; price-difference invoices post to the ledger only and take their direction
-        (sales or purchase) from the linked document. Returns post to the ledger and move stock back.
+        Waybills (including return waybills) move stock only. Price-difference invoices post to the ledger only and
+        take their direction (sales or purchase) from the linked document. Returns post to the ledger and move stock
+        back, unless they bill a return waybill. An invoice or return that bills a waybill never moves stock.
       enum:
         - SALES_INVOICE_WITH_WAYBILL
         - SALES_INVOICE
         - SALES_WAYBILL
         - SALES_RETURN
+        - SALES_RETURN_WAYBILL
         - PURCHASE_INVOICE_WITH_WAYBILL
         - PURCHASE_INVOICE
         - PURCHASE_WAYBILL
         - PURCHASE_RETURN
+        - PURCHASE_RETURN_WAYBILL
         - PRICE_DIFFERENCE
     DocumentStatus: { type: string, enum: [DRAFT, POSTED, CANCELLED] }
     DocumentLineWrite:
@@ -3056,7 +3060,13 @@ components:
         shipDate: { type: string, format: date }
         dueDate: { type: string, format: date, description: Defaults to documentDate + the card's payment term }
         salesRepUserId: { type: [integer, 'null'] }
-        linkedDocumentId: { type: [integer, 'null'], description: 'Waybill being invoiced, original of a return or price difference' }
+        linkedDocumentId: { type: [integer, 'null'], description: 'Original of a return, return waybill or price difference' }
+        waybillDocumentId:
+          type: [integer, 'null']
+          description: >-
+            Waybill being billed. SALES_INVOICE → SALES_WAYBILL, PURCHASE_INVOICE → PURCHASE_WAYBILL,
+            SALES_RETURN → SALES_RETURN_WAYBILL, PURCHASE_RETURN → PURCHASE_RETURN_WAYBILL; same sicil and depot,
+            POSTED, billed once. The billing document does not move stock.
         description: { type: string }
         lines: { type: array, items: { $ref: '#/components/schemas/DocumentLineWrite' }, description: May be empty while DRAFT }
     DocumentSummary:
@@ -3092,6 +3102,9 @@ components:
         salesRepUserId: { type: [integer, 'null'] }
         linkedDocumentId: { type: [integer, 'null'] }
         linkedDocumentNo: { type: [string, 'null'] }
+        waybillDocumentId: { type: [integer, 'null'] }
+        waybillDocumentNo: { type: [string, 'null'] }
+        billedByDocumentId: { type: [integer, 'null'], description: 'Waybills: the invoice or return that bills it' }
         currency: { $ref: '#/components/schemas/Currency' }
         grossTotal: { $ref: '#/components/schemas/Money', description: Σ qty × unit price }
         discountTotal: { $ref: '#/components/schemas/Money' }
@@ -3523,7 +3536,7 @@ components:
         shelfTo: { type: string }
     StockCountLine:
       type: object
-      required: [id, partId, stockNo, name, shelf, systemQty, version]
+      required: [id, partId, stockNo, name, shelf, systemQty, costSource, version]
       properties:
         id: { type: integer }
         partId: { type: integer }
@@ -3533,7 +3546,14 @@ components:
         systemQty: { $ref: '#/components/schemas/Quantity', description: 'Live while OPEN, snapshot after posting' }
         countedQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }], description: Null = not counted }
         difference: { type: [string, 'null'], pattern: '^-?\d{1,14}(\.\d{1,4})?$' }
-        value: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }], description: difference × unit cost }
+        unitCost:
+          oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }]
+          description: Last purchase cost (docs/domain-model.md); live while OPEN, snapshot after posting
+        costSource:
+          type: string
+          enum: [LAST_PURCHASE, LIST_PRICE, NONE]
+          description: LIST_PRICE and NONE are flagged in the grid; NONE leaves value null
+        value: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }], description: difference × unitCost }
         countedBy: { type: [string, 'null'], description: User login }
         countedAt: { type: [string, 'null'], format: date-time }
         version: { type: integer }
@@ -3549,7 +3569,8 @@ components:
             startedAt: { type: string, format: date-time }
             lineCount: { type: integer }
             countedCount: { type: integer, description: 'Progress "412 / 1,280"' }
-            differenceValue: { $ref: '#/components/schemas/Money' }
+            differenceValue: { $ref: '#/components/schemas/Money', description: Σ line value at last purchase cost }
+            unvaluedLines: { type: integer, description: Lines with a difference and costSource LIST_PRICE or NONE }
             uncounted: { type: [string, 'null'], enum: [SKIP, ZERO, null] }
             finalizedAt: { type: [string, 'null'], format: date-time }
             version: { type: integer }
