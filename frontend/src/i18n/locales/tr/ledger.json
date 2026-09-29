@@ -13,6 +13,7 @@
     "RECEIVABLE_NOTE": "ALACAK SENEDİ",
     "PAYABLE_CHEQUE": "BORÇ ÇEKİ",
     "PAYABLE_NOTE": "BORÇ SENEDİ",
+    "manual": "YEVMİYE",
     "opening": "AÇILIŞ"
   },
   "depotN": "Depo {{id}}",

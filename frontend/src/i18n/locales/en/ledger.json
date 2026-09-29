@@ -13,6 +13,7 @@
     "RECEIVABLE_NOTE": "RCV. NOTE",
     "PAYABLE_CHEQUE": "PAY. CHEQUE",
     "PAYABLE_NOTE": "PAY. NOTE",
+    "manual": "JOURNAL",
     "opening": "OPENING"
   },
   "depotN": "Depot {{id}}",

@@ -184,6 +184,7 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
           anyLabel: t('grid:fk.any'),
           options: SUBTYPES.map((s) => ({ value: s, label: t(`docType.${s}`) })),
         }),
+        valueGetter: (p) => p.data?.subtype ?? (p.data?.sourceType === 'manual' ? 'manual' : null),
         cellRenderer: (p: ICellRendererParams<StatementLine>) =>
           p.data?.resetsBalance && !p.node.rowPinned ? (
             <Chip tone="grey">{t('statement.opening')}</Chip>
