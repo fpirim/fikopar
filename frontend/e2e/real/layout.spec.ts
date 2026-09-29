@@ -34,3 +34,11 @@ for (const lang of ['en', 'tr'] as const) {
     },
   )
 }
+
+test('the sidebar version comes from the API health check', async ({ page }) => {
+  const health = page.waitForResponse((r) => new URL(r.url()).pathname === '/healthz')
+  await page.goto('/')
+  const res = await health
+  expect(res.status()).toBe(200)
+  expect(await res.json()).toMatchObject({ status: 'ok' })
+})
