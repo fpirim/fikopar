@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
 	"github.com/fpirim/fikopar/backend/internal/repository"
@@ -31,7 +32,7 @@ type authResponse struct {
 
 func (h *AuthHandler) Login(c echo.Context) error {
 	var req loginRequest
-	if err := c.Bind(&req); err != nil {
+	if err := c.Bind(&req); err != nil || strings.TrimSpace(req.Email) == "" || req.Password == "" {
 		return apierror.Respond(c, apierror.InvalidRequest)
 	}
 
