@@ -75,6 +75,7 @@
     "range_hint": "Aralık…",
     "positive": "> 0",
     "nonZero": "≠ 0",
-    "total": "Toplam"
+    "total": "Toplam",
+    "filterCol": "{{col}} filtresi"
   }
 }

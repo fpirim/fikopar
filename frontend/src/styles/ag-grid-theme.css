@@ -125,3 +125,7 @@
 .ag-theme-alpine.fk-grid a:hover {
   color: var(--fk-accent-hover);
 }
+
+.ag-theme-alpine.fk-grid .ag-row {
+  font-size: var(--fk-text-grid);
+}

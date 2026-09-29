@@ -75,6 +75,7 @@
     "range_hint": "Range…",
     "positive": "> 0",
     "nonZero": "≠ 0",
-    "total": "Total"
+    "total": "Total",
+    "filterCol": "Filter {{col}}"
   }
 }

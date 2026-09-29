@@ -14,3 +14,10 @@ describe('cn', () => {
     expect(cn('px-2', 'px-4')).toBe('px-4')
   })
 })
+
+describe('cn with the brand type scale', () => {
+  it('keeps custom sizes next to text colours', () => {
+    expect(cn('text-13', 'text-fk-muted')).toBe('text-13 text-fk-muted')
+    expect(cn('text-13', 'text-sm')).toBe('text-sm')
+  })
+})

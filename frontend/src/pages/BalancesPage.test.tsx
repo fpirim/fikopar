@@ -10,9 +10,9 @@ const location = () => screen.getByTestId('location').textContent
 const firstRow = () => screen.findAllByRole('link', { name: /^120\./ })
 
 async function filterKonyaCustomers() {
-  await userEvent.type(await screen.findByLabelText('Şehir'), 'Konya')
-  await userEvent.selectOptions(screen.getByLabelText('Tip'), 'MUSTERI')
-  await userEvent.type(screen.getByLabelText('Bakiye'), '> 10.000')
+  await userEvent.type(await screen.findByLabelText('Şehir filtresi'), 'Konya')
+  await userEvent.selectOptions(screen.getByLabelText('Tip filtresi'), 'MUSTERI')
+  await userEvent.type(screen.getByLabelText('Bakiye filtresi'), '> 10.000')
   await waitFor(() => expect(pinned()).toHaveTextContent('6 / 412 · 3 filtre'), { timeout: 3000 })
 }
 
@@ -53,15 +53,15 @@ describe('BalancesPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Filtreleri temizle' }))
     await waitFor(() => expect(pinned()).toHaveTextContent('412 / 412'))
-    expect(screen.getByLabelText('Şehir')).toHaveValue('')
+    expect(screen.getByLabelText('Şehir filtresi')).toHaveValue('')
   })
 
   it('formats totals in English', async () => {
     renderApp('/balances?asOf=2026-09-29')
     await i18n.changeLanguage('en')
-    await userEvent.type(await screen.findByLabelText('City'), 'Konya')
-    await userEvent.selectOptions(screen.getByLabelText('Type'), 'MUSTERI')
-    await userEvent.type(screen.getByLabelText('Balance'), '> 10,000')
+    await userEvent.type(await screen.findByLabelText('Filter City'), 'Konya')
+    await userEvent.selectOptions(screen.getByLabelText('Filter Type'), 'MUSTERI')
+    await userEvent.type(screen.getByLabelText('Filter Balance'), '> 10,000')
     await waitFor(() => expect(pinned()).toHaveTextContent('6 of 412 · 3 filters'), {
       timeout: 3000,
     })
@@ -132,13 +132,13 @@ describe('BalancesPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sütunlar' }))
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Şehir' }))
     await waitFor(() =>
-      expect(screen.queryByRole('textbox', { name: 'Şehir' })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('textbox', { name: 'Şehir filtresi' })).not.toBeInTheDocument(),
     )
   })
 
   it('opens the statement from the account link', async () => {
     renderApp('/balances?asOf=2026-09-29&depot=1')
-    await userEvent.type(await screen.findByLabelText('Hesap'), '120.10482')
+    await userEvent.type(await screen.findByLabelText('Hesap filtresi'), '120.10482')
     await userEvent.click(await screen.findByRole('link', { name: '120.10482' }))
     expect(location()).toBe('/statements/5000?depot=1')
   })
