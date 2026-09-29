@@ -271,4 +271,18 @@ func carryForwardPDF(c echo.Context, cf *services.CarryForward) error {
 	return sendFile(c, mimePDF, fmt.Sprintf("carry-forward-%d.pdf", cf.Year), data, err)
 }
 
-func (h *ReportHandler) Dashboard(c echo.Context) error { return notImplemented(c) }
+func (h *ReportHandler) Dashboard(c echo.Context) error {
+	depot, err := queryUint(c, "depotId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	on, err := queryDate(c, "date")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	d, err := h.reports.Dashboard(c.Request().Context(), orgID(c), depot, on)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, d)
+}

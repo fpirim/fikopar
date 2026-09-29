@@ -188,7 +188,10 @@ type dashboardJSON struct {
 		Number string `json:"number"`
 		Amount string `json:"amount"`
 	} `json:"latest"`
-	DueThisWeek   []any       `json:"dueThisWeek"`
+	DueThisWeek   []struct {
+		InstrumentNo string `json:"instrumentNo"`
+		DaysToDue    int    `json:"daysToDue"`
+	} `json:"dueThisWeek"`
 	BelowMin      []levelJSON `json:"belowMin"`
 	BelowMinCount int         `json:"belowMinCount"`
 	NegativeCount int         `json:"negativeCount"`
@@ -216,6 +219,11 @@ func TestV12_DashboardAggregates(t *testing.T) {
 	require.Equal(t, http.StatusOK, f.req(t, http.MethodPut, f.path("/catalog/parts/"+idStr(b)+"/depots/"+idStr(f.depot2)), f.token,
 		`{"minQty":"5"}`, map[string]string{"If-Match": `"0"`}).Code)
 
+	for i, due := range []string{"2026-12-20", "2027-01-03", "2027-03-01"} {
+		require.NoError(t, testDB.Exec(`INSERT INTO instruments (org_id, depot_id, instrument_no, type, serial_no, amount, remaining,
+			issue_date, due_date, sicil_id, status) VALUES (?, ?, ?, 'RECEIVABLE_CHEQUE', ?, 50, 50, '2026-12-01', ?, ?, 'PORTFOLIO')`,
+			f.org, f.depot, fmt.Sprintf("AC-2026-1-00000%d", i+1), fmt.Sprint(i), due, f.sicA).Error)
+	}
 	rec := f.do(t, http.MethodGet, f.path("/dashboard?date=2026-12-31"), f.token, "")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	d := decode[dashboardJSON](t, rec)
@@ -226,10 +234,14 @@ func TestV12_DashboardAggregates(t *testing.T) {
 	assert.Equal(t, 1, d.Payables.Accounts)
 	assert.Equal(t, "100.00", d.Cash.Total)
 	require.Len(t, d.Cash.Depots, 2)
-	assert.Equal(t, "0.00", d.InstrumentsDue30.Total)
-	require.NotEmpty(t, d.Latest)
-	assert.Equal(t, "RECEIPT", d.Latest[0].Kind)
-	assert.NotNil(t, d.DueThisWeek)
+	assert.Equal(t, "100.00", d.InstrumentsDue30.Total)
+	assert.Equal(t, 1, d.InstrumentsDue30.OverdueCount)
+	require.Len(t, d.Latest, 4)
+	assert.Equal(t, "INSTRUMENT", d.Latest[0].Kind)
+	assert.Equal(t, "RECEIPT", d.Latest[3].Kind)
+	require.Len(t, d.DueThisWeek, 2)
+	assert.Equal(t, -11, d.DueThisWeek[0].DaysToDue)
+	assert.Equal(t, 3, d.DueThisWeek[1].DaysToDue)
 	require.Len(t, d.BelowMin, 2)
 	assert.True(t, d.BelowMin[0].Negative, "negative first")
 	assert.Equal(t, b, d.BelowMin[1].PartID)
