@@ -47,6 +47,16 @@ test('10d counts list', async ({ page }) => {
   await page.screenshot({ path: shot('10d-counts-list'), animations: 'disabled' })
 })
 
+test('10f add part', async ({ page }) => {
+  await page.goto('/stock-counts/2')
+  await page.getByRole('button', { name: 'Add part' }).click()
+  await page.getByRole('dialog').getByRole('combobox', { name: 'Part search' }).fill('pump')
+  await expect(
+    page.getByRole('listbox', { name: 'Catalog search results' }).getByRole('option').first(),
+  ).toBeVisible()
+  await page.screenshot({ path: shot('10f-add-part'), animations: 'disabled' })
+})
+
 test.describe('tr', () => {
   test.use({ lang: 'tr' })
   test('10e stock count TR', async ({ page }) => {
