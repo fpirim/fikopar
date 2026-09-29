@@ -251,7 +251,7 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
       iskonto: 10,
       v_dairesi: p.city,
       v_no: '[TAX NO]',
-      credit_limit: p.tipi === 'MUSTERI' ? '250000.00' : null,
+      credit_limit: p.tipi !== 'MUSTERI' ? null : p.no === '10482' ? '400000.00' : '250000.00',
       telefonlar: [{ tipi: 'IS', numara: '+90 332 000 00 00' }],
       sales_rep_user_id: p.no === SALES_REP_CARD ? salesRep.userId : null,
     })

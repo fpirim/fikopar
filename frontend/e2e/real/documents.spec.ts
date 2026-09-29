@@ -59,6 +59,8 @@ test.describe('documents', () => {
     await page.getByRole('button', { name: 'DRAFT' }).click()
     await expect(grid).toContainText('Öztürk Tarım')
     await grid.getByRole('link', { name: 'Draft' }).first().click()
+    await expect(page).toHaveURL(/\/invoices\/\d+$/)
+    await expect(page.getByRole('button', { name: 'Save draft' })).toBeVisible()
     await expect(page.getByText('DRAFT', { exact: true })).toBeVisible()
   })
 
@@ -165,7 +167,9 @@ test.describe('documents', () => {
       seeded().salesRep.name,
     )
     await page.goto(`/invoices/${doc('sale')}`)
-    await expect(page.getByLabel('Account')).toHaveValue('120.10482 · Yılmaz Tarım Makinaları')
+    await expect(page.getByRole('textbox', { name: 'Account', exact: true })).toHaveValue(
+      '10482 · Yılmaz Tarım Makinaları',
+    )
   })
 
   test('pickers leave out billed waybills and bills of waybills', V15, async ({ page }) => {

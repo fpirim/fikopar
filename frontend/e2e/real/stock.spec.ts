@@ -32,8 +32,9 @@ test.describe('catalog and stock', () => {
       const moves = grid(page)
       await expect(moves).toContainText(/TRF-2026-/)
       await expect(moves).toContainText(/SAY-2026-/)
-      // 12 counted in depot 1 and 2 in depot 2; the transfer moves stock between them.
-      await expect(moves.locator('.ag-row').first()).toContainText('14')
+      // 12 counted in depot 1 and 2 in depot 2, the transfer moves stock between them, the seeded
+      // purchase adds 5; later sales depend on the document specs, so the purchase row is checked.
+      await expect(moves.locator('.ag-row', { hasText: /AF-2026-/ })).toContainText('19')
     },
   )
 
