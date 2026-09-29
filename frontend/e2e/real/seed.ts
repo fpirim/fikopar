@@ -1,6 +1,7 @@
 // Synthetic demo data for a real backend, written through the public API only (no SQL).
 // Mirrors the MSW mockups: Demo Company A, depots 1 and 2, the featured accounts, 2025 activity
-// that carries into 2026, and a few 2026 receipts and till vouchers. Safe to run twice.
+// that carries into 2026, and a few 2026 receipts and till vouchers. Safe to run twice; the e2e
+// global setup passes a fresh slug so every run starts from an empty company.
 //
 //   E2E_API_URL=http://localhost:18080 node --experimental-strip-types e2e/real/seed.ts
 
@@ -172,7 +173,7 @@ async function sicils(api: Api, o: string): Promise<Record<string, number>> {
   return Object.fromEntries(grid.rows.map((s) => [s.hesap_no, s.id]))
 }
 
-export async function seed(): Promise<Seeded> {
+export async function seed(slug = 'demo-a'): Promise<Seeded> {
   const api = new Api()
   api.token = (
     await api.call<{ token: string }>('POST', '/api/auth/login', {
@@ -181,7 +182,7 @@ export async function seed(): Promise<Seeded> {
     })
   ).token
 
-  const orgId = await org(api, 'Demo Company A', 'demo-a')
+  const orgId = await org(api, 'Demo Company A', slug)
   await org(api, 'Demo Company B', 'demo-b')
   const o = `/api/orgs/${orgId}`
   const depot = await depots(api, o)
