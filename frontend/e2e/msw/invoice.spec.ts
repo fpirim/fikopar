@@ -182,6 +182,26 @@ test('a user without admin rights cannot override the credit limit', async ({ pa
   await expect(page.getByText('DRAFT', { exact: true })).toBeVisible()
 })
 
+test('Esc on the credit limit and cancel dialogs gives the focus back to their button', async ({
+  page,
+}) => {
+  await page.goto('/invoices/1002')
+  const post = page.getByRole('button', { name: 'Post' })
+  await post.click()
+  await expect(page.getByRole('alertdialog')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
+  await expect(post).toBeFocused()
+
+  await page.goto('/invoices/391')
+  const cancel = page.getByRole('button', { name: 'Cancel document' })
+  await cancel.click()
+  await expect(page.getByLabel('Reason')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(cancel).toBeFocused()
+})
+
 test('cancel asks a reason and shows the reversal; returns block the original', async ({
   page,
 }) => {
