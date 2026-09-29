@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fikopar.example.com/schemas/events/InstrumentStatusChanged.schema.json",
+  "$id": "https://fikopar.fpirim.me/schemas/events/InstrumentStatusChanged.schema.json",
   "title": "InstrumentStatusChanged",
   "description": "A cheque or note moved along its state machine.",
   "allOf": [
@@ -30,7 +30,8 @@
         "currency",
         "dueDate",
         "toStatus",
-        "seq"
+        "seq",
+        "remaining"
       ],
       "properties": {
         "instrumentId": {
@@ -53,6 +54,7 @@
             "DEPOSIT_TO_BANK",
             "COLLECT_AT_BANK",
             "COLLECT_BY_HAND",
+            "BOUNCE",
             "ENDORSE",
             "PROTEST",
             "RETURN",
@@ -62,6 +64,19 @@
         "amount": {
           "type": "string",
           "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+        },
+        "settledAmount": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$",
+          "description": "Collected or paid in this step"
+        },
+        "remaining": {
+          "type": "string",
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$",
+          "description": "amount − Σ settled after this step"
         },
         "currency": {
           "type": "string",
@@ -81,7 +96,9 @@
           "enum": [
             "PORTFOLIO",
             "DEPOSITED",
+            "PARTIALLY_COLLECTED",
             "COLLECTED",
+            "BOUNCED",
             "ENDORSED",
             "PROTESTED",
             "RETURNED",

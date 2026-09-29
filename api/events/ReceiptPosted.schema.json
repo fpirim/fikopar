@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fikopar.example.com/schemas/events/ReceiptPosted.schema.json",
+  "$id": "https://fikopar.fpirim.me/schemas/events/ReceiptPosted.schema.json",
   "title": "ReceiptPosted",
   "description": "A collection or payment receipt was issued (cash receipts also hit the cash book).",
   "allOf": [
@@ -50,7 +50,9 @@
           "enum": [
             "CASH",
             "BANK_TRANSFER",
-            "INSTRUMENT"
+            "CHEQUE",
+            "NOTE",
+            "ENDORSEMENT"
           ]
         },
         "origin": {

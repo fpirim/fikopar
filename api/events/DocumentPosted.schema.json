@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fikopar.example.com/schemas/events/DocumentPosted.schema.json",
+  "$id": "https://fikopar.fpirim.me/schemas/events/DocumentPosted.schema.json",
   "title": "DocumentPosted",
-  "description": "A trade document was posted. Consumers: ledger (skipped for waybills), stock (skipped for price-difference invoices and for invoices whose linked waybill already moved the goods).",
+  "description": "A trade document was posted. Consumers: ledger (skipped for waybills), stock (skipped for price differences and for invoices whose linked waybill already moved the goods).",
   "allOf": [
     {
       "$ref": "envelope.schema.json"
@@ -31,7 +31,8 @@
         "movesStock",
         "currency",
         "grandTotal",
-        "lines"
+        "lines",
+        "direction"
       ],
       "properties": {
         "documentId": {
@@ -42,19 +43,23 @@
         },
         "documentType": {
           "enum": [
-            "SALES_INVOICE",
             "SALES_INVOICE_WITH_WAYBILL",
+            "SALES_INVOICE",
             "SALES_WAYBILL",
-            "PURCHASE_INVOICE",
+            "SALES_RETURN",
             "PURCHASE_INVOICE_WITH_WAYBILL",
+            "PURCHASE_INVOICE",
             "PURCHASE_WAYBILL",
-            "SALES_RETURN_INVOICE",
-            "SALES_RETURN_WAYBILL",
-            "PURCHASE_RETURN_INVOICE",
-            "PURCHASE_RETURN_WAYBILL",
-            "SALES_PRICE_DIFFERENCE",
-            "PURCHASE_PRICE_DIFFERENCE"
+            "PURCHASE_RETURN",
+            "PRICE_DIFFERENCE"
           ]
+        },
+        "direction": {
+          "enum": [
+            "SALES",
+            "PURCHASE"
+          ],
+          "description": "For PRICE_DIFFERENCE, taken from the linked document"
         },
         "sicilId": {
           "type": "integer"
@@ -86,11 +91,15 @@
           "type": "string",
           "pattern": "^[A-Z]{3}$"
         },
-        "subtotal": {
+        "grossTotal": {
           "type": "string",
           "pattern": "^-?\\d{1,16}\\.\\d{2}$"
         },
         "discountTotal": {
+          "type": "string",
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+        },
+        "netTotal": {
           "type": "string",
           "pattern": "^-?\\d{1,16}\\.\\d{2}$"
         },

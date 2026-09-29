@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fikopar.example.com/schemas/events/StockMoved.schema.json",
+  "$id": "https://fikopar.fpirim.me/schemas/events/StockMoved.schema.json",
   "title": "StockMoved",
   "description": "Stock on hand changed for one part in one depot.",
   "allOf": [

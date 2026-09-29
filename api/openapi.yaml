@@ -5,8 +5,8 @@ info:
   summary: B2B trade, ledger and instrument management for a spare-parts distributor.
   description: |
     **DRAFT / provisional.** Revised against the live JHipster (v2) inventory; see `docs/domain-model.md`.
-    `Identity`, `Users`, `Admin`, `Sicil`, `Uploads` and `Health` exist today. `Ledger`, `Documents`,
-    `Receipts`, `Instruments`, `Catalog`, `Stock` and `Audit` are planned.
+    `Identity`, `Users`, `Admin`, `Uploads` and `Health` exist today. `Sicil` exists under `/api/sicil`
+    and moves under `/api/orgs/{orgId}` in F1. Everything else is planned. Screen coverage: `docs/screens.md`.
 
     Conventions
     - **Errors** are language-agnostic: `{"code": "ERR_…"}` plus optional `detail`, `field`, `traceId`.
@@ -16,20 +16,22 @@ info:
       `403 ERR_FORBIDDEN`; the `user` role never sees other companies' data.
     - **Tenancy**: new endpoints are scoped by path `/api/orgs/{orgId}/…`; most also carry a depot.
     - **Dates**: date ranges are inclusive on both ends; years are calendar years.
-    - **Exports**: reports and printable documents honour `Accept: application/pdf` or the XLSX media type.
+    - **Exports**: reports and printable documents honour `Accept: application/pdf`. Grid endpoints return
+      every filtered row as XLSX when `Accept` is the XLSX media type (server-side Excel). CSV is built in the client.
+    - **Numbers**: `PREFIX-YEAR-DEPOT-COUNTER`, e.g. `SF-2026-1-000418`; one counter per company, depot, prefix and year.
     - **Money** is a decimal string (`"1250.00"`), never a JSON number.
     - **Idempotency**: unsafe POSTs in new contexts require `Idempotency-Key`. A replay with the same key
       and body returns the original response with `Idempotent-Replayed: true`.
     - **Optimistic locking**: responses carry `ETag: "<version>"`; updates and state transitions
       require `If-Match` (`428` if missing, `412` if stale).
-    - **Pagination**: grid endpoints use the AG-Grid server-side model (`startRow/endRow`), list
-      endpoints use keyset `limit` + `cursor`.
+    - **Pagination**: grid endpoints take AG Grid Community infinite-model blocks (`startRow/endRow`),
+      list endpoints use keyset `limit` + `cursor`. Column filters are AND-combined; `search` is OR across columns.
   license:
     name: Apache-2.0
     identifier: Apache-2.0
 servers:
-  - url: https://fikopar.example.com
-    description: Example deployment
+  - url: https://fikopar.fpirim.me
+    description: Demo, synthetic data
   - url: http://localhost:8080
     description: Local development
 security:
@@ -59,6 +61,12 @@ tags:
     description: Cheques and promissory notes (çek/senet)
   - name: Receipts
     description: Collection and payment receipts (makbuz) and the cash book
+  - name: Cash
+    description: Cash book, expenses, bank deposits, till counts
+  - name: Dashboard
+    description: Aggregates for the start page and global search
+  - name: Migration
+    description: COBOL import runs and reconciliation
   - name: Audit
     description: Append-only audit trail
 
@@ -122,6 +130,26 @@ paths:
                   user: { $ref: '#/components/schemas/User' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/auth/demo:
+    post:
+      tags: [Identity]
+      operationId: loginDemo
+      summary: Sign in as the demo user (demo deployments only, rate limited)
+      security: []
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, user]
+                properties:
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+                  resetAt: { type: string, format: date-time, description: Next nightly reset }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/uploads/avatars/{filename}:
     get:
@@ -189,22 +217,17 @@ paths:
         '200': { $ref: '#/components/responses/UserResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
-  /api/sicil/grid:
+  /api/orgs/{orgId}/sicils/grid:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
     post:
       tags: [Sicil]
       operationId: gridSicil
-      summary: Server-side grid of account cards for one organization
+      summary: Grid of account cards; XLSX via Accept
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/GridRequest'
-                - type: object
-                  required: [organization_id]
-                  properties:
-                    organization_id: { type: integer, minimum: 1 }
+            schema: { $ref: '#/components/schemas/GridRequest' }
       responses:
         '200':
           description: One page of rows
@@ -216,10 +239,13 @@ paths:
                   - type: object
                     properties:
                       rows: { type: array, items: { $ref: '#/components/schemas/Sicil' } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { $ref: '#/components/schemas/Xlsx' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-  /api/sicil:
+  /api/orgs/{orgId}/sicils:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
     post:
       tags: [Sicil]
       operationId: createSicil
@@ -239,8 +265,10 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
-  /api/sicil/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
+  /api/orgs/{orgId}/sicils/{sicilId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/SicilId'
     get:
       tags: [Sicil]
       operationId: getSicil
@@ -283,6 +311,61 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/sicils/{sicilId}/summary:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/SicilId'
+    get:
+      tags: [Sicil]
+      operationId: getSicilSummary
+      summary: Balance, overdue, credit use and open instruments of one account card
+      description: Side panel on statement, receipt and invoice screens.
+      parameters:
+        - $ref: '#/components/parameters/DepotIdQuery'
+        - { name: asOf, in: query, schema: { type: string, format: date }, description: Defaults to today }
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SicilSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/orgs/{orgId}/dashboard:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Start page aggregates
+      parameters:
+        - $ref: '#/components/parameters/DepotIdQuery'
+        - { name: date, in: query, schema: { type: string, format: date }, description: Defaults to today }
+      responses:
+        '200':
+          description: Aggregates
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orgs/{orgId}/search:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Dashboard]
+      operationId: globalSearch
+      summary: Top-bar search over account cards, parts and document numbers
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 5 }, description: Per group }
+      responses:
+        '200':
+          description: Hits grouped by kind
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/admin/users:
     get:
@@ -533,9 +616,10 @@ paths:
     get:
       tags: [Documents]
       operationId: listNumberSeries
-      summary: Number series per document kind, depot and year
+      summary: Number series per prefix, depot and year; `nextValue` previews the next number
       parameters:
         - { name: year, in: query, schema: { type: integer } }
+        - { name: prefix, in: query, schema: { type: string } }
         - $ref: '#/components/parameters/DepotIdQuery'
       responses:
         '200':
@@ -552,7 +636,7 @@ paths:
     patch:
       tags: [Documents]
       operationId: updateNumberSeries
-      summary: Change prefix or width (admin); the counter only moves forward
+      summary: Change width or move the counter forward (admin)
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
@@ -561,7 +645,6 @@ paths:
             schema:
               type: object
               properties:
-                prefix: { type: string, pattern: '^[A-Z]{1,4}$' }
                 width: { type: integer, minimum: 4, maximum: 10 }
                 nextValue: { type: integer, description: May only increase }
       responses:
@@ -662,34 +745,86 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Statement' }
             application/pdf:
-              schema: { type: string, contentMediaType: application/pdf }
+              schema: { $ref: '#/components/schemas/Pdf' }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
-              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet }
+              schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-  /api/orgs/{orgId}/ledger/balances:
+  /api/orgs/{orgId}/ledger/balances/grid:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
-    get:
+    post:
       tags: [Ledger]
-      operationId: getBalances
-      summary: Account balances as of a date (cari toplam), end date inclusive
-      parameters:
-        - { name: asOf, in: query, required: true, schema: { type: string, format: date } }
-        - $ref: '#/components/parameters/DepotIdQuery'
-        - { name: sicilTipi, in: query, schema: { $ref: '#/components/schemas/SicilTipi' } }
-        - { name: nonZeroOnly, in: query, schema: { type: boolean, default: true } }
+      operationId: gridBalances
+      summary: Current-account balances as of a date (cari toplam); end date inclusive
+      description: |
+        Columns: accountCode, name, city, sicilTipi, debit, credit, balance, overdue, lastMoveDate; all filterable.
+        `totals` sums the filtered rows (pinned row). XLSX via Accept.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/GridRequest'
+                - type: object
+                  required: [asOf]
+                  properties:
+                    asOf: { type: string, format: date }
+                    depotId: { type: [integer, 'null'] }
+                    sicilTipi: { oneOf: [{ $ref: '#/components/schemas/SicilTipi' }, { type: 'null' }] }
       responses:
         '200':
-          description: Balances; Excel or PDF via Accept
+          description: One page of balances
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/BalancesReport' }
-            application/pdf:
-              schema: { type: string, contentMediaType: application/pdf }
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/GridResponse'
+                  - type: object
+                    properties:
+                      rows: { type: array, items: { $ref: '#/components/schemas/BalanceRow' } }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
-              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet }
+              schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orgs/{orgId}/ledger/statements/print:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Ledger]
+      operationId: printStatements
+      summary: One PDF with the statements of the selected accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountSelection' }
+      responses:
+        '200':
+          description: PDF
+          content:
+            application/pdf:
+              schema: { $ref: '#/components/schemas/Pdf' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/ledger/reminder-letters:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Ledger]
+      operationId: printReminderLetters
+      summary: Payment reminder letters for the selected accounts (overdue items as of `to`)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountSelection' }
+      responses:
+        '200':
+          description: PDF
+          content:
+            application/pdf:
+              schema: { $ref: '#/components/schemas/Pdf' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/ledger/trial-balance:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
@@ -722,33 +857,118 @@ paths:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/OpeningBalance' } }
         '401': { $ref: '#/components/responses/Unauthorized' }
-  /api/orgs/{orgId}/ledger/opening-balances/carry-forward:
-    parameters: [{ $ref: '#/components/parameters/OrgId' }]
-    post:
+  /api/orgs/{orgId}/ledger/carry-forwards/{year}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/Year'
+    get:
       tags: [Ledger]
-      operationId: carryForwardBalances
-      summary: Post opening entries for `year` from closing balances of `year - 1` (admin)
-      description: One opening entry per (account, depot, year); a repeat returns 409 ERR_ALREADY_CARRIED_FORWARD.
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      operationId: getCarryForward
+      summary: Preview opening entries for `year` from closing balances of `year - 1`; PDF via Accept
+      description: One row per (account, depot) with a non-zero closing balance or an override.
+      parameters:
+        - $ref: '#/components/parameters/DepotIdQuery'
+      responses:
+        '200':
+          description: Preview, or the posted result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CarryForward' }
+            application/pdf:
+              schema: { $ref: '#/components/schemas/Pdf' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orgs/{orgId}/ledger/carry-forwards/{year}/overrides:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/Year'
+    put:
+      tags: [Ledger]
+      operationId: setCarryForwardOverride
+      summary: Edit one opening amount before posting (admin); the row shows EDITED
+      description: '`debit` and `credit` both "0.00" skips the row. Removing an override restores the computed amount.'
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [year, depotId]
-              properties:
-                year: { type: integer, minimum: 2000 }
-                depotId: { type: integer }
+            schema: { $ref: '#/components/schemas/CarryForwardOverride' }
       responses:
-        '201':
-          description: Opening entries posted
+        '200':
+          description: Updated preview
           content:
             application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/OpeningBalance' } }
+              schema: { $ref: '#/components/schemas/CarryForward' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Ledger]
+      operationId: deleteCarryForwardOverride
+      summary: Remove an override
+      parameters:
+        - { name: accountId, in: query, required: true, schema: { type: integer } }
+        - { name: depotId, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Updated preview
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CarryForward' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/ledger/carry-forwards/{year}/post:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/Year'
+    post:
+      tags: [Ledger]
+      operationId: postCarryForward
+      summary: Post all opening entries of `year` in one transaction (admin)
+      description: |
+        Blocking checks must pass (422 ERR_CARRY_FORWARD_BLOCKED). One entry per (account, depot) dated 1 January,
+        counter-account OPENING. A repeat returns 409 ERR_ALREADY_CARRIED_FORWARD.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '201':
+          description: Posted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CarryForward' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/ledger/account-roles:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Ledger]
+      operationId: listAccountRoles
+      summary: Accounts used by posting rules (cash, sales, VAT, cheques, opening …)
+      responses:
+        '200':
+          description: Roles
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/AccountRole' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [Ledger]
+      operationId: setAccountRoles
+      summary: Replace the role map (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: array, items: { $ref: '#/components/schemas/AccountRole' } }
+      responses:
+        '200':
+          description: Roles
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/AccountRole' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/ledger/entries:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
@@ -763,6 +983,7 @@ paths:
         - { name: to, in: query, schema: { type: string, format: date } }
         - { name: accountId, in: query, schema: { type: integer } }
         - { name: sourceType, in: query, schema: { $ref: '#/components/schemas/SourceType' } }
+        - { name: q, in: query, schema: { type: string }, description: Entry number or source document number }
       responses:
         '200':
           description: Journal entries, newest first
@@ -799,6 +1020,22 @@ paths:
         '200': { $ref: '#/components/responses/JournalEntryResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/ledger/entries/{entryId}/trail:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - { name: entryId, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Ledger]
+      operationId: getJournalEntryTrail
+      summary: How the entry came to be (audit events, outbox event, deliveries), oldest first
+      responses:
+        '200':
+          description: Trail
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/TrailItem' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/orgs/{orgId}/ledger/entries/{entryId}/reversal:
     parameters:
       - $ref: '#/components/parameters/OrgId'
@@ -806,7 +1043,8 @@ paths:
     post:
       tags: [Ledger]
       operationId: reverseJournalEntry
-      summary: Reverse a manual entry (entries owned by documents, receipts or instruments are reversed through them)
+      summary: Reverse a manual entry
+      description: Entries owned by a document, receipt, instrument or cash voucher return 409 ERR_ENTRY_OWNED_BY_SOURCE; reverse them through the owner.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody: { $ref: '#/components/requestBodies/Reason' }
       responses:
@@ -820,7 +1058,7 @@ paths:
     post:
       tags: [Documents]
       operationId: gridDocuments
-      summary: Grid of trade documents; column filters are AND-combined
+      summary: Grid of trade documents (filters type, status, depot, account, date, amount); XLSX via Accept
       requestBody:
         required: true
         content:
@@ -836,7 +1074,9 @@ paths:
                   - $ref: '#/components/schemas/GridResponse'
                   - type: object
                     properties:
-                      rows: { type: array, items: { $ref: '#/components/schemas/Document' } }
+                      rows: { type: array, items: { $ref: '#/components/schemas/DocumentSummary' } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/orgs/{orgId}/documents:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
@@ -862,7 +1102,7 @@ paths:
     get:
       tags: [Documents]
       operationId: getDocument
-      summary: Get document; PDF via Accept
+      summary: Get document with line stock, totals and, for a DRAFT, the effects of posting; PDF via Accept
       responses:
         '200':
           description: Document
@@ -872,7 +1112,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Document' }
             application/pdf:
-              schema: { type: string, contentMediaType: application/pdf }
+              schema: { $ref: '#/components/schemas/Pdf' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     put:
@@ -899,6 +1139,7 @@ paths:
       tags: [Documents]
       operationId: postDocument
       summary: DRAFT → POSTED; allocates the number, emits DocumentPosted (ledger entry and stock movements follow)
+      description: 422 ERR_INSUFFICIENT_STOCK unless the depot allows negative stock; 422 ERR_CREDIT_LIMIT_EXCEEDED over the card's limit.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
@@ -928,35 +1169,40 @@ paths:
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
 
-  /api/orgs/{orgId}/receipts:
+  /api/orgs/{orgId}/receipts/grid:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
-    get:
+    post:
       tags: [Receipts]
-      operationId: listReceipts
-      summary: List receipts
-      parameters:
-        - $ref: '#/components/parameters/DepotIdQuery'
-        - { name: sicilId, in: query, schema: { type: integer } }
-        - { name: from, in: query, schema: { type: string, format: date } }
-        - { name: to, in: query, schema: { type: string, format: date } }
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
+      operationId: gridReceipts
+      summary: Grid of receipts (no, date, kind, method, account, source, amount); XLSX via Accept
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridRequest' }
       responses:
         '200':
-          description: Receipts
+          description: One page of receipts
           content:
             application/json:
               schema:
-                type: object
-                required: [items]
-                properties:
-                  items: { type: array, items: { $ref: '#/components/schemas/Receipt' } }
-                  nextCursor: { type: [string, 'null'] }
+                allOf:
+                  - $ref: '#/components/schemas/GridResponse'
+                  - type: object
+                    properties:
+                      rows: { type: array, items: { $ref: '#/components/schemas/Receipt' } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/receipts:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
     post:
       tags: [Receipts]
       operationId: createReceipt
-      summary: Issue a collection (tahsilat) or payment (tediye) receipt; posts ledger and, for cash, the cash book
+      summary: Issue a collection (tahsilat) or payment (tediye) receipt
+      description: |
+        CASH posts to the depot's cash book, BANK_TRANSFER to `bankAccountId`. CHEQUE and NOTE register the
+        instrument in `instrument` in the same transaction (the receipt then belongs to it).
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
@@ -983,7 +1229,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Receipt' }
             application/pdf:
-              schema: { type: string, contentMediaType: application/pdf }
+              schema: { $ref: '#/components/schemas/Pdf' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/orgs/{orgId}/receipts/{receiptId}/void:
@@ -1003,31 +1249,109 @@ paths:
   /api/orgs/{orgId}/cash-book:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
-      tags: [Receipts]
+      tags: [Cash]
       operationId: getCashBook
-      summary: Cash book (kasa defteri) per depot with brought-forward row; end date inclusive
+      summary: Cash book (kasa defteri) of one depot with opening row, in/out totals and running balance
       parameters:
         - { name: depotId, in: query, required: true, schema: { type: integer } }
         - { name: from, in: query, required: true, schema: { type: string, format: date } }
         - { name: to, in: query, required: true, schema: { type: string, format: date } }
       responses:
         '200':
-          description: Cash book; Excel or PDF via Accept
+          description: Cash book; XLSX or PDF via Accept
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CashBook' }
             application/pdf:
-              schema: { type: string, contentMediaType: application/pdf }
+              schema: { $ref: '#/components/schemas/Pdf' }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
-              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet }
+              schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/cash-vouchers:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Cash]
+      operationId: createCashVoucher
+      summary: Expense paid from the till (GDR) or cash moved to / from a bank (VRM)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CashVoucherCreate' }
+      responses:
+        '201':
+          description: Posted voucher
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashVoucher' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/cash-vouchers/{voucherId}/void:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - { name: voucherId, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [Cash]
+      operationId: voidCashVoucher
+      summary: Void by reversal
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200':
+          description: Voided voucher
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashVoucher' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/cash-counts:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Cash]
+      operationId: listCashCounts
+      summary: Till counts of a depot, newest first
+      parameters:
+        - { name: depotId, in: query, required: true, schema: { type: integer } }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/CashCount' } }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Cash]
+      operationId: createCashCount
+      summary: Record a till count against the book balance; optionally post the difference to CASH_OVER_SHORT
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CashCountCreate' }
+      responses:
+        '201':
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashCount' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
 
   /api/orgs/{orgId}/instruments/grid:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     post:
       tags: [Instruments]
       operationId: gridInstruments
-      summary: Portfolio view; filter by type, status, depot, due-date range
+      summary: Cheques and notes; filter by type, status, drawer, due range, amount; XLSX via Accept
       requestBody:
         required: true
         content:
@@ -1044,6 +1368,23 @@ paths:
                   - type: object
                     properties:
                       rows: { type: array, items: { $ref: '#/components/schemas/Instrument' } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { $ref: '#/components/schemas/Xlsx' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/instruments/summary:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Instruments]
+      operationId: getInstrumentSummary
+      summary: Counts and totals per tab (receivable, payable, portfolio, at bank, endorsed, protested, closed) and due buckets
+      parameters:
+        - $ref: '#/components/parameters/DepotIdQuery'
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InstrumentSummary' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/orgs/{orgId}/instruments:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
@@ -1096,8 +1437,11 @@ paths:
     post:
       tags: [Instruments]
       operationId: operateInstrument
-      summary: Deposit to bank, collect at bank / by hand, endorse, protest, return, pay
-      description: Illegal transitions return 409 ERR_INVALID_STATE_TRANSITION. Money-moving operations issue a receipt and ledger entry.
+      summary: Deposit to bank, collect (fully or partly), bounce, endorse, protest, return, pay
+      description: |
+        Illegal transitions return 409 ERR_INVALID_STATE_TRANSITION. Money-moving operations issue a receipt and
+        ledger entry. Collect actions take `amount` (default: remaining); less than remaining gives
+        PARTIALLY_COLLECTED, more returns 422 ERR_AMOUNT_EXCEEDS_REMAINING.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
@@ -1135,6 +1479,65 @@ paths:
                   - type: object
                     properties:
                       rows: { type: array, items: { $ref: '#/components/schemas/Part' } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { $ref: '#/components/schemas/Xlsx' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/catalog/search:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Catalog]
+      operationId: searchCatalog
+      summary: Part picker (F2 on an invoice line)
+      description: |
+        Matches stock no and codes by normalized prefix/substring, name by words; exact code matches first.
+        Returns stock per depot and the price valid on `date`. Budget: p95 under 100 ms at 50k parts
+        (trigram indexes on parts and part_codes).
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2 } }
+        - { name: priceListId, in: query, schema: { type: integer }, description: Defaults to the default sales list }
+        - { name: date, in: query, schema: { type: string, format: date }, description: Price date; defaults to today }
+        - { name: inStockDepotId, in: query, schema: { type: integer }, description: Only parts available in this depot }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Hits
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogSearchResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/catalog/parts/resolve:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Catalog]
+      operationId: resolvePartCodes
+      summary: Resolve many codes at once (invoice CSV import); unknown or ambiguous codes are reported per row
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [codes]
+              properties:
+                codes: { type: array, minItems: 1, maxItems: 500, items: { type: string } }
+                depotId: { type: integer, description: Adds on-hand for this depot }
+      responses:
+        '200':
+          description: One result per input code, same order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [code, status]
+                  properties:
+                    code: { type: string }
+                    status: { type: string, enum: [FOUND, NOT_FOUND, AMBIGUOUS] }
+                    part: { $ref: '#/components/schemas/CatalogHit' }
+                    candidates: { type: array, items: { $ref: '#/components/schemas/CatalogHit' } }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/orgs/{orgId}/catalog/parts:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
@@ -1196,6 +1599,54 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/catalog/parts/{partId}/stock:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/PartId'
+    get:
+      tags: [Stock]
+      operationId: getPartStock
+      summary: On hand, reserved, available, min, max and shelf per depot, with a total row
+      responses:
+        '200':
+          description: Stock per depot
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [partId, depots, total]
+                properties:
+                  partId: { type: integer }
+                  depots: { type: array, items: { $ref: '#/components/schemas/StockLevel' } }
+                  total: { $ref: '#/components/schemas/StockLevel' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/catalog/parts/{partId}/depots/{depotId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/PartId'
+      - { name: depotId, in: path, required: true, schema: { type: integer } }
+    put:
+      tags: [Stock]
+      operationId: setPartDepotSettings
+      summary: Min, max and shelf of a part in one depot
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PartDepotSettings' }
+      responses:
+        '200':
+          description: Updated
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockLevel' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/catalog/parts/{partId}/prices:
     parameters:
       - $ref: '#/components/parameters/OrgId'
@@ -1203,7 +1654,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: getPartPriceHistory
-      summary: Price history of a part across price lists
+      summary: Price history of a part, newest first, with change against the previous price
       parameters:
         - { name: priceListId, in: query, schema: { type: integer } }
       responses:
@@ -1309,7 +1760,7 @@ paths:
       parameters:
         - { name: partId, in: query, schema: { type: integer } }
         - $ref: '#/components/parameters/DepotIdQuery'
-        - { name: belowMin, in: query, schema: { type: boolean } }
+        - { name: belowMin, in: query, schema: { type: boolean }, description: Dashboard "below minimum" list }
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
       responses:
@@ -1324,47 +1775,56 @@ paths:
                   items: { type: array, items: { $ref: '#/components/schemas/StockLevel' } }
                   nextCursor: { type: [string, 'null'] }
         '401': { $ref: '#/components/responses/Unauthorized' }
-  /api/orgs/{orgId}/stock/movements:
+  /api/orgs/{orgId}/stock/movements/grid:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
-    get:
+    post:
       tags: [Stock]
-      operationId: listStockMovements
-      summary: Append-only movements from documents, counts and transfers
-      parameters:
-        - { name: partId, in: query, schema: { type: integer } }
-        - $ref: '#/components/parameters/DepotIdQuery'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
+      operationId: gridStockMovements
+      summary: Movements with document, account and running on-hand; XLSX via Accept
+      description: '`runningOnHand` is set when `partId` is given (per depot, or over all depots when `depotId` is null).'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/GridRequest'
+                - type: object
+                  properties:
+                    partId: { type: integer }
+                    depotId: { type: [integer, 'null'] }
       responses:
         '200':
-          description: Movements, newest first
+          description: One page of movements, newest first
           content:
             application/json:
               schema:
-                type: object
-                required: [items]
-                properties:
-                  items: { type: array, items: { $ref: '#/components/schemas/StockMovement' } }
-                  nextCursor: { type: [string, 'null'] }
+                allOf:
+                  - $ref: '#/components/schemas/GridResponse'
+                  - type: object
+                    properties:
+                      rows: { type: array, items: { $ref: '#/components/schemas/StockMovement' } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/orgs/{orgId}/stock/transfers:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     post:
       tags: [Stock]
       operationId: transferStock
-      summary: Move stock between the company's depots (paired OUT/IN movements)
+      summary: Move stock between the company's depots (TRF number of the source depot, paired OUT/IN movements)
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/StockTransfer' }
+            schema: { $ref: '#/components/schemas/StockTransferCreate' }
       responses:
         '201':
-          description: Paired movements
+          description: Transfer
           content:
             application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/StockMovement' } }
+              schema: { $ref: '#/components/schemas/StockTransfer' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/stock/counts:
@@ -1386,7 +1846,7 @@ paths:
     post:
       tags: [Stock]
       operationId: openStockCount
-      summary: Open a count for a depot, year and optional shelf range
+      summary: Open a count for a depot, year and optional shelf range; creates one line per part in range
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
@@ -1404,30 +1864,112 @@ paths:
     get:
       tags: [Stock]
       operationId: getStockCount
-      summary: Count with lines and differences
+      summary: Count header with progress and totals; count sheet PDF via Accept
       responses:
-        '200': { $ref: '#/components/responses/StockCountResponse' }
+        '200':
+          description: Stock count
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCount' }
+            application/pdf:
+              schema: { $ref: '#/components/schemas/Pdf' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/stock/counts/{countId}/lines/grid:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/CountId'
+    post:
+      tags: [Stock]
+      operationId: gridStockCountLines
+      summary: Count lines (shelf, part, system, counted, difference, value, counted by)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/GridRequest'
+                - type: object
+                  properties:
+                    only: { type: string, enum: [ALL, DIFFERENCES, NOT_COUNTED], default: ALL }
+      responses:
+        '200':
+          description: One page of lines; `totals` has system, counted, difference and value
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/GridResponse'
+                  - type: object
+                    properties:
+                      rows: { type: array, items: { $ref: '#/components/schemas/StockCountLine' } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { $ref: '#/components/schemas/Xlsx' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /api/orgs/{orgId}/stock/counts/{countId}/lines:
     parameters:
       - $ref: '#/components/parameters/OrgId'
       - $ref: '#/components/parameters/CountId'
-    put:
+    post:
       tags: [Stock]
-      operationId: upsertStockCountLines
-      summary: Record counted quantities (by part and shelf) while the count is OPEN
+      operationId: addStockCountLine
+      summary: Add a part found on a shelf that is not on the sheet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [partId, shelf]
+              properties:
+                partId: { type: integer }
+                shelf: { type: string }
+                countedQty: { $ref: '#/components/schemas/Quantity' }
+      responses:
+        '201':
+          description: Line
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountLine' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/stock/counts/{countId}/lines/{lineId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/CountId'
+      - { name: lineId, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [Stock]
+      operationId: setStockCountLine
+      summary: Autosave one counted quantity (null clears it); sets countedBy and countedAt
+      description: |
+        Per-line optimistic lock, so several people can count one sheet. The count must be OPEN
+        (409 ERR_STOCK_COUNT_NOT_OPEN).
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
         content:
           application/json:
-            schema: { type: array, items: { $ref: '#/components/schemas/StockCountLineWrite' } }
+            schema:
+              type: object
+              required: [countedQty]
+              properties:
+                countedQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
       responses:
-        '200': { $ref: '#/components/responses/StockCountResponse' }
+        '200':
+          description: Saved line
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockCountLine' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
   /api/orgs/{orgId}/stock/counts/{countId}/finalize:
     parameters:
       - $ref: '#/components/parameters/OrgId'
@@ -1435,15 +1977,121 @@ paths:
     post:
       tags: [Stock]
       operationId: finalizeStockCount
-      summary: OPEN → FINALIZED; differences become ADJUST movements
+      summary: Post differences; OPEN → FINALIZED, differences become ADJUST movements
+      description: '`uncounted` decides lines without a counted quantity: SKIP leaves stock as is, ZERO counts them as 0.'
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uncounted]
+              properties:
+                uncounted: { type: string, enum: [SKIP, ZERO] }
       responses:
         '200': { $ref: '#/components/responses/StockCountResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+
+  /api/orgs/{orgId}/migration/runs:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Migration]
+      operationId: listMigrationRuns
+      summary: Import runs, newest first
+      responses:
+        '200':
+          description: Runs
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/MigrationRun' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Migration]
+      operationId: startMigrationRun
+      summary: Start an import run (admin); the demo only allows dry runs on the bundled synthetic files
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dryRun]
+              properties:
+                dryRun: { type: boolean }
+      responses:
+        '202':
+          description: Started; poll the run
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MigrationRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/migration/runs/{runId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - { name: runId, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Migration]
+      operationId: getMigrationRun
+      summary: Reconciliation report; PDF or XLSX via Accept ("Download report")
+      responses:
+        '200':
+          description: Run with per-file results
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MigrationRun' }
+            application/pdf:
+              schema: { $ref: '#/components/schemas/Pdf' }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { $ref: '#/components/schemas/Xlsx' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/migration/runs/{runId}/quarantine:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - { name: runId, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Migration]
+      operationId: listQuarantine
+      summary: Rejected records with reason and decoded fields
+      parameters:
+        - { name: legacyFile, in: query, schema: { type: string } }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Quarantined records
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/QuarantineRecord' } }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/migration/layouts/{legacyFile}:
+    parameters:
+      - { name: legacyFile, in: path, required: true, schema: { type: string, examples: [SICIL] } }
+    get:
+      tags: [Migration]
+      operationId: getCopybookLayout
+      summary: Record layout parsed from the copybook, with target columns
+      responses:
+        '200':
+          description: Layout
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CopybookLayout' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /api/orgs/{orgId}/audit-events:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
@@ -1492,6 +2140,17 @@ components:
       required: true
       description: Tenant. Caller must be a member (or admin).
       schema: { type: integer, minimum: 1 }
+    SicilId:
+      name: sicilId
+      in: path
+      required: true
+      schema: { type: integer }
+    Year:
+      name: year
+      in: path
+      required: true
+      description: Calendar year being opened
+      schema: { type: integer, minimum: 2000, maximum: 2999 }
     DepotIdQuery:
       name: depotId
       in: query
@@ -1619,6 +2278,11 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     Unprocessable:
       description: Business rule violated (ERR_ENTRY_UNBALANCED, ERR_INSUFFICIENT_STOCK, ERR_IDEMPOTENCY_KEY_REUSED, …)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooManyRequests:
+      description: Rate limit hit (ERR_RATE_LIMITED); see Retry-After
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -1769,7 +2433,24 @@ components:
         - ERR_RECEIPT_NOT_FOUND
         - ERR_RECEIPT_ALREADY_VOIDED
         - ERR_RECEIPT_OWNED_BY_INSTRUMENT
+        - ERR_RATE_LIMITED
+        - ERR_SICIL_HAS_POSTINGS
+        - ERR_BANK_ACCOUNT_REQUIRED
+        - ERR_INSTRUMENT_REQUIRED
+        - ERR_AMOUNT_EXCEEDS_REMAINING
+        - ERR_ENDORSEE_REQUIRED
+        - ERR_ACCOUNT_ROLE_MISSING
+        - ERR_CARRY_FORWARD_BLOCKED
+        - ERR_STOCK_COUNT_LINE_NOT_FOUND
+        - ERR_STOCK_COUNT_OPEN_EXISTS
+        - ERR_SAME_DEPOT
+        - ERR_CASH_VOUCHER_NOT_FOUND
+        - ERR_CASH_VOUCHER_ALREADY_VOIDED
+        - ERR_MIGRATION_RUNNING
+        - ERR_MIGRATION_DRY_RUN_ONLY
 
+    Pdf: { type: string, contentMediaType: application/pdf }
+    Xlsx: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet }
     Money:
       type: string
       description: Decimal amount with two fraction digits, never a JSON number.
@@ -1795,7 +2476,7 @@ components:
 
     GridRequest:
       type: object
-      description: AG-Grid server-side row model request (existing).
+      description: One block of the AG Grid Community infinite row model, plus column filters.
       properties:
         startRow: { type: integer, minimum: 0 }
         endRow: { type: integer, minimum: 0 }
@@ -1811,19 +2492,27 @@ components:
           additionalProperties:
             type: object
             properties:
-              filterType: { type: string }
+              filterType: { type: string, enum: [text, number, date] }
               type:
                 type: string
-                enum: [contains, notContains, equals, notEqual, startsWith, endsWith, blank, notBlank]
-              filter: { type: string }
-              filterTo: { type: string }
+                enum: [contains, notContains, equals, notEqual, startsWith, endsWith, blank, notBlank,
+                       lessThan, lessThanOrEqual, greaterThan, greaterThanOrEqual, inRange]
+              filter: { type: [string, number] }
+              filterTo: { type: [string, number] }
+              dateFrom: { type: [string, 'null'], description: 'yyyy-mm-dd' }
+              dateTo: { type: [string, 'null'], description: 'yyyy-mm-dd, inclusive' }
         search: { type: string, description: Free-text OR ILIKE across searchable columns }
     GridResponse:
       type: object
       required: [rows, totalCount]
       properties:
         rows: { type: array, items: {} }
-        totalCount: { type: integer, format: int64 }
+        totalCount: { type: integer, format: int64, description: Rows after filters }
+        unfilteredCount: { type: integer, format: int64, description: 'Rows before column filters ("6 of 412")' }
+        totals:
+          type: object
+          description: Pinned total row over all filtered rows, keyed by column
+          additionalProperties: { type: string }
 
     Organization:
       type: object
@@ -1894,6 +2583,8 @@ components:
         sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
         telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
         credit_limit: { $ref: '#/components/schemas/Money', description: Planned }
+        iskonto2: { type: number, description: Second cascaded discount percent (planned) }
+        sales_rep_user_id: { type: [integer, 'null'], description: Planned }
         contacts:
           description: Planned; contact people with their own phones and emails
           type: array
@@ -1906,13 +2597,13 @@ components:
               phone: { type: string }
               email: { type: string, format: email }
         emails: { type: array, items: { type: string, format: email }, description: Planned }
+        account_id: { type: [integer, 'null'], description: 'Current account (120 / 320 / 102), planned' }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     SicilCreate:
       type: object
-      required: [organization_id, hesap_no, hesap_adi]
+      required: [hesap_no, hesap_adi]
       properties:
-        organization_id: { type: integer }
         hesap_no: { type: string }
         hesap_adi: { type: string }
         adres: { type: string }
@@ -1941,6 +2632,110 @@ components:
         iskonto: { type: number, minimum: 0, maximum: 100 }
         sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
         telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
+    SicilSummary:
+      type: object
+      required: [sicilId, accountId, balance, overdue, chequesInPortfolio]
+      properties:
+        sicilId: { type: integer }
+        accountId: { type: integer }
+        accountCode: { type: string }
+        balance: { $ref: '#/components/schemas/Money', description: 'Debit positive' }
+        overdue: { $ref: '#/components/schemas/Money', description: 'Debit items past due, not yet matched by credits' }
+        creditLimit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        creditUsedPct: { type: [integer, 'null'], description: 'balance / creditLimit, rounded; null without a limit' }
+        paymentTermDays: { type: [integer, 'null'] }
+        discount1Pct: { $ref: '#/components/schemas/Percent' }
+        discount2Pct: { $ref: '#/components/schemas/Percent' }
+        chequesInPortfolio: { $ref: '#/components/schemas/Money', description: Open receivable instruments of this card }
+        lastMoveDate: { type: [string, 'null'], format: date }
+
+    Dashboard:
+      type: object
+      required: [date, receivables, payables, cash, instrumentsDue30, latest, dueThisWeek, belowMin, ledgerCheck]
+      properties:
+        date: { type: string, format: date }
+        receivables:
+          type: object
+          required: [total, accounts]
+          properties:
+            total: { $ref: '#/components/schemas/Money' }
+            accounts: { type: integer }
+        payables:
+          type: object
+          required: [total, accounts]
+          properties:
+            total: { $ref: '#/components/schemas/Money' }
+            accounts: { type: integer }
+        cash:
+          type: object
+          required: [total, depots]
+          properties:
+            total: { $ref: '#/components/schemas/Money' }
+            depots:
+              type: array
+              items:
+                type: object
+                required: [depotId, balance]
+                properties:
+                  depotId: { type: integer }
+                  balance: { $ref: '#/components/schemas/Money' }
+        instrumentsDue30:
+          type: object
+          required: [total, overdueCount]
+          properties:
+            total: { $ref: '#/components/schemas/Money' }
+            overdueCount: { type: integer }
+        latest:
+          type: array
+          description: Documents, receipts and instruments, newest first
+          items: { $ref: '#/components/schemas/ActivityItem' }
+        dueThisWeek:
+          type: array
+          items:
+            type: object
+            required: [instrumentId, instrumentNo, sicilName, dueDate, daysToDue, remaining]
+            properties:
+              instrumentId: { type: integer }
+              instrumentNo: { type: string }
+              sicilName: { type: string }
+              dueDate: { type: string, format: date }
+              daysToDue: { type: integer, description: Negative when overdue }
+              remaining: { $ref: '#/components/schemas/Money' }
+        belowMin: { type: array, items: { $ref: '#/components/schemas/StockLevel' } }
+        ledgerCheck:
+          type: object
+          required: [status]
+          properties:
+            status: { type: string, enum: [BALANCED, DRIFT, NOT_RUN] }
+            checkedAt: { type: [string, 'null'], format: date-time }
+    ActivityItem:
+      type: object
+      required: [kind, id, number, date, depotId, amount]
+      properties:
+        kind: { type: string, enum: [DOCUMENT, RECEIPT, INSTRUMENT, CASH_VOUCHER] }
+        id: { type: integer }
+        number: { type: string }
+        subtype: { type: string, description: 'Document type, receipt kind or instrument type' }
+        sicilId: { type: [integer, 'null'] }
+        sicilName: { type: [string, 'null'] }
+        date: { type: string, format: date }
+        depotId: { type: integer }
+        amount: { $ref: '#/components/schemas/Money' }
+    SearchResult:
+      type: object
+      required: [accounts, parts, documents]
+      properties:
+        accounts:
+          type: array
+          items:
+            type: object
+            required: [sicilId, hesapNo, hesapAdi]
+            properties:
+              sicilId: { type: integer }
+              hesapNo: { type: string }
+              hesapAdi: { type: string }
+        parts: { type: array, items: { $ref: '#/components/schemas/CatalogHit' } }
+        documents: { type: array, items: { $ref: '#/components/schemas/ActivityItem' } }
 
     Depot:
       type: object
@@ -1955,24 +2750,28 @@ components:
         version: { type: integer, readOnly: true }
     NumberSeries:
       type: object
-      description: 'Rendered as prefix + year + depot code + zero-padded counter, e.g. TAH20261000042. Allocated with UPDATE … RETURNING on this row, never max()+1.'
-      required: [id, kind, depotId, year, prefix, width, nextValue, version]
+      description: 'Rendered as PREFIX-YEAR-DEPOT-COUNTER, e.g. TAH-2026-1-000042. Allocated with an upsert … RETURNING on this row, never max()+1.'
+      required: [id, depotId, year, prefix, width, nextValue, version]
       properties:
         id: { type: integer }
-        kind: { $ref: '#/components/schemas/NumberSeriesKind' }
         depotId: { type: integer }
         year: { type: integer }
-        prefix: { type: string, examples: [DZ, TAH, TED, AC, AS, BC, BS] }
+        prefix: { $ref: '#/components/schemas/NumberPrefix' }
         width: { type: integer }
         nextValue: { type: integer, minimum: 1 }
         version: { type: integer }
-    NumberSeriesKind:
+    NumberPrefix:
       type: string
-      enum: [DOCUMENT, COLLECTION_RECEIPT, PAYMENT_RECEIPT, RECEIVABLE_CHEQUE, RECEIVABLE_NOTE, PAYABLE_CHEQUE, PAYABLE_NOTE, STOCK_COUNT]
+      description: |
+        SF sales invoice (with or without waybill), SIR sales waybill, SI sales return, AF purchase invoice,
+        AIR purchase waybill, AI purchase return, FF price difference, TAH collection, TED payment,
+        AC / AS receivable cheque / note, BC / BS payable cheque / note, GDR expense, VRM bank transfer,
+        TRF stock transfer, SAY stock count, J journal entry.
+      enum: [SF, SIR, SI, AF, AIR, AI, FF, TAH, TED, AC, AS, BC, BS, GDR, VRM, TRF, SAY, J]
 
     AccountType: { type: string, enum: [ASSET, LIABILITY, EQUITY, INCOME, EXPENSE] }
     Side: { type: string, enum: [DEBIT, CREDIT] }
-    SourceType: { type: string, enum: [manual, document, receipt, instrument, opening, reversal, legacy_import] }
+    SourceType: { type: string, enum: [manual, document, receipt, instrument, cash_voucher, cash_count, opening, reversal, legacy_import] }
     Account:
       type: object
       required: [id, orgId, code, name, type, currency, normalSide, isActive, version]
@@ -2010,10 +2809,23 @@ components:
         accountCode: { type: string }
         accountName: { type: string }
         sicilId: { type: [integer, 'null'] }
+        sicilTipi: { oneOf: [{ $ref: '#/components/schemas/SicilTipi' }, { type: 'null' }] }
+        city: { type: [string, 'null'] }
         depotId: { type: [integer, 'null'], description: Null when summed over depots }
         debitTotal: { $ref: '#/components/schemas/Money' }
         creditTotal: { $ref: '#/components/schemas/Money' }
         balance: { $ref: '#/components/schemas/Money', description: 'debitTotal − creditTotal' }
+        overdue: { $ref: '#/components/schemas/Money' }
+        lastMoveDate: { type: [string, 'null'], format: date }
+    AccountSelection:
+      type: object
+      required: [accountIds, to]
+      properties:
+        accountIds: { type: array, minItems: 1, maxItems: 500, items: { type: integer } }
+        from: { type: string, format: date, description: Statements only; defaults to 1 January of `to` }
+        to: { type: string, format: date }
+        depotId: { type: [integer, 'null'] }
+        language: { type: string, enum: [en, tr], default: en }
     BalancesReport:
       type: object
       required: [asOf, rows, totalDebit, totalCredit]
@@ -2023,6 +2835,71 @@ components:
         rows: { type: array, items: { $ref: '#/components/schemas/BalanceRow' } }
         totalDebit: { $ref: '#/components/schemas/Money' }
         totalCredit: { $ref: '#/components/schemas/Money' }
+    CarryForward:
+      type: object
+      required: [year, status, checks, accountCount, entryCount, totalDebit, totalCredit, rows]
+      properties:
+        year: { type: integer }
+        status: { type: string, enum: [PREVIEW, POSTED] }
+        checks:
+          type: array
+          description: Close previous-year documents, stock counts posted, balances, open the year
+          items:
+            type: object
+            required: [code, ok, blocking]
+            properties:
+              code: { type: string, enum: [NO_DRAFT_DOCUMENTS, STOCK_COUNTS_POSTED, LEDGER_BALANCED, YEAR_NOT_OPENED] }
+              ok: { type: boolean }
+              blocking: { type: boolean }
+              detail: { type: string }
+        accountCount: { type: integer, description: Accounts with a balance }
+        entryCount: { type: integer, description: Opening entries (account × depot) }
+        totalDebit: { $ref: '#/components/schemas/Money' }
+        totalCredit: { $ref: '#/components/schemas/Money' }
+        rows:
+          type: array
+          items:
+            type: object
+            required: [accountId, accountCode, accountName, depotId, closingBalance, openingDebit, openingCredit, status]
+            properties:
+              accountId: { type: integer }
+              accountCode: { type: string }
+              accountName: { type: string }
+              depotId: { type: integer }
+              closingBalance: { $ref: '#/components/schemas/Money', description: '31 December of year − 1; debit positive' }
+              openingDebit: { $ref: '#/components/schemas/Money' }
+              openingCredit: { $ref: '#/components/schemas/Money' }
+              status: { type: string, enum: [READY, SKIP, EDITED, POSTED] }
+              overrideReason: { type: [string, 'null'] }
+              journalEntryId: { type: [integer, 'null'] }
+    CarryForwardOverride:
+      type: object
+      required: [accountId, depotId, debit, credit, reason]
+      properties:
+        accountId: { type: integer }
+        depotId: { type: integer }
+        debit: { $ref: '#/components/schemas/Money' }
+        credit: { $ref: '#/components/schemas/Money' }
+        reason: { type: string, minLength: 3 }
+    AccountRole:
+      type: object
+      required: [role, accountId]
+      properties:
+        role:
+          type: string
+          enum: [CASH, SALES, SALES_RETURNS, PURCHASES, PURCHASE_RETURNS, PRICE_DIFFERENCE, OUTPUT_VAT, INPUT_VAT,
+                 RECEIVABLE_CHEQUES, RECEIVABLE_NOTES, CHEQUES_AT_BANK, PAYABLE_CHEQUES, PAYABLE_NOTES, OPENING, CASH_OVER_SHORT]
+        depotId: { type: [integer, 'null'], description: Null = company default }
+        accountId: { type: integer }
+    TrailItem:
+      type: object
+      required: [at, kind, label]
+      properties:
+        at: { type: string, format: date-time }
+        kind: { type: string, enum: [AUDIT, OUTBOX, DELIVERY, STOCK] }
+        label: { type: string, examples: [document.posted, DocumentPosted, ledger] }
+        ref: { type: [string, 'null'], description: 'Outbox id, If-Match version, depot …' }
+        actorUserId: { type: [integer, 'null'] }
     OpeningBalance:
       type: object
       required: [accountId, depotId, year, debit, credit, journalEntryId]
@@ -2052,6 +2929,8 @@ components:
             id: { type: integer }
             lineNo: { type: integer }
             currency: { $ref: '#/components/schemas/Currency' }
+            accountCode: { type: string }
+            accountName: { type: string }
     JournalEntryCreate:
       type: object
       required: [depotId, entryDate, description, lines]
@@ -2074,6 +2953,8 @@ components:
         sourceId: { type: [string, 'null'] }
         reversesEntryId: { type: [integer, 'null'] }
         reversedByEntryId: { type: [integer, 'null'] }
+        sourceNo: { type: [string, 'null'], description: 'Number of the owning document, receipt, instrument or voucher' }
+        idempotencyKey: { type: [string, 'null'] }
         postings: { type: array, items: { $ref: '#/components/schemas/Posting' } }
         createdBy: { type: integer }
         createdAt: { type: string, format: date-time }
@@ -2092,6 +2973,8 @@ components:
         depotId: { type: [integer, 'null'] }
         documentNo: { type: [string, 'null'] }
         sourceType: { $ref: '#/components/schemas/SourceType' }
+        sourceId: { type: [string, 'null'] }
+        subtype: { type: [string, 'null'], description: 'Document type, receipt kind or instrument type (SALES_INVOICE, COLLECTION …)' }
         dueDate: { type: [string, 'null'], format: date }
         description: { type: string }
         debit: { $ref: '#/components/schemas/Money' }
@@ -2104,7 +2987,10 @@ components:
         accountId: { type: integer }
         from: { type: string, format: date }
         to: { type: string, format: date, description: Inclusive }
-        broughtForward: { $ref: '#/components/schemas/StatementLine' }
+        broughtForward:
+          type: array
+          description: One row per depot, dated `from`; opening entries of `from`'s year are folded in
+          items: { $ref: '#/components/schemas/StatementLine' }
         lines: { type: array, items: { $ref: '#/components/schemas/StatementLine' } }
         depotTotals:
           type: array
@@ -2120,20 +3006,19 @@ components:
 
     DocumentType:
       type: string
-      description: 'Waybills move stock only; price-difference invoices post to the ledger only.'
+      description: |
+        Waybills move stock only; price-difference invoices post to the ledger only and take their direction
+        (sales or purchase) from the linked document. Returns post to the ledger and move stock back.
       enum:
-        - SALES_INVOICE
         - SALES_INVOICE_WITH_WAYBILL
+        - SALES_INVOICE
         - SALES_WAYBILL
-        - PURCHASE_INVOICE
+        - SALES_RETURN
         - PURCHASE_INVOICE_WITH_WAYBILL
+        - PURCHASE_INVOICE
         - PURCHASE_WAYBILL
-        - SALES_RETURN_INVOICE
-        - SALES_RETURN_WAYBILL
-        - PURCHASE_RETURN_INVOICE
-        - PURCHASE_RETURN_WAYBILL
-        - SALES_PRICE_DIFFERENCE
-        - PURCHASE_PRICE_DIFFERENCE
+        - PURCHASE_RETURN
+        - PRICE_DIFFERENCE
     DocumentStatus: { type: string, enum: [DRAFT, POSTED, CANCELLED] }
     DocumentLineWrite:
       type: object
@@ -2153,6 +3038,10 @@ components:
           properties:
             id: { type: integer }
             lineNo: { type: integer }
+            stockNo: { type: string, readOnly: true }
+            name: { type: string, readOnly: true }
+            onHand: { $ref: '#/components/schemas/Quantity', description: 'In the document depot, now' }
+            available: { $ref: '#/components/schemas/Quantity', description: onHand − reserved }
             netAmount: { $ref: '#/components/schemas/Money' }
             vatAmount: { $ref: '#/components/schemas/Money' }
             lineTotal: { $ref: '#/components/schemas/Money' }
@@ -2164,13 +3053,30 @@ components:
         depotId: { type: integer }
         sicilId: { type: integer }
         documentDate: { type: string, format: date }
-        dueDate: { type: string, format: date }
-        linkedDocumentId: { type: [integer, 'null'], description: 'Invoice for an earlier waybill, or the original of a return' }
+        shipDate: { type: string, format: date }
+        dueDate: { type: string, format: date, description: Defaults to documentDate + the card's payment term }
+        salesRepUserId: { type: [integer, 'null'] }
+        linkedDocumentId: { type: [integer, 'null'], description: 'Waybill being invoiced, original of a return or price difference' }
         description: { type: string }
-        lines: { type: array, minItems: 1, items: { $ref: '#/components/schemas/DocumentLineWrite' } }
+        lines: { type: array, items: { $ref: '#/components/schemas/DocumentLineWrite' }, description: May be empty while DRAFT }
+    DocumentSummary:
+      type: object
+      required: [id, type, status, depotId, sicilId, documentDate, grandTotal, version]
+      properties:
+        id: { type: integer }
+        documentNo: { type: [string, 'null'] }
+        type: { $ref: '#/components/schemas/DocumentType' }
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        depotId: { type: integer }
+        sicilId: { type: integer }
+        sicilName: { type: string }
+        documentDate: { type: string, format: date }
+        dueDate: { type: [string, 'null'], format: date }
+        grandTotal: { $ref: '#/components/schemas/Money' }
+        version: { type: integer }
     Document:
       type: object
-      required: [id, orgId, type, status, depotId, sicilId, documentDate, currency, subtotal, discountTotal, vatTotal, grandTotal, lines, version]
+      required: [id, orgId, type, status, depotId, sicilId, documentDate, currency, grossTotal, discountTotal, netTotal, vatTotal, grandTotal, lines, version]
       properties:
         id: { type: integer }
         orgId: { type: integer }
@@ -2179,23 +3085,74 @@ components:
         status: { $ref: '#/components/schemas/DocumentStatus' }
         depotId: { type: integer }
         sicilId: { type: integer }
+        sicilName: { type: string }
         documentDate: { type: string, format: date }
+        shipDate: { type: [string, 'null'], format: date }
         dueDate: { type: [string, 'null'], format: date }
+        salesRepUserId: { type: [integer, 'null'] }
         linkedDocumentId: { type: [integer, 'null'] }
+        linkedDocumentNo: { type: [string, 'null'] }
         currency: { $ref: '#/components/schemas/Currency' }
-        subtotal: { $ref: '#/components/schemas/Money' }
+        grossTotal: { $ref: '#/components/schemas/Money', description: Σ qty × unit price }
         discountTotal: { $ref: '#/components/schemas/Money' }
+        netTotal: { $ref: '#/components/schemas/Money', description: grossTotal − discountTotal }
         vatTotal: { $ref: '#/components/schemas/Money' }
-        grandTotal: { $ref: '#/components/schemas/Money' }
+        grandTotal: { $ref: '#/components/schemas/Money', description: netTotal + vatTotal }
+        vatBreakdown:
+          type: array
+          items:
+            type: object
+            required: [vatPct, base, vat]
+            properties:
+              vatPct: { $ref: '#/components/schemas/Percent' }
+              base: { $ref: '#/components/schemas/Money' }
+              vat: { $ref: '#/components/schemas/Money' }
         description: { type: string }
         lines: { type: array, items: { $ref: '#/components/schemas/DocumentLine' } }
+        effects:
+          description: What posting will do (DRAFT) or did (POSTED)
+          type: object
+          properties:
+            ledger:
+              type: array
+              items:
+                type: object
+                required: [accountCode, side, amount]
+                properties:
+                  accountCode: { type: string }
+                  accountName: { type: string }
+                  side: { $ref: '#/components/schemas/Side' }
+                  amount: { $ref: '#/components/schemas/Money' }
+            stock:
+              type: array
+              items:
+                type: object
+                required: [depotId, qtyDelta]
+                properties:
+                  depotId: { type: integer }
+                  qtyDelta: { type: string, pattern: '^-?\d{1,14}(\.\d{1,4})?$' }
+            creditUsedPctAfter: { type: [integer, 'null'] }
+        warnings:
+          type: array
+          description: Non-blocking on save, checked again on post
+          items:
+            type: object
+            required: [code]
+            properties:
+              code: { type: string, enum: [STOCK_SHORT, CREDIT_LIMIT, PRICE_BELOW_LIST] }
+              lineNo: { type: [integer, 'null'] }
+              requested: { $ref: '#/components/schemas/Quantity' }
+              available: { $ref: '#/components/schemas/Quantity' }
         journalEntryId: { type: [integer, 'null'] }
         postedAt: { type: [string, 'null'], format: date-time }
         cancelledAt: { type: [string, 'null'], format: date-time }
         cancelReason: { type: [string, 'null'] }
         version: { type: integer }
 
-    PaymentMethod: { type: string, enum: [CASH, BANK_TRANSFER, INSTRUMENT] }
+    PaymentMethod:
+      type: string
+      enum: [CASH, BANK_TRANSFER, CHEQUE, NOTE, ENDORSEMENT]
+      description: ENDORSEMENT only appears on receipts issued by an ENDORSE operation.
     ReceiptCreate:
       type: object
       required: [kind, depotId, sicilId, date, method, amount]
@@ -2207,7 +3164,21 @@ components:
         method: { $ref: '#/components/schemas/PaymentMethod' }
         amount: { $ref: '#/components/schemas/Money' }
         currency: { $ref: '#/components/schemas/Currency' }
-        bankAccountId: { type: integer, description: Required for BANK_TRANSFER }
+        bankAccountId: { type: integer, description: Required for BANK_TRANSFER (a 102 account) }
+        instrument:
+          description: Required for CHEQUE and NOTE; type follows kind (collection → receivable, payment → payable)
+          type: object
+          required: [serialNo, issueDate, dueDate]
+          properties:
+            serialNo: { type: string, maxLength: 20 }
+            issueDate: { type: string, format: date }
+            dueDate: { type: string, format: date }
+            drawerName: { type: string }
+            drawerTaxNo: { type: string }
+            bankName: { type: string }
+            bankBranch: { type: string }
+            bankCity: { type: string }
+            accountNo: { type: string }
         description: { type: string }
     Receipt:
       allOf:
@@ -2220,30 +3191,78 @@ components:
             receiptNo: { type: string, examples: [TAH20261000042] }
             origin: { type: string, enum: [MANUAL, INSTRUMENT], description: INSTRUMENT receipts are read-only; change them through the instrument }
             instrumentId: { type: [integer, 'null'] }
+            instrumentNo: { type: [string, 'null'], description: '"Source" column' }
+            sicilName: { type: string }
             journalEntryId: { type: integer }
             voidedByEntryId: { type: [integer, 'null'] }
     CashBookLine:
       type: object
-      required: [date, description, income, expense, runningBalance]
+      required: [date, kind, description, income, expense, runningBalance]
       properties:
         date: { type: string, format: date }
+        kind: { type: string, enum: [COLLECTION, PAYMENT, EXPENSE, BANK_DEPOSIT, BANK_WITHDRAWAL, CASH_COUNT, OTHER] }
+        documentNo: { type: [string, 'null'] }
         receiptId: { type: [integer, 'null'] }
-        receiptNo: { type: [string, 'null'] }
+        voucherId: { type: [integer, 'null'] }
+        journalEntryId: { type: integer }
         sicilId: { type: [integer, 'null'] }
+        sicilName: { type: [string, 'null'] }
         description: { type: string }
         income: { $ref: '#/components/schemas/Money' }
         expense: { $ref: '#/components/schemas/Money' }
         runningBalance: { $ref: '#/components/schemas/Money' }
     CashBook:
       type: object
-      required: [depotId, from, to, broughtForward, lines, closingBalance]
+      required: [depotId, from, to, openingBalance, totalIn, totalOut, lines, closingBalance]
       properties:
         depotId: { type: integer }
         from: { type: string, format: date }
-        to: { type: string, format: date }
-        broughtForward: { $ref: '#/components/schemas/Money' }
+        to: { type: string, format: date, description: Inclusive }
+        openingBalance: { $ref: '#/components/schemas/Money', description: Balance at the end of from − 1 }
+        totalIn: { $ref: '#/components/schemas/Money' }
+        totalOut: { $ref: '#/components/schemas/Money' }
         lines: { type: array, items: { $ref: '#/components/schemas/CashBookLine' } }
         closingBalance: { $ref: '#/components/schemas/Money' }
+    CashVoucherCreate:
+      type: object
+      required: [kind, depotId, date, accountId, amount, description]
+      properties:
+        kind: { type: string, enum: [EXPENSE, BANK_DEPOSIT, BANK_WITHDRAWAL] }
+        depotId: { type: integer }
+        date: { type: string, format: date }
+        accountId: { type: integer, description: Expense account (7xx) or bank account (102) }
+        amount: { $ref: '#/components/schemas/Money' }
+        description: { type: string }
+    CashVoucher:
+      allOf:
+        - $ref: '#/components/schemas/CashVoucherCreate'
+        - type: object
+          required: [id, voucherNo, journalEntryId]
+          properties:
+            id: { type: integer }
+            voucherNo: { type: string, examples: [GDR-2026-1-000038] }
+            journalEntryId: { type: integer }
+            voidedByEntryId: { type: [integer, 'null'] }
+    CashCountCreate:
+      type: object
+      required: [depotId, countedAmount]
+      properties:
+        depotId: { type: integer }
+        countedAmount: { $ref: '#/components/schemas/Money' }
+        postDifference: { type: boolean, default: false }
+        note: { type: string }
+    CashCount:
+      allOf:
+        - $ref: '#/components/schemas/CashCountCreate'
+        - type: object
+          required: [id, countedAt, bookBalance, difference]
+          properties:
+            id: { type: integer }
+            countedAt: { type: string, format: date-time }
+            bookBalance: { $ref: '#/components/schemas/Money' }
+            difference: { $ref: '#/components/schemas/Money' }
+            journalEntryId: { type: [integer, 'null'] }
+            countedBy: { type: integer }
 
     InstrumentType:
       type: string
@@ -2251,7 +3270,8 @@ components:
       description: 'alacak çeki, alacak senedi, borç çeki, borç senedi'
     InstrumentStatus:
       type: string
-      enum: [PORTFOLIO, DEPOSITED, COLLECTED, ENDORSED, PROTESTED, RETURNED, ISSUED, PAID]
+      enum: [PORTFOLIO, DEPOSITED, PARTIALLY_COLLECTED, COLLECTED, BOUNCED, ENDORSED, PROTESTED, RETURNED, ISSUED, PAID]
+      description: 'Closed = COLLECTED, RETURNED, PAID.'
     InstrumentCreate:
       type: object
       required: [type, depotId, sicilId, serialNo, amount, issueDate, dueDate]
@@ -2274,22 +3294,52 @@ components:
       allOf:
         - $ref: '#/components/schemas/InstrumentCreate'
         - type: object
-          required: [id, orgId, instrumentNo, status, receiptId, version]
+          required: [id, orgId, instrumentNo, status, remaining, isOverdue, receiptId, version]
           properties:
             id: { type: integer }
             orgId: { type: integer }
-            instrumentNo: { type: string, examples: [AC20261000007] }
+            instrumentNo: { type: string, examples: [AC-2026-1-000007] }
             status: { $ref: '#/components/schemas/InstrumentStatus' }
+            remaining: { $ref: '#/components/schemas/Money', description: amount − Σ collected; 0 exactly when COLLECTED or PAID }
+            isOverdue: { type: boolean, description: Open and due date before today }
+            sicilName: { type: string }
+            heldBySicilId: { type: [integer, 'null'], description: Endorsee while ENDORSED }
+            bankAccountId: { type: [integer, 'null'], description: While DEPOSITED }
             receiptId: { type: integer, description: Receipt issued at registration }
             version: { type: integer }
+    InstrumentSummary:
+      type: object
+      required: [tabs]
+      properties:
+        tabs:
+          type: array
+          items:
+            type: object
+            required: [tab, count, total]
+            properties:
+              tab: { type: string, enum: [RECEIVABLE, PAYABLE, PORTFOLIO, AT_BANK, ENDORSED, PROTESTED, CLOSED] }
+              count: { type: integer }
+              total: { $ref: '#/components/schemas/Money' }
+        overdue:
+          type: object
+          properties:
+            count: { type: integer }
+            total: { $ref: '#/components/schemas/Money' }
+        dueNext30:
+          type: object
+          properties:
+            count: { type: integer }
+            total: { $ref: '#/components/schemas/Money' }
     InstrumentOperation:
       type: object
       required: [action, date]
       properties:
-        action: { type: string, enum: [DEPOSIT_TO_BANK, COLLECT_AT_BANK, COLLECT_BY_HAND, ENDORSE, PROTEST, RETURN, PAY] }
+        action: { type: string, enum: [DEPOSIT_TO_BANK, COLLECT_AT_BANK, COLLECT_BY_HAND, BOUNCE, ENDORSE, PROTEST, RETURN, PAY] }
         date: { type: string, format: date }
+        amount: { $ref: '#/components/schemas/Money', description: COLLECT_* only; defaults to remaining }
+        method: { type: string, enum: [CASH, BANK_TRANSFER], description: COLLECT_BY_HAND and PAY; default CASH }
         endorseeSicilId: { type: integer, description: Required for ENDORSE }
-        bankAccountId: { type: integer, description: Required for DEPOSIT_TO_BANK and COLLECT_AT_BANK }
+        bankAccountId: { type: integer, description: 'Required for DEPOSIT_TO_BANK, COLLECT_AT_BANK and BANK_TRANSFER' }
         note: { type: string }
     InstrumentEvent:
       type: object
@@ -2300,8 +3350,12 @@ components:
         fromStatus: { oneOf: [{ $ref: '#/components/schemas/InstrumentStatus' }, { type: 'null' }] }
         toStatus: { $ref: '#/components/schemas/InstrumentStatus' }
         occurredAt: { type: string, format: date-time }
+        date: { type: string, format: date }
+        amount: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        remainingAfter: { $ref: '#/components/schemas/Money' }
         counterpartySicilId: { type: [integer, 'null'] }
         receiptId: { type: [integer, 'null'] }
+        receiptNo: { type: [string, 'null'] }
         journalEntryId: { type: [integer, 'null'] }
         actorUserId: { type: integer }
         note: { type: [string, 'null'] }
@@ -2323,8 +3377,6 @@ components:
         type: { type: string }
         brand: { type: string }
         unit: { type: string, default: PCS }
-        minQty: { $ref: '#/components/schemas/Quantity' }
-        maxQty: { $ref: '#/components/schemas/Quantity' }
         packageQty: { type: integer, minimum: 1 }
         vatPct: { $ref: '#/components/schemas/Percent' }
         codes: { type: array, items: { $ref: '#/components/schemas/PartCode' } }
@@ -2338,8 +3390,39 @@ components:
             orgId: { type: integer }
             isActive: { type: boolean }
             listPrice: { $ref: '#/components/schemas/Money4', description: Current price in the default sales list }
+            priceListName: { type: string }
             onHand: { $ref: '#/components/schemas/Quantity', description: Sum over depots }
             version: { type: integer }
+    CatalogHit:
+      type: object
+      required: [partId, stockNo, name, stock]
+      properties:
+        partId: { type: integer }
+        stockNo: { type: string }
+        name: { type: string }
+        brand: { type: [string, 'null'] }
+        codes: { type: array, items: { $ref: '#/components/schemas/PartCode' }, description: OEM and equivalent codes }
+        matchedCode: { type: [string, 'null'], description: 'The code that matched `q`, for highlighting' }
+        stock:
+          type: array
+          items:
+            type: object
+            required: [depotId, onHand, available]
+            properties:
+              depotId: { type: integer }
+              onHand: { $ref: '#/components/schemas/Quantity' }
+              available: { $ref: '#/components/schemas/Quantity' }
+        listPrice: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }] }
+        vatPct: { $ref: '#/components/schemas/Percent' }
+        unit: { type: string }
+    CatalogSearchResult:
+      type: object
+      required: [items, total]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/CatalogHit' } }
+        total: { type: integer, description: 'All matches ("5 of 23")' }
+        priceList: { $ref: '#/components/schemas/PriceList' }
+        nextCursor: { type: [string, 'null'] }
     PriceList:
       type: object
       required: [code, name, kind]
@@ -2360,38 +3443,76 @@ components:
         price: { $ref: '#/components/schemas/Money4' }
         validFrom: { type: string, format: date }
         validTo: { type: [string, 'null'], format: date, description: Derived from the next price }
+        changePct: { type: [string, 'null'], description: 'Against the previous price, e.g. "6.9"' }
         createdBy: { type: integer }
+    PartDepotSettings:
+      type: object
+      properties:
+        minQty: { $ref: '#/components/schemas/Quantity' }
+        maxQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
+        shelf: { type: string, maxLength: 20, examples: [A-04-2] }
     StockLevel:
       type: object
-      required: [partId, depotId, onHand]
+      required: [partId, onHand, reserved, available]
       properties:
         partId: { type: integer }
-        depotId: { type: integer }
+        stockNo: { type: string }
+        name: { type: string }
+        depotId: { type: [integer, 'null'], description: Null on the total row }
         onHand: { $ref: '#/components/schemas/Quantity' }
+        reserved: { $ref: '#/components/schemas/Quantity', description: Held by B2B orders (F3) }
+        available: { $ref: '#/components/schemas/Quantity' }
+        minQty: { $ref: '#/components/schemas/Quantity' }
+        maxQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
+        shelf: { type: string }
         belowMin: { type: boolean }
+        version: { type: integer, description: Of the depot settings }
     MovementKind: { type: string, enum: [IN, OUT, ADJUST_IN, ADJUST_OUT, TRANSFER_IN, TRANSFER_OUT] }
     StockMovement:
       type: object
-      required: [id, partId, depotId, kind, qty, occurredAt, sourceType]
+      required: [id, partId, depotId, kind, qty, date, occurredAt, sourceType]
       properties:
         id: { type: integer }
         partId: { type: integer }
         depotId: { type: integer }
         kind: { $ref: '#/components/schemas/MovementKind' }
+        label: { type: string, enum: [SALE, PURCHASE, SALES_RETURN, PURCHASE_RETURN, TRANSFER, COUNT, OPENING], description: Grid "Type" }
         qty: { $ref: '#/components/schemas/Quantity' }
         unitCost: { $ref: '#/components/schemas/Money4' }
         sourceType: { type: string, enum: [document, stock_count, transfer, legacy_import] }
         sourceId: { type: [string, 'null'] }
+        sourceNo: { type: [string, 'null'], description: 'Document, count or transfer number' }
+        sicilName: { type: [string, 'null'] }
+        otherDepotId: { type: [integer, 'null'], description: Transfers }
+        runningOnHand: { $ref: '#/components/schemas/Quantity' }
+        date: { type: string, format: date }
         occurredAt: { type: string, format: date-time }
-    StockTransfer:
+    StockTransferCreate:
       type: object
-      required: [partId, fromDepotId, toDepotId, qty]
+      required: [fromDepotId, toDepotId, date, lines]
       properties:
-        partId: { type: integer }
         fromDepotId: { type: integer }
         toDepotId: { type: integer }
-        qty: { $ref: '#/components/schemas/Quantity' }
+        date: { type: string, format: date }
         note: { type: string }
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [partId, qty]
+            properties:
+              partId: { type: integer }
+              qty: { $ref: '#/components/schemas/Quantity' }
+    StockTransfer:
+      allOf:
+        - $ref: '#/components/schemas/StockTransferCreate'
+        - type: object
+          required: [id, transferNo, movements]
+          properties:
+            id: { type: integer }
+            transferNo: { type: string, examples: [TRF-2026-1-000051] }
+            movements: { type: array, items: { $ref: '#/components/schemas/StockMovement' } }
     StockCountOpen:
       type: object
       required: [depotId, year]
@@ -2400,33 +3521,104 @@ components:
         year: { type: integer }
         shelfFrom: { type: string }
         shelfTo: { type: string }
-    StockCountLineWrite:
+    StockCountLine:
       type: object
-      required: [partId, countedQty]
+      required: [id, partId, stockNo, name, shelf, systemQty, version]
       properties:
+        id: { type: integer }
         partId: { type: integer }
+        stockNo: { type: string }
+        name: { type: string }
         shelf: { type: string }
-        countedQty: { $ref: '#/components/schemas/Quantity' }
+        systemQty: { $ref: '#/components/schemas/Quantity', description: 'Live while OPEN, snapshot after posting' }
+        countedQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }], description: Null = not counted }
+        difference: { type: [string, 'null'], pattern: '^-?\d{1,14}(\.\d{1,4})?$' }
+        value: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }], description: difference × unit cost }
+        countedBy: { type: [string, 'null'], description: User login }
+        countedAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer }
     StockCount:
       allOf:
         - $ref: '#/components/schemas/StockCountOpen'
         - type: object
-          required: [id, countNo, status, version]
+          required: [id, countNo, status, lineCount, countedCount, version]
           properties:
             id: { type: integer }
-            countNo: { type: string }
+            countNo: { type: string, examples: [SAY-2026-1-000001] }
             status: { type: string, enum: [OPEN, FINALIZED, CANCELLED] }
-            lines:
-              type: array
-              items:
-                allOf:
-                  - $ref: '#/components/schemas/StockCountLineWrite'
-                  - type: object
-                    properties:
-                      systemQty: { $ref: '#/components/schemas/Quantity' }
-                      difference: { type: string, pattern: '^-?\d{1,14}(\.\d{1,4})?$' }
+            startedAt: { type: string, format: date-time }
+            lineCount: { type: integer }
+            countedCount: { type: integer, description: 'Progress "412 / 1,280"' }
+            differenceValue: { $ref: '#/components/schemas/Money' }
+            uncounted: { type: [string, 'null'], enum: [SKIP, ZERO, null] }
             finalizedAt: { type: [string, 'null'], format: date-time }
             version: { type: integer }
+
+    MigrationRun:
+      type: object
+      required: [id, runNo, dryRun, status, source, recordsRead, recordsImported, recordsRejected, startedAt]
+      properties:
+        id: { type: integer }
+        runNo: { type: string, examples: [MIG-0007] }
+        dryRun: { type: boolean }
+        status: { type: string, enum: [RUNNING, SUCCEEDED, FAILED] }
+        source: { type: string, examples: ['synthetic:seed-42'] }
+        recordsRead: { type: integer }
+        recordsImported: { type: integer }
+        recordsRejected: { type: integer, description: Sent to quarantine }
+        ledgerDifference: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        trialBalance:
+          type: object
+          description: Account balances equal between legacy and new ledger
+          properties:
+            accountsChecked: { type: integer }
+            accountsEqual: { type: integer }
+        files:
+          type: array
+          items:
+            type: object
+            required: [legacyFile, target, read, imported, rejected, controlRule, result]
+            properties:
+              legacyFile: { type: string, examples: [CARHAR.DAT] }
+              target: { type: string, examples: ['journal_entry, posting'] }
+              read: { type: integer }
+              imported: { type: integer }
+              rejected: { type: integer }
+              controlRule: { type: string, examples: ['Σ DR = Σ CR'] }
+              controlLeft: { type: [string, 'null'] }
+              controlRight: { type: [string, 'null'] }
+              result: { type: string, enum: [MATCH, QUARANTINE, MISMATCH] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+    QuarantineRecord:
+      type: object
+      required: [id, legacyFile, recordKey, reason]
+      properties:
+        id: { type: integer }
+        legacyFile: { type: string }
+        recordKey: { type: string }
+        reason: { type: string, examples: [ERR_PART_NOT_FOUND] }
+        decoded: { type: [object, 'null'] }
+        rawHex: { type: string }
+    CopybookLayout:
+      type: object
+      required: [legacyFile, copybook, fields]
+      properties:
+        legacyFile: { type: string }
+        copybook: { type: string, examples: [legacy/cobol/SICIL.cpz] }
+        recordLength: { type: integer }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [level, name, pic, offset, length]
+            properties:
+              level: { type: integer }
+              name: { type: string }
+              pic: { type: string, examples: ['9(13)V99'] }
+              offset: { type: integer }
+              length: { type: integer }
+              target: { type: [string, 'null'], examples: [sicils.credit_limit] }
 
     AuditEvent:
       type: object

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fikopar.example.com/schemas/events/LedgerEntryPosted.schema.json",
+  "$id": "https://fikopar.fpirim.me/schemas/events/LedgerEntryPosted.schema.json",
   "title": "LedgerEntryPosted",
   "description": "A balanced journal entry was posted (Σ debit = Σ credit).",
   "allOf": [
@@ -47,6 +47,8 @@
             "document",
             "receipt",
             "instrument",
+            "cash_voucher",
+            "cash_count",
             "opening",
             "reversal",
             "legacy_import"

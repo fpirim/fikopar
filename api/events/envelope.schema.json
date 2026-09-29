@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fikopar.example.com/schemas/events/envelope.schema.json",
+  "$id": "https://fikopar.fpirim.me/schemas/events/envelope.schema.json",
   "title": "EventEnvelope",
   "description": "Outbox event envelope. Delivery is at-least-once; consumers dedupe on id.",
   "type": "object",
