@@ -352,8 +352,26 @@ func loadPart(q *repository.Q, orgID, id uint) (*models.Part, error) {
 	if err := withCodes(q, []*models.Part{p}); err != nil {
 		return nil, err
 	}
+	if err := withLastPurchase(q, orgID, []*models.Part{p}); err != nil {
+		return nil, err
+	}
 	p.NextPrice, err = q.NextPrice(orgID, id, t)
 	return p, err
+}
+
+// withLastPurchase sets lastPurchaseCost as of today.
+func withLastPurchase(q *repository.Q, orgID uint, parts []*models.Part) error {
+	ids := make([]uint, len(parts))
+	byID := make(map[uint]*models.Part, len(parts))
+	for i, p := range parts {
+		ids[i] = p.ID
+		byID[p.ID] = p
+	}
+	lps, err := q.LastPurchases(orgID, ids, today())
+	for i := range lps {
+		byID[lps[i].PartID].LastPurchaseCost = &lps[i]
+	}
+	return err
 }
 
 func withCodes(q *repository.Q, parts []*models.Part) error {
@@ -398,6 +416,9 @@ func (s *CatalogService) Lookup(ctx context.Context, orgID uint, code string) ([
 	ptrs := make([]*models.Part, len(parts))
 	for i := range parts {
 		ptrs[i] = &parts[i]
+	}
+	if err := withLastPurchase(q, orgID, ptrs); err != nil {
+		return nil, err
 	}
 	return parts, withCodes(q, ptrs)
 }

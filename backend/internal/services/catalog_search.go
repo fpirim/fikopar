@@ -266,6 +266,15 @@ func (s *CatalogService) GridParts(ctx context.Context, orgID uint, in PartGridR
 				return nil, err
 			}
 		}
+		if !all {
+			lps, err := q.LastPurchases(orgID, ids, today())
+			if err != nil {
+				return nil, err
+			}
+			for i := range lps {
+				out.Rows[at[lps[i].PartID]].LastPurchaseCost = &lps[i]
+			}
+		}
 	}
 	return out, nil
 }
