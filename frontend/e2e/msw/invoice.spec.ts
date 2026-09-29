@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, clipped, cutControls, today, addDays, shown } from './fixtures'
+import { test, expect, clipped, cutControls, cutHeaders, today, addDays, shown } from './fixtures'
 
 const lines = (page: Page) => page.locator('.fk-doc-lines')
 const cell = (page: Page, row: number, col: string) =>
@@ -280,11 +280,18 @@ for (const lang of ['en', 'tr'] as const) {
         await page.goto('/invoices/1001')
         await expect(cell(page, 3, 'part')).toHaveText('BR-2210')
         expect(await clipped(page, ['part', 'name'])).toEqual([])
+        expect(await cutHeaders(page)).toEqual([])
         expect(await cutControls(page)).toEqual([])
         expect(await overflowing(page)).toEqual([])
+        await page.goto('/invoices/new?type=PRICE_DIFFERENCE&original=391')
+        await expect(page.getByRole('group', { name: /Direction|Yön/ })).toBeEnabled()
+        expect(await cutHeaders(page)).toEqual([])
+        expect(await cutControls(page)).toEqual([])
         await page.goto('/invoices/8')
         await expect(cell(page, 0, 'description')).toContainText('Volume rebate')
         expect(await clipped(page)).toEqual([])
+        expect(await cutHeaders(page)).toEqual([])
+        expect(await cutControls(page)).toEqual([])
         expect(await overflowing(page)).toEqual([])
         await page.goto('/invoices')
         await expect(page.locator('.fk-grid .ag-row').first()).toBeVisible()

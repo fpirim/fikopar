@@ -88,3 +88,22 @@ export async function cutControls(page: Page): Promise<string[]> {
     return out
   })
 }
+
+// Grid column headers whose label does not fit.
+export async function cutHeaders(page: Page): Promise<string[]> {
+  await page.evaluate(() => document.fonts.ready)
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.fk-grid .ag-header-cell-text')]
+      .filter((h) => h.offsetParent !== null && h.scrollWidth > h.clientWidth + 1)
+      .map((h) => h.textContent ?? ''),
+  )
+}
+
+// Grids that scroll sideways.
+export async function sideways(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.fk-grid .ag-center-cols-viewport')]
+      .filter((v) => v.scrollWidth > v.clientWidth + 1)
+      .map((v) => `${v.closest('.fk-grid')?.className ?? ''}: ${v.scrollWidth - v.clientWidth}px`),
+  )
+}

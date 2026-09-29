@@ -25,5 +25,5 @@ export { expect }
 export const grid = (page: Page) => page.locator('.fk-grid').first()
 export const pinnedBottom = (page: Page) => grid(page).locator('.ag-floating-bottom')
 
-export { clipped, cutControls } from '../clipped'
+export { clipped, cutControls, cutHeaders, sideways } from '../clipped'
 export { mswToday as today, addDays, shown } from '../today'
