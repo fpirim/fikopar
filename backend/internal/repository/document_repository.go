@@ -237,12 +237,20 @@ func (q *Q) ReturnedQty(orgID uint, lineIDs []uint) (map[uint]models.Dec4, error
 	return out, err
 }
 
-// DependentDocumentIDs are the posted returns and price differences that link the document.
-func (q *Q) DependentDocumentIDs(orgID, id uint) ([]uint, error) {
-	ids := []uint{}
-	err := q.db.Raw(`SELECT id FROM documents WHERE org_id = ? AND linked_document_id = ? AND status = 'POSTED' ORDER BY id`,
-		orgID, id).Scan(&ids).Error
-	return ids, err
+// PostedDependents are the posted returns and price differences that link the document.
+func (q *Q) PostedDependents(orgID, id uint) ([]models.DocumentDependent, error) {
+	return list[models.DocumentDependent](q.db, `SELECT id, document_no, type FROM documents
+		WHERE org_id = ? AND linked_document_id = ? AND status = 'POSTED' ORDER BY id`, orgID, id)
+}
+
+// DraftDependents are the other documents that bill or link the draft or its lines.
+func (q *Q) DraftDependents(orgID, id uint) ([]models.DocumentDependent, error) {
+	return list[models.DocumentDependent](q.db, `SELECT x.id, x.document_no, x.type FROM documents x
+		WHERE x.org_id = ? AND x.id <> ? AND (x.waybill_id = ? OR x.linked_document_id = ? OR EXISTS (
+			SELECT 1 FROM document_lines xl JOIN document_lines l ON l.org_id = xl.org_id
+			  AND l.id IN (xl.billed_line_id, xl.origin_line_id)
+			WHERE xl.org_id = x.org_id AND xl.document_id = x.id AND l.document_id = ?))
+		ORDER BY x.id`, orgID, id, id, id, id)
 }
 
 // BilledBy is the non-cancelled document that bills the waybill.
@@ -363,28 +371,6 @@ func (q *Q) AccountBalance(accountID uint) (models.Money, error) {
 	err := q.db.Raw(`SELECT coalesce(sum(debit_total - credit_total), 0) FROM account_balances WHERE account_id = ?`,
 		accountID).Row().Scan(&m)
 	return m, err
-}
-
-// PendingLedgerDocument is a posted or cancelled document of a card whose ledger effect is not written yet.
-type PendingLedgerDocument struct {
-	Type           string       `gorm:"column:type"`
-	LinkedType     *string      `gorm:"column:linked_type"`
-	PriceDirection *string      `gorm:"column:price_direction"`
-	GrandTotal     models.Money `gorm:"column:grand_total"`
-	Reversal       bool         `gorm:"column:reversal"`
-}
-
-// PendingLedgerDocuments lists posted documents without their entry and cancelled ones whose entry is not reversed.
-func (q *Q) PendingLedgerDocuments(orgID, sicilID uint) ([]PendingLedgerDocument, error) {
-	return list[PendingLedgerDocument](q.db, `SELECT d.type, o.type AS linked_type, d.price_direction, d.grand_total,
-			e.id IS NOT NULL AS reversal
-		FROM documents d
-		LEFT JOIN documents o ON o.org_id = d.org_id AND o.id = d.linked_document_id
-		LEFT JOIN journal_entries e ON e.org_id = d.org_id AND e.source_type = 'document' AND e.source_id = d.id::text
-		WHERE d.org_id = ? AND d.sicil_id = ? AND d.status <> 'DRAFT' AND NOT is_waybill(d.type) AND d.grand_total > 0
-		  AND ((d.status = 'POSTED' AND e.id IS NULL)
-		    OR (d.status = 'CANCELLED' AND e.id IS NOT NULL
-		        AND NOT EXISTS (SELECT 1 FROM journal_entries r WHERE r.reverses_entry_id = e.id)))`, orgID, sicilID)
 }
 
 // DraftDocumentsThrough lists up to 20 drafts dated on or before d.

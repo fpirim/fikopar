@@ -69,7 +69,8 @@ func TestV15_PostAndCancelWriteEffectsInTheirTransaction(t *testing.T) {
 	assert.Equal(t, "10", f.onHand(t, f.p1, f.depot))
 	redeliver(t, f.testApp, d.ID)
 	var entries, moves int64
-	require.NoError(t, testDB.Raw(`SELECT count(*) FROM journal_entries WHERE source_type = 'document' AND source_id = ?`, idStr(d.ID)).Scan(&entries).Error)
+	require.NoError(t, testDB.Raw(`SELECT count(*) FROM journal_entries WHERE id = ? OR reverses_entry_id = ?`,
+		*p.JournalEntryID, *p.JournalEntryID).Scan(&entries).Error)
 	require.NoError(t, testDB.Raw(`SELECT count(*) FROM stock_movements WHERE source_type = 'document' AND source_id = ?`, idStr(p.Lines[0].ID)).Scan(&moves).Error)
 	assert.EqualValues(t, 2, entries, "entry and reversal, once")
 	assert.EqualValues(t, 2, moves, "OUT and IN, once")
@@ -137,17 +138,19 @@ func TestV15_SicilSalesRep(t *testing.T) {
 	got := decode[sicilRep](t, f.do(t, http.MethodGet, f.path("/sicils/"+idStr(s.ID)), f.token, ""))
 	assert.Equal(t, s.SalesRepName, got.SalesRepName)
 
-	sum := decode[struct {
-		SalesRepUserID *uint   `json:"salesRepUserId"`
-		SalesRepName   *string `json:"salesRepName"`
-	}](t, f.do(t, http.MethodGet, f.path("/sicils/"+idStr(s.ID)+"/summary"), f.token, ""))
-	require.NotNil(t, sum.SalesRepUserID)
-	assert.Equal(t, f.clerkID, *sum.SalesRepUserID)
-	assert.Equal(t, s.SalesRepName, sum.SalesRepName)
-
 	d := f.create(t, docBody("SALES_INVOICE", f.depot, s.ID, "2026-03-01", "", lineJSON(f.p1, "1", "10", "")))
 	require.NotNil(t, d.SalesRepUserID, "the card's salesperson is the default")
 	assert.Equal(t, f.clerkID, *d.SalesRepUserID)
+	f.postDoc(t, d)
+	rec = f.do(t, http.MethodGet, f.path("/sicils/"+idStr(s.ID)+"/summary"), f.token, "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	sum := decode[struct {
+		SalesRepUserID *uint   `json:"salesRepUserId"`
+		SalesRepName   *string `json:"salesRepName"`
+	}](t, rec)
+	require.NotNil(t, sum.SalesRepUserID)
+	assert.Equal(t, f.clerkID, *sum.SalesRepUserID)
+	assert.Equal(t, s.SalesRepName, sum.SalesRepName)
 
 	rec = f.req(t, http.MethodPut, f.path("/sicils/"+idStr(s.ID)), f.token, fmt.Sprintf(`{"sales_rep_user_id":%d}`, f.adminID),
 		map[string]string{"If-Match": `"` + strconv.Itoa(got.Version) + `"`})
@@ -288,15 +291,17 @@ type lpcJSON struct {
 
 func TestV15_LastPurchaseCost(t *testing.T) {
 	f := newDocs(t)
-	part := func(id uint) map[string]*lpcJSON {
-		return decode[map[string]*lpcJSON](t, f.do(t, http.MethodGet, f.path("/catalog/parts/"+idStr(id)), f.token, ""))
+	part := func(id uint) *lpcJSON {
+		return decode[struct {
+			LastPurchaseCost *lpcJSON `json:"lastPurchaseCost"`
+		}](t, f.do(t, http.MethodGet, f.path("/catalog/parts/"+idStr(id)), f.token, "")).LastPurchaseCost
 	}
 	raw := f.do(t, http.MethodGet, f.path("/catalog/parts/"+idStr(f.p1)), f.token, "").Body.String()
 	assert.Contains(t, raw, `"lastPurchaseCost":null`)
 
 	older := f.posted(t, docBody("PURCHASE_INVOICE", f.depot, f.supp, "2026-02-01", "", lineJSON(f.p1, "3", "10", `,"discount1Pct":"0","discount2Pct":"0"`)))
 	w := f.posted(t, docBody("PURCHASE_WAYBILL", f.depot2, f.supp, "2026-02-05", "", lineJSON(f.p1, "3", "7", `,"discount1Pct":"0","discount2Pct":"0"`)))
-	bill := f.posted(t, docBody("PURCHASE_INVOICE_WITH_WAYBILL", f.depot2, f.supp, "2026-02-10", fmt.Sprintf(`,"waybillDocumentId":%d`, w.ID)))
+	bill := f.posted(t, docBody("PURCHASE_INVOICE", f.depot2, f.supp, "2026-02-10", fmt.Sprintf(`,"waybillDocumentId":%d`, w.ID)))
 	f.posted(t, docBody("PURCHASE_WAYBILL", f.depot, f.supp, "2026-02-20", "", lineJSON(f.p1, "1", "99", "")))
 	f.posted(t, docBody("PURCHASE_RETURN", f.depot, f.supp, "2026-02-21", fmt.Sprintf(`,"linkedDocumentId":%d`, older.ID),
 		lineJSON(f.p1, "1", "50", fmt.Sprintf(`,"originLineId":%d`, older.Lines[0].ID))))
@@ -305,12 +310,12 @@ func TestV15_LastPurchaseCost(t *testing.T) {
 		fmt.Sprintf(`{"qty":"1","unitPrice":"5","originLineId":%d}`, older.Lines[0].ID)))
 	f.posted(t, docBody("PURCHASE_INVOICE", f.depot, f.supp, "2099-01-01", "", lineJSON(f.p1, "1", "55", "")))
 
-	lpc := part(f.p1)["lastPurchaseCost"]
+	lpc := part(f.p1)
 	require.NotNil(t, lpc)
 	assert.Equal(t, "7", lpc.Amount)
 	assert.Equal(t, "2026-02-10", lpc.Date)
 	assert.Equal(t, bill.no(), lpc.DocumentNo)
-	assert.Nil(t, part(f.p2)["lastPurchaseCost"])
+	assert.Nil(t, part(f.p2))
 
 	f.posted(t, docBody("PURCHASE_INVOICE", f.depot, f.supp, "2026-02-11", "", lineJSON(f.p2, "3", "10", `,"discount1Pct":"10","discount2Pct":"0"`)))
 	rows := decode[struct {

@@ -26,21 +26,22 @@ type telefonPayload struct {
 }
 
 type createSicilRequest struct {
-	HesapNo     string               `json:"hesap_no"`
-	HesapAdi    string               `json:"hesap_adi"`
-	Adres       string               `json:"adres"`
-	Ilce        string               `json:"ilce"`
-	Sehir       string               `json:"sehir"`
-	VDairesi    string               `json:"v_dairesi"`
-	VNo         string               `json:"v_no"`
-	TCNo        string               `json:"tc_no"`
-	Gun         string               `json:"gun"`
-	Iskonto     float64              `json:"iskonto"`
-	SicilTipi   models.SicilTipi     `json:"sicil_tipi"`
-	Telefonlar  []telefonPayload     `json:"telefonlar"`
-	CreditLimit *models.Money        `json:"credit_limit"`
-	Contacts    models.SicilContacts `json:"contacts"`
-	Emails      models.StringList    `json:"emails"`
+	HesapNo        string               `json:"hesap_no"`
+	HesapAdi       string               `json:"hesap_adi"`
+	Adres          string               `json:"adres"`
+	Ilce           string               `json:"ilce"`
+	Sehir          string               `json:"sehir"`
+	VDairesi       string               `json:"v_dairesi"`
+	VNo            string               `json:"v_no"`
+	TCNo           string               `json:"tc_no"`
+	Gun            string               `json:"gun"`
+	Iskonto        float64              `json:"iskonto"`
+	SicilTipi      models.SicilTipi     `json:"sicil_tipi"`
+	Telefonlar     []telefonPayload     `json:"telefonlar"`
+	CreditLimit    *models.Money        `json:"credit_limit"`
+	Contacts       models.SicilContacts `json:"contacts"`
+	Emails         models.StringList    `json:"emails"`
+	SalesRepUserID *uint                `json:"sales_rep_user_id"`
 }
 
 func (h *SicilHandler) Grid(c echo.Context) error {
@@ -68,21 +69,22 @@ func (h *SicilHandler) Create(c echo.Context) error {
 		telefonlar = append(telefonlar, models.SicilTelefon{Tipi: t.Tipi, Numara: t.Numara})
 	}
 	card := &models.Sicil{
-		HesapNo:     req.HesapNo,
-		HesapAdi:    req.HesapAdi,
-		Adres:       req.Adres,
-		Ilce:        req.Ilce,
-		Sehir:       req.Sehir,
-		VDairesi:    req.VDairesi,
-		VNo:         req.VNo,
-		TCNo:        req.TCNo,
-		Gun:         req.Gun,
-		Iskonto:     req.Iskonto,
-		SicilTipi:   req.SicilTipi,
-		Telefonlar:  telefonlar,
-		CreditLimit: req.CreditLimit,
-		Contacts:    req.Contacts,
-		Emails:      req.Emails,
+		HesapNo:        req.HesapNo,
+		HesapAdi:       req.HesapAdi,
+		Adres:          req.Adres,
+		Ilce:           req.Ilce,
+		Sehir:          req.Sehir,
+		VDairesi:       req.VDairesi,
+		VNo:            req.VNo,
+		TCNo:           req.TCNo,
+		Gun:            req.Gun,
+		Iskonto:        req.Iskonto,
+		SicilTipi:      req.SicilTipi,
+		Telefonlar:     telefonlar,
+		CreditLimit:    req.CreditLimit,
+		Contacts:       req.Contacts,
+		Emails:         req.Emails,
+		SalesRepUserID: req.SalesRepUserID,
 	}
 	created, err := h.svc.Create(orgID(c), card)
 	if err != nil {

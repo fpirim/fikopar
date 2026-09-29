@@ -14,12 +14,17 @@ type DocumentGridRequest struct {
 	DateFrom   *models.Date `json:"dateFrom"`
 	DateTo     *models.Date `json:"dateTo"`
 	DocumentNo *string      `json:"documentNo"`
+	// Billed set: waybills only, billed by a non-cancelled document or not.
+	Billed *bool `json:"billed"`
+	// BillsWaybill: documents that bill a waybill or not.
+	BillsWaybill *bool `json:"billsWaybill"`
 }
 
 const documentGridSelect = `SELECT d.id, d.document_no, d.type, d.status, d.depot_id, dp.code AS depot_code, d.sicil_id,
 	s.hesap_no, s.hesap_adi AS sicil_name, d.document_date, d.due_date, u.name AS sales_rep_name, d.gross_total,
 	d.discount_total, d.net_total, d.vat_total, d.grand_total, l.document_no AS linked_document_no, d.price_direction,
-	w.document_no AS waybill_document_no, d.credit_override_at IS NOT NULL AS credit_override, d.posted_at, d.version
+	w.document_no AS waybill_document_no, d.credit_override_at IS NOT NULL AS credit_override, d.posted_at, d.version,
+	d.org_id, d.waybill_id
 	FROM documents d
 	JOIN depots dp ON dp.id = d.depot_id
 	JOIN sicils s ON s.id = d.sicil_id
@@ -97,6 +102,15 @@ func (q *Q) GridDocuments(orgID uint, req DocumentGridRequest, all bool) (*Docum
 	if req.DocumentNo != nil && *req.DocumentNo != "" {
 		top += ` AND x.document_no ILIKE ?`
 		targs = append(targs, "%"+escapeLike(*req.DocumentNo)+"%")
+	}
+	if req.Billed != nil {
+		top += ` AND is_waybill(x.type) AND EXISTS (SELECT 1 FROM documents b WHERE b.org_id = x.org_id AND b.waybill_id = x.id
+			AND b.status <> 'CANCELLED') = ?`
+		targs = append(targs, *req.Billed)
+	}
+	if req.BillsWaybill != nil {
+		top += ` AND (x.waybill_id IS NOT NULL) = ?`
+		targs = append(targs, *req.BillsWaybill)
 	}
 	where, wargs, err := whereClause(req.FilterModel, documentFilterCols)
 	if err != nil {

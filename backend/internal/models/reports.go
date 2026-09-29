@@ -76,16 +76,18 @@ type SearchResult struct {
 }
 
 type SicilSummary struct {
-	SicilID            uint   `json:"sicilId"`
-	AccountID          uint   `json:"accountId"`
-	AccountCode        string `json:"accountCode"`
-	Balance            Money  `json:"balance"`
-	Overdue            Money  `json:"overdue"`
-	CreditLimit        *Money `json:"creditLimit"`
-	CreditUsedPct      *int   `json:"creditUsedPct"`
-	PaymentTermDays    *int   `json:"paymentTermDays"`
-	Discount1Pct       string `json:"discount1Pct"`
-	Discount2Pct       string `json:"discount2Pct"`
-	ChequesInPortfolio Money  `json:"chequesInPortfolio"`
-	LastMoveDate       *Date  `json:"lastMoveDate"`
+	SicilID            uint    `json:"sicilId"`
+	AccountID          uint    `json:"accountId"`
+	AccountCode        string  `json:"accountCode"`
+	Balance            Money   `json:"balance"`
+	Overdue            Money   `json:"overdue"`
+	CreditLimit        *Money  `json:"creditLimit"`
+	CreditUsedPct      *int    `json:"creditUsedPct"`
+	PaymentTermDays    *int    `json:"paymentTermDays"`
+	Discount1Pct       string  `json:"discount1Pct"`
+	Discount2Pct       string  `json:"discount2Pct"`
+	SalesRepUserID     *uint   `json:"salesRepUserId"`
+	SalesRepName       *string `json:"salesRepName"`
+	ChequesInPortfolio Money   `json:"chequesInPortfolio"`
+	LastMoveDate       *Date   `json:"lastMoveDate"`
 }

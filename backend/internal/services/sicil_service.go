@@ -15,10 +15,26 @@ import (
 
 type SicilService struct {
 	repo repository.SicilRepository
+	orgs repository.OrganizationRepository
 }
 
-func NewSicilService(repo repository.SicilRepository) *SicilService {
-	return &SicilService{repo: repo}
+func NewSicilService(repo repository.SicilRepository, orgs repository.OrganizationRepository) *SicilService {
+	return &SicilService{repo: repo, orgs: orgs}
+}
+
+// salesRep checks that the card's salesperson is a member of the company.
+func (s *SicilService) salesRep(organizationID uint, userID *uint) error {
+	if userID == nil {
+		return nil
+	}
+	ok, err := s.orgs.IsMember(*userID, organizationID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return apierror.UnknownRef(apierror.UserNotFound, "sales_rep_user_id")
+	}
+	return nil
 }
 
 func validateSicil(card *models.Sicil) error {
@@ -96,14 +112,21 @@ func (s *SicilService) Create(organizationID uint, card *models.Sicil) (*models.
 	if err := validateSicil(card); err != nil {
 		return nil, err
 	}
+	if err := s.salesRep(organizationID, card.SalesRepUserID); err != nil {
+		return nil, err
+	}
 	card.ID = 0
 	card.Version = 1
 	card.Organization = nil
+	card.SalesRepName = nil
 	if err := s.repo.Create(card); err != nil {
 		if isDuplicate(err) {
 			return nil, apierror.HesapNoExists
 		}
 		return nil, err
+	}
+	if card.SalesRepUserID != nil {
+		return s.repo.GetByID(organizationID, card.ID)
 	}
 	return card, nil
 }
@@ -148,6 +171,16 @@ func (s *SicilService) Update(organizationID, id uint, version int, updates map[
 	telefonlar, hasTelefonlar, err := validateSicilUpdate(card, clean, updates)
 	if err != nil {
 		return nil, err
+	}
+	if raw, ok := updates["sales_rep_user_id"]; ok {
+		var rep *uint
+		if err := remarshal(raw, &rep); err != nil {
+			return nil, apierror.WithField(apierror.InvalidRequest, "sales_rep_user_id")
+		}
+		if err := s.salesRep(organizationID, rep); err != nil {
+			return nil, err
+		}
+		clean["sales_rep_user_id"] = rep
 	}
 	var phones *[]models.SicilTelefon
 	if hasTelefonlar {

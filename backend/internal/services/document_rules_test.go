@@ -65,14 +65,7 @@ func TestPostingLines_BalanceAndCarryTheCardTotal(t *testing.T) {
 	assert.Len(t, sales, 2, "zero discount and VAT are left out")
 }
 
-func TestCardDebitAndCreditCheckedTypes(t *testing.T) {
-	assert.Equal(t, models.Money(100), cardDebit(typeSalesInvoice, dirSales, "", 100))
-	assert.Equal(t, models.Money(-100), cardDebit(typeSalesReturn, dirSales, "", 100))
-	assert.Equal(t, models.Money(-100), cardDebit(typePurchaseInvoice, dirPurchase, "", 100))
-	assert.Equal(t, models.Money(100), cardDebit(typePurchaseReturn, dirPurchase, "", 100))
-	assert.Equal(t, models.Money(100), cardDebit(typePriceDifference, dirSales, increase, 100))
-	assert.Equal(t, models.Money(-100), cardDebit(typePriceDifference, dirSales, decrease, 100))
-	assert.Equal(t, models.Money(0), cardDebit(typeSalesWaybill, dirSales, "", 100))
+func TestCreditCheckedTypes(t *testing.T) {
 	assert.True(t, creditChecked(typeSalesInvoiceWaybill, dirSales, ""))
 	assert.True(t, creditChecked(typePriceDifference, dirSales, increase))
 	assert.False(t, creditChecked(typePriceDifference, dirSales, decrease))

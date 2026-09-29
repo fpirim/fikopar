@@ -128,19 +128,6 @@ func postingLines(typ, direction, priceDirection string, a docAmounts) []ledgerL
 	return out
 }
 
-// cardDebit is the signed effect on the card's current account (debit positive).
-func cardDebit(typ, direction, priceDirection string, total models.Money) models.Money {
-	for _, l := range postingLines(typ, direction, priceDirection, docAmounts{total: total}) {
-		if l.role == "" && l.side == models.Debit {
-			return total
-		}
-		if l.role == "" {
-			return -total
-		}
-	}
-	return 0
-}
-
 // creditChecked: SF, SF with waybill and a price increase on a sale (ADR-0013 §9).
 func creditChecked(typ, direction, priceDirection string) bool {
 	return typ == typeSalesInvoiceWaybill || typ == typeSalesInvoice ||

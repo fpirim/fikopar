@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-// Document is a trade document with its lines and derived read data (contracts v1.4).
+// Document is a trade document with its lines and derived read data (contracts v1.5).
 type Document struct {
 	ID                   uint                 `json:"id"`
 	OrgID                uint                 `json:"orgId"`
@@ -11,6 +11,7 @@ type Document struct {
 	Status               string               `json:"status"`
 	DepotID              uint                 `json:"depotId"`
 	SicilID              uint                 `json:"sicilId"`
+	HesapNo              string               `json:"hesapNo"`
 	SicilName            string               `json:"sicilName"`
 	DocumentDate         Date                 `json:"documentDate"`
 	ShipDate             *Date                `json:"shipDate"`
@@ -121,13 +122,14 @@ const (
 // DocumentWarning is a non-blocking notice on a draft (STOCK_SHORT, CREDIT_LIMIT, PRICE_BELOW_LIST) or on a post
 // or cancel response (NEGATIVE_STOCK).
 type DocumentWarning struct {
-	Code        string `json:"code"`
-	LineNo      *int   `json:"lineNo,omitempty"`
-	PartID      *uint  `json:"partId,omitempty"`
-	DepotID     *uint  `json:"depotId,omitempty"`
-	Requested   *Dec4  `json:"requested,omitempty"`
-	Available   *Dec4  `json:"available,omitempty"`
-	OnHandAfter *Dec4  `json:"onHandAfter,omitempty"`
+	Code        string  `json:"code"`
+	LineNo      *int    `json:"lineNo,omitempty"`
+	PartID      *uint   `json:"partId,omitempty"`
+	StockNo     *string `json:"stockNo,omitempty"`
+	DepotID     *uint   `json:"depotId,omitempty"`
+	Requested   *Dec4   `json:"requested,omitempty"`
+	Available   *Dec4   `json:"available,omitempty"`
+	OnHandAfter *Dec4   `json:"onHandAfter,omitempty"`
 }
 
 type CreditOverride struct {
@@ -175,6 +177,18 @@ type DocumentSummary struct {
 	CreditOverride    bool       `json:"creditOverride" gorm:"column:credit_override"`
 	PostedAt          *time.Time `json:"postedAt" gorm:"column:posted_at"`
 	Version           int        `json:"version" gorm:"column:version"`
+}
+
+// DocumentDependent is a document that keeps another from being cancelled, changed or deleted.
+type DocumentDependent struct {
+	ID         uint    `json:"id" gorm:"column:id"`
+	DocumentNo *string `json:"documentNo" gorm:"column:document_no"`
+	Type       string  `json:"type" gorm:"column:type"`
+}
+
+// DocumentDependents is the details of ERR_DOCUMENT_HAS_DEPENDENTS.
+type DocumentDependents struct {
+	Dependents []DocumentDependent `json:"dependents"`
 }
 
 type DocumentTotals struct {
