@@ -29,12 +29,10 @@ type SearchResult struct {
 	NextCursor  *string             `json:"nextCursor"`
 }
 
-var turkishFold = strings.NewReplacer("I", "i", "İ", "i", "ı", "i", "Ş", "ş", "Ğ", "ğ", "Ü", "ü", "Ö", "ö", "Ç", "ç")
-
-// foldWords splits a query into case- and dotless-i-insensitive words (parts.name_fold) and their code forms.
+// foldWords splits a query into case- and Turkish-letter-insensitive words (parts.name_fold) and their code forms.
 func foldWords(q string) (words, norms []string) {
 	for _, w := range strings.Fields(q) {
-		words = append(words, strings.ToLower(turkishFold.Replace(w)))
+		words = append(words, strings.ToLower(asciiFold.Replace(w)))
 		norms = append(norms, NormalizeCode(w))
 	}
 	return words, norms

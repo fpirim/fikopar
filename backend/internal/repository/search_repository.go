@@ -5,7 +5,7 @@ import "github.com/fpirim/fikopar/backend/internal/models"
 // SearchAccounts matches cards by number, name or current-account code; accountId is the card's
 // current account (120 / 320 / 102), nil if it has none yet.
 func (q *Q) SearchAccounts(orgID uint, term string, limit int) ([]models.SearchAccountHit, error) {
-	like := "%" + term + "%"
+	like := "%" + escapeLike(term) + "%"
 	return list[models.SearchAccountHit](q.db, `SELECT s.id AS sicil_id, a.id AS account_id, s.hesap_no, s.hesap_adi
 		FROM sicils s
 		LEFT JOIN LATERAL (SELECT id, code FROM accounts WHERE org_id = s.organization_id AND sicil_id = s.id ORDER BY id LIMIT 1) a ON true
@@ -15,7 +15,7 @@ func (q *Q) SearchAccounts(orgID uint, term string, limit int) ([]models.SearchA
 
 // SearchDocuments matches receipt and cash voucher numbers, newest first.
 func (q *Q) SearchDocuments(orgID uint, term string, limit int) ([]models.ActivityItem, error) {
-	like := "%" + term + "%"
+	like := "%" + escapeLike(term) + "%"
 	return list[models.ActivityItem](q.db, `SELECT * FROM (
 		  SELECT 'RECEIPT' AS kind, r.id, r.receipt_no AS number, r.kind AS subtype, r.sicil_id, s.hesap_adi AS sicil_name,
 		         r.receipt_date AS date, r.depot_id, r.amount

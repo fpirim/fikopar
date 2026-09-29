@@ -266,3 +266,23 @@ func TestV13_StockLevelsGuardCannotBeBypassed(t *testing.T) {
 	require.NoError(t, move(testutil.App(t), f, f.part, f.depot, "OUT", "2", "2026-03-02"))
 	assert.Equal(t, "3.0000", onHand(t, f.part, f.depot))
 }
+
+// Even with grants, a session cannot pose as the projection with a same-named function in its temp schema.
+func TestV13_StockLevelsGuardRefusesAForgedProjection(t *testing.T) {
+	f := seedStock(t)
+	require.NoError(t, testDB.Exec(`GRANT INSERT, UPDATE ON stock_levels TO fikopar_app`).Error)
+	t.Cleanup(func() { testDB.Exec(`REVOKE INSERT, UPDATE ON stock_levels FROM fikopar_app`) })
+	app := testutil.App(t)
+	err := app.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(fmt.Sprintf(`CREATE FUNCTION pg_temp.apply_stock_movement() RETURNS void LANGUAGE plpgsql AS $f$
+			BEGIN
+			  INSERT INTO stock_levels AS l (org_id, part_id, depot_id, on_hand, version) VALUES (%d, %d, %d, 100, 1);
+			END $f$`, f.org, f.part, f.depot)).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`SELECT pg_temp.apply_stock_movement()`).Error
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "movement projection only")
+	assert.Equal(t, "0", onHand(t, f.part, f.depot))
+}

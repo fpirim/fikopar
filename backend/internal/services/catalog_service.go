@@ -144,8 +144,14 @@ var codeKinds = map[string]bool{models.CodeManufacturer: true, models.CodeOEM: t
 
 var nonAlnum = regexp.MustCompile(`[^0-9A-Za-z]`)
 
-// NormalizeCode is the matching form of a code: upper case, 0-9 A-Z only.
-func NormalizeCode(s string) string { return strings.ToUpper(nonAlnum.ReplaceAllString(s, "")) }
+// asciiFold maps the Turkish letters to ASCII (parts.name_fold and fold_code() in 0011 use the same table).
+var asciiFold = strings.NewReplacer("ı", "i", "İ", "I", "ş", "s", "Ş", "S", "ğ", "g", "Ğ", "G", "ü", "u", "Ü", "U",
+	"ö", "o", "Ö", "O", "ç", "c", "Ç", "C")
+
+// NormalizeCode is the matching form of a code: Turkish letters folded to ASCII, upper case, 0-9 A-Z only.
+func NormalizeCode(s string) string {
+	return strings.ToUpper(nonAlnum.ReplaceAllString(asciiFold.Replace(s), ""))
+}
 
 func optText(p *string, max int, field string) (*string, error) {
 	if p == nil {
@@ -215,7 +221,9 @@ func (w *PartWrite) validate() (repository.PartWrite, error) {
 }
 
 // checkCodes resolves EQUIVALENT links inside the company; their code becomes the linked stock no.
+// A second link to the same part is ERR_DUPLICATE_LINE.
 func checkCodes(q *repository.Q, orgID, self uint, codes []models.PartCode) error {
+	linked := map[uint]bool{}
 	for i, c := range codes {
 		if c.EquivalentPartID == nil {
 			continue
@@ -224,6 +232,10 @@ func checkCodes(q *repository.Q, orgID, self uint, codes []models.PartCode) erro
 		if *c.EquivalentPartID == self {
 			return apierror.WithField(apierror.InvalidRequest, field)
 		}
+		if linked[*c.EquivalentPartID] {
+			return apierror.UnknownRef(apierror.DuplicateLine, field)
+		}
+		linked[*c.EquivalentPartID] = true
 		ref, err := q.GetPartRef(orgID, *c.EquivalentPartID)
 		if repository.IsNotFound(err) {
 			return apierror.UnknownRef(apierror.PartNotFound, field)

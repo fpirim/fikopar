@@ -271,7 +271,7 @@ export interface paths {
     /**
      * Top-bar search over account cards, parts and document numbers
      * @description The parts group uses the `searchCatalog` match and ranking, `limit` hits per group. A `q` over 60 characters
-     *     skips the parts group.
+     *     skips the parts group. Cards and document numbers contain `q` literally (`%`, `_` and `\` are not wildcards).
      */
     get: operations['globalSearch']
     put?: never
@@ -1432,10 +1432,10 @@ export interface paths {
     }
     /**
      * Part picker (F2 on an invoice line, typing in a line)
-     * @description The whole `q`, normalized (upper case, only 0-9 A-Z), is matched against stock no and every code
+     * @description The whole `q`, normalized (Turkish letters folded to ASCII, upper case, only 0-9 A-Z), is matched against stock no and every code
      *     (MANUFACTURER, OEM, ALT, EQUIVALENT): rank 1 exact, 2 prefix, 3 substring (normalized `q` of 3+ characters).
      *     Rank 4 (words): `q` is split on spaces and every word must occur in the name (case- and
-     *     Turkish-dotless-i-insensitive) or, normalized, as a substring of the stock no or any code; `pump 37` finds a
+     *     Turkish-letter-insensitive: ç ğ ı ö ş ü match c g i o s u) or, normalized, as a substring of the stock no or any code; `pump 37` finds a
      *     pump named "Hydraulic pump" with code `HP-3712`. A rank-4 hit has `matchKind` NAME and `matchedCode` the
      *     first code (stock no, then MANUFACTURER, OEM, ALT, EQUIVALENT) a word occurs in, or null. A word without
      *     letters or digits matches the name only; a `q` without any skips ranks 1–3. Order: rank, then stock no,
@@ -1495,7 +1495,8 @@ export interface paths {
     /**
      * Create part in a catalog, optionally with its first list price
      * @description 409 ERR_PART_CODE_EXISTS when the stock no exists in the catalog; 422 ERR_CATALOG_NOT_FOUND (`catalogId`),
-     *     ERR_PART_NOT_FOUND (`codes[i].equivalentPartId`). The same stock no may exist in another catalog.
+     *     ERR_PART_NOT_FOUND / ERR_DUPLICATE_LINE (`codes[i].equivalentPartId`, a second link to the same part). The same
+     *     stock no may exist in another catalog.
      *     `initialPrice` is a MANUAL price row and emits `PriceChanged` like `setPartPrice`.
      */
     post: operations['createPart']
@@ -1541,7 +1542,8 @@ export interface paths {
     /**
      * Update part; `codes` replaces the code list; deactivate with `isActive` false (parts are never deleted)
      * @description `catalogId` must stay the same (422 ERR_PART_CATALOG_IMMUTABLE); `initialPrice` is ignored, prices change
-     *     through `setPartPrice`. 409 ERR_PART_CODE_EXISTS on a stock no taken in the catalog.
+     *     through `setPartPrice`. 409 ERR_PART_CODE_EXISTS on a stock no taken in the catalog; 422 ERR_DUPLICATE_LINE
+     *     (`codes[i].equivalentPartId`) on a second link to the same part.
      */
     put: operations['updatePart']
     post?: never
@@ -3451,7 +3453,7 @@ export interface components {
       kind: 'MANUFACTURER' | 'OEM' | 'ALT' | 'EQUIVALENT'
       /** @description For EQUIVALENT the linked part's stock no: the server stores it from `equivalentPartId` and ignores the sent value */
       code: string
-      /** @description Upper case, 0-9 A-Z only; unique per part and kind */
+      /** @description Turkish letters folded to ASCII, upper case, 0-9 A-Z only; unique per part and kind */
       readonly normalizedCode?: string
       /** @description Required for EQUIVALENT; null otherwise */
       equivalentPartId?: number | null

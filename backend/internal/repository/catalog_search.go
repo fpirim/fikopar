@@ -125,7 +125,7 @@ func (q *Q) SearchPage(orgID uint, sq SearchQuery, limit int) ([]models.CatalogH
 		       page.brand, page.type, page.vat_pct, page.unit, page.package_qty,
 		       CASE WHEN page.match_kind = 'NAME' THEN (
 		         SELECT x.code FROM (
-		           SELECT page.stock_no AS code, 0 AS ord, 0::bigint AS id WHERE upper(regexp_replace(page.stock_no, '[^0-9A-Za-z]', '', 'g')) LIKE ANY(?::text[])
+		           SELECT page.stock_no AS code, 0 AS ord, 0::bigint AS id WHERE fold_code(page.stock_no) LIKE ANY(?::text[])
 		           UNION ALL
 		           SELECT pc.code, CASE pc.kind WHEN 'MANUFACTURER' THEN 1 WHEN 'OEM' THEN 2 WHEN 'ALT' THEN 3 ELSE 4 END, pc.id
 		           FROM part_codes pc WHERE pc.part_id = page.part_id AND pc.normalized_code LIKE ANY(?::text[])) x

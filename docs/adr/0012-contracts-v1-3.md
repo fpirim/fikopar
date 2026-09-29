@@ -43,3 +43,14 @@ its workarounds (client-side In / Out, grid re-read after a 412, local mapping w
 F3 note (backend 5): the app role reads `stock_levels` only and the projection trigger is `SECURITY DEFINER`.
 Reservations need a definer function or a column grant on `reserved`. F3 also replaces `last_purchase_cost()` and
 fills the document fields of movements.
+
+## Errata (2026-09-29, no API change)
+- Codes and names fold the Turkish letters to ASCII before matching (ı İ i → I, ş → S, ğ → G, ü → U, ö → O,
+  ç → C): `NormalizeCode("ısı")` is `ISI`, not `S`; `cig` finds "Çığ mili", `salter` finds "Şalter". Migration
+  `0011` rebuilds `stock_no_norm`, `normalized_code` and `name_fold` with `fold_code()` / `fold_name()`. This widens
+  "case- and Turkish-dotless-i-insensitive" to Turkish-letter-insensitive.
+- A second EQUIVALENT link to the same part in one `codes` list is `422 ERR_DUPLICATE_LINE`
+  (`codes[i].equivalentPartId`) instead of being collapsed.
+- `globalSearch` cards and document numbers match `q` literally; LIKE wildcards are escaped as in the parts group.
+- `stock_levels`: the guard recognises the projection by its call stack, not by the `fikopar.stock_projection`
+  setting any session could set; TRUNCATE is refused, for the owner too.

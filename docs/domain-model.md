@@ -126,7 +126,8 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
   catalog, fixed after create; `stock_no` unique per catalog. Parts are deactivated, never deleted.
 - `PartCode {kind: MANUFACTURER|OEM|ALT|EQUIVALENT, code, normalized_code, equivalent_part_id?}` — ALT is a free
   alternative or old code; EQUIVALENT (muadil) links another part and its `code` is that part's stock no (v1.3).
-  Codes match after normalization (upper case, 0-9 A-Z). Search: the whole query against codes (exact, prefix,
+  Codes match after normalization (Turkish letters folded to ASCII, upper case, 0-9 A-Z); names match case- and
+  Turkish-letter-insensitively (v1.3 erratum). Search: the whole query against codes (exact, prefix,
   substring), then word by word, each word in the name or in a code.
 - `Price {part_id, price, valid_from, source: MANUAL|IMPORT|LEGACY, import_id?}` — append-only list price history, one row
   per (part, valid_from). **Price on D** = the row with the latest `valid_from` ≤ D (`price_on()`); a row is valid until
