@@ -25,7 +25,8 @@ async function loaded(path: string, admin = false) {
 describe('DocumentPage', () => {
   it('shows a draft like the mockup: next number, lines, stock colours, totals, effects, warnings', async () => {
     await loaded('/invoices/1001')
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('SF-2026-1-000419')
+    // The number comes from the number series, fetched only after the document: its own wait.
+    await screen.findByRole('heading', { level: 1, name: 'SF-2026-1-000419' })
     expect(screen.getByText('TASLAK')).toBeInTheDocument()
     expect(screen.getByLabelText('Belge türü')).toHaveValue('SALES_INVOICE_WITH_WAYBILL')
     await waitFor(() =>
@@ -33,7 +34,8 @@ describe('DocumentPage', () => {
         '120.10482 · Yılmaz Tarım Makinaları',
       ),
     )
-    expect(screen.getByLabelText('Plasiyer')).toHaveValue('7')
+    // The option needs the members list, a separate request.
+    await waitFor(() => expect(screen.getByLabelText('Plasiyer')).toHaveValue('7'))
     expect(cellText(0, 'part')).toBe('HP-3774')
     expect(cellText(3, 'd2')).toBe('4,44')
     expect(cellText(3, 'net')).toBe('2.150,00')

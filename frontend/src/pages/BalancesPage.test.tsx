@@ -49,7 +49,8 @@ describe('BalancesPage', () => {
       },
     })
     expect(screen.getByText(/filtreler: Şehir, Tip, Bakiye/)).toBeInTheDocument()
-    expect(screen.getByText('1–6 / 6')).toBeInTheDocument()
+    // The range follows AG Grid's async model/viewport events, not the response that fills the total row.
+    expect(await screen.findByText('1–6 / 6')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Filtreleri temizle' }))
     await waitFor(() => expect(pinned()).toHaveTextContent('412 / 412'))
