@@ -1,0 +1,83 @@
+/* Design tokens from the approved mockups. Screens adopt them when they are rebuilt. */
+:root {
+  --fk-bg: #f6f5f1;
+  --fk-surface: #ffffff;
+  --fk-surface-sunken: #fbfaf7;
+  --fk-row-hover: #fafaf8;
+  --fk-row-selected: #eef3f8;
+
+  --fk-border: #e3e1da;
+  --fk-border-input: #d5d2c9;
+  --fk-divider: #eeece6;
+  --fk-divider-soft: #f3f1ec;
+
+  --fk-text: #16181d;
+  --fk-text-secondary: #474b54;
+  --fk-text-muted: #5b606b;
+  --fk-text-faint: #8a8f99;
+
+  --fk-accent: #1f5f8b;
+  --fk-accent-hover: #16476a;
+  --fk-accent-light: #8fb7d6;
+  --fk-negative: #8e3222;
+
+  --fk-chip-blue-bg: #e6eef5;
+  --fk-chip-blue-fg: #1f4e72;
+  --fk-chip-grey-bg: #eeece6;
+  --fk-chip-grey-fg: #474b54;
+  --fk-chip-amber-bg: #f6eedc;
+  --fk-chip-amber-fg: #6f4a00;
+  --fk-chip-green-bg: #e3f0ea;
+  --fk-chip-green-fg: #1d5b43;
+  --fk-chip-red-bg: #f6e4e0;
+  --fk-chip-red-fg: #8e3222;
+
+  --fk-nav-bg: #16181d;
+  --fk-nav-raised: #1c1f25;
+  --fk-nav-border: #2c3038;
+  --fk-nav-hover: #23262e;
+  --fk-nav-active: #23303d;
+  --fk-nav-text: #c9ccd3;
+  --fk-nav-muted: #8a8f99;
+
+  --fk-font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --fk-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --fk-font-brand: 'Archivo', 'IBM Plex Sans', sans-serif;
+
+  --fk-text-xs: 11px;
+  --fk-text-sm: 12px;
+  --fk-text-md: 13px;
+  --fk-text-grid: 13.5px;
+  --fk-text-base: 14px;
+  --fk-text-lg: 16px;
+  --fk-text-xl: 22px;
+  --fk-text-2xl: 24px;
+
+  --fk-radius-xs: 4px;
+  --fk-radius-sm: 6px;
+  --fk-radius-md: 8px;
+  --fk-radius-lg: 10px;
+
+  --fk-control-h: 36px;
+  --fk-control-h-sm: 30px;
+  --fk-grid-header-h: 36px;
+  --fk-grid-row-h: 34px;
+  --fk-chip-h: 20px;
+  --fk-sidebar-w: 240px;
+}
+
+.fk-wordmark {
+  font-family: var(--fk-font-brand);
+  font-weight: 800;
+  font-stretch: 125%;
+  font-variation-settings: 'wdth' 125;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.fk-num {
+  font-family: var(--fk-font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
