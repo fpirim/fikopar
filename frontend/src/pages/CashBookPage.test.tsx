@@ -5,8 +5,8 @@ import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { todayIso } from '../lib/format'
 
-const WEEK = '/cash-book?from=2026-09-22&to=2026-09-29'
-const OPEN = `/cash-book?from=2026-09-22&to=${todayIso()}`
+const WEEK = '/cash-book?from=2026-09-22&to=2026-09-29&depot=1'
+const OPEN = `/cash-book?from=2026-09-22&to=${todayIso()}&depot=1`
 const stat = (label: string) => screen.getByRole('group', { name: label })
 
 describe('CashBookPage', () => {
@@ -32,9 +32,37 @@ describe('CashBookPage', () => {
 
   it('uses the top-bar depot', async () => {
     const calls = capture('get', '/api/orgs/:orgId/cash-book')
-    renderApp(`${WEEK}&depot=2`)
+    renderApp(WEEK.replace('depot=1', 'depot=2'))
     expect(await screen.findByText('Depo 2 · 22.09 – 29.09.2026')).toBeInTheDocument()
     await waitFor(() => expect(calls[0].url.searchParams.get('depotId')).toBe('2'))
+  })
+
+  it('asks for a depot instead of guessing one', async () => {
+    const calls = capture('get', '/api/orgs/:orgId/cash-book')
+    renderApp('/cash-book?from=2026-09-22&to=2026-09-29')
+    const prompt = await screen.findByRole('region', { name: 'Depo seçin' })
+    expect(prompt).toHaveTextContent('Her deponun kendi kasası var')
+    expect(screen.queryByRole('button', { name: 'Gider' })).not.toBeInTheDocument()
+    expect(calls).toHaveLength(0)
+    await userEvent.click(within(prompt).getByRole('button', { name: 'Depo 2' }))
+    expect(await screen.findByText('Depo 2 · 22.09 – 29.09.2026')).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('depot=2')
+    await waitFor(() => expect(calls[0].url.searchParams.get('depotId')).toBe('2'))
+  })
+
+  it('explains a closed year on a voucher', async () => {
+    renderApp(OPEN)
+    await userEvent.click(await screen.findByRole('button', { name: 'Gider' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Kasadan gider' })
+    const date = within(dialog).getByLabelText('Tarih')
+    await userEvent.clear(date)
+    await userEvent.type(date, '15.06.2024')
+    await userEvent.type(within(dialog).getByLabelText('Tutar'), '250')
+    await userEvent.type(within(dialog).getByLabelText('Açıklama'), 'Late receipt')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      '2024 yılı kapalı; önce 2025 devrini yeniden açın',
+    )
   })
 
   it('posts an expense voucher from the till', async () => {

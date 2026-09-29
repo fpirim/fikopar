@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from '../../i18n'
 import { renderApp } from '../../test/renderApp'
+import { capture } from '../../test/msw'
 
 const location = () => screen.getByTestId('location').textContent
 
@@ -46,12 +47,14 @@ describe('Topbar', () => {
   })
 
   it('searches accounts and opens the statement', async () => {
+    const summaries = capture('get', '/api/orgs/:orgId/sicils/:sicilId/summary')
     renderApp('/balances')
     const box = await screen.findByRole('searchbox', { name: 'Ara' })
     await userEvent.type(box, 'Yılmaz')
     const hit = await screen.findByRole('option', { name: /Yılmaz Tarım Makinaları/ })
     await userEvent.click(hit)
     await waitFor(() => expect(location()).toBe('/statements/5000'))
+    expect(summaries).toHaveLength(0)
   })
 
   it('opens a document hit in the journal', async () => {

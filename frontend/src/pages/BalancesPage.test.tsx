@@ -56,6 +56,23 @@ describe('BalancesPage', () => {
     expect(screen.getByLabelText('Şehir filtresi')).toHaveValue('')
   })
 
+  it('sends BalanceRow names as column ids', async () => {
+    const calls = capture('post', '/api/orgs/:orgId/ledger/balances/grid')
+    renderApp('/balances?asOf=2026-09-29')
+    await userEvent.type(await screen.findByLabelText('Ünvan filtresi'), 'Tarım')
+    await userEvent.type(screen.getByLabelText('Borç filtresi'), '> 1')
+    await waitFor(() =>
+      expect(calls[calls.length - 1].body).toMatchObject({
+        filterModel: {
+          accountName: { filterType: 'text', type: 'contains', filter: 'Tarım' },
+          debitTotal: { filterType: 'number', type: 'greaterThan', filter: 1 },
+        },
+      }),
+    )
+    await waitFor(() => expect(pinned()).toHaveTextContent('2 filtre'))
+    expect(screen.getByText(/filtreler: Ünvan, Borç/)).toBeInTheDocument()
+  })
+
   it('formats totals in English', async () => {
     renderApp('/balances?asOf=2026-09-29')
     await i18n.changeLanguage('en')

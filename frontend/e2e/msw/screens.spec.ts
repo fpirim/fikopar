@@ -79,7 +79,7 @@ test('12 journal entry', async ({ page }) => {
 
 test('12c journal list and TR shell', async ({ page }) => {
   await page.goto('/journal')
-  await expect(page.getByRole('link', { name: 'J-2026-004833' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'J-2026-1-004833' })).toBeVisible()
   await page.screenshot({ path: shot('12c-journal-list'), animations: 'disabled' })
   await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'TR' }).click()
   await page.goto('/balances?asOf=2026-09-29&depot=1')

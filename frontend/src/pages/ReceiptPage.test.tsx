@@ -95,6 +95,7 @@ describe('ReceiptPage', () => {
   })
 
   it('needs a bank account for a bank transfer', async () => {
+    const accounts = capture('get', '/api/orgs/:orgId/ledger/accounts')
     const posts = capture('post', '/api/orgs/:orgId/receipts')
     captureDownloads()
     renderApp('/receipts')
@@ -105,11 +106,45 @@ describe('ReceiptPage', () => {
     await userEvent.type(screen.getByLabelText('Tutar'), '2500,5')
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet ve yazdır' }))
     await waitFor(() => expect(posts).toHaveLength(1))
+    expect(accounts).toHaveLength(1)
+    expect(accounts[0].url.searchParams.get('role')).toBe('BANK')
+    expect(accounts[0].url.searchParams.has('cursor')).toBe(false)
     expect(posts[0].body).toMatchObject({
       method: 'BANK_TRANSFER',
       amount: '2500.50',
       bankAccountId: expect.any(Number),
     })
+  })
+
+  it('explains a closed year', async () => {
+    captureDownloads()
+    renderApp('/receipts')
+    await pickKaya()
+    const date = screen.getByLabelText('Tarih')
+    await userEvent.clear(date)
+    await userEvent.type(date, '31.12.2024')
+    await userEvent.type(screen.getByLabelText('Tutar'), '100')
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet ve yazdır' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '2024 yılı kapalı; önce 2025 devrini yeniden açın',
+    )
+  })
+
+  it('shows a method that the server does not offer yet', async () => {
+    server.use(
+      http.post('/api/orgs/:orgId/receipts', () =>
+        HttpResponse.json({ code: 'ERR_METHOD_NOT_AVAILABLE', field: 'method' }, { status: 400 }),
+      ),
+    )
+    renderApp('/receipts')
+    await pickKaya()
+    await userEvent.type(screen.getByLabelText('Tutar'), '100')
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet ve yazdır' }))
+    const methods = screen.getByRole('radiogroup', { name: 'Ödeme şekli' })
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Bu ödeme şekli henüz kullanılamıyor',
+    )
+    expect(methods).toHaveAttribute('aria-invalid', 'true')
   })
 
   it('validates before posting', async () => {
@@ -126,9 +161,8 @@ describe('ReceiptPage', () => {
     renderApp('/receipts?depot=2')
     const panel = await screen.findByRole('region', { name: 'Son makbuzlar' })
     await waitFor(() => expect(within(panel).getByText('TED-2026-2-000064')).toBeInTheDocument())
-    expect(grid[0].body).toMatchObject({
-      filterModel: { depotId: { filterType: 'number', type: 'equals', filter: 2 } },
-    })
+    expect(grid[0].body).toMatchObject({ depotId: 2 })
+    expect((grid[0].body as { filterModel: object }).filterModel).not.toHaveProperty('depotId')
     await userEvent.type(within(panel).getByLabelText('No filtresi'), 'TED')
     await waitFor(() =>
       expect(grid[grid.length - 1].body).toMatchObject({

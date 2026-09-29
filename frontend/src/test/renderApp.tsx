@@ -6,9 +6,9 @@ import { ToastProvider } from '../context/ToastContext'
 import AppRoutes from '../routes'
 import LocationProbe from './LocationProbe'
 
-// Full app on MSW at a route, signed in as the demo user of company 1.
-export function renderApp(path: string) {
-  localStorage.setItem('token', 'msw-token')
+// Full app on MSW at a route, signed in as the demo user (or an admin) of company 1.
+export function renderApp(path: string, opts: { admin?: boolean } = {}) {
+  localStorage.setItem('token', opts.admin ? 'msw-admin' : 'msw-token')
   localStorage.setItem('selectedOrganizationId', '1')
   return render(
     <MemoryRouter initialEntries={[path]}>
