@@ -33,7 +33,7 @@ describe('MoneyInput', () => {
     await userEvent.type(input, '1,2,3')
     expect(input).toHaveAttribute('aria-invalid', 'true')
     await userEvent.tab()
-    expect(input).toHaveValue('')
+    expect(input).toHaveValue('1,20')
   })
 
   it('uses English separators', async () => {

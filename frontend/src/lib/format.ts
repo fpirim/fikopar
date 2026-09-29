@@ -100,3 +100,12 @@ export function formatDateTime(ts: string | null | undefined): string {
 export function todayIso(now = new Date()): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
+
+// '' for empty, null when not a number; otherwise a Money string.
+export function parseAmount(text: string): string | null {
+  const { group, decimal } = numberSeparators()
+  const t = text.trim().split(group).join('').replace(decimal, '.')
+  if (!t) return ''
+  if (!/^-?\d+(\.\d*)?$/.test(t)) return null
+  return toMoney(Number(t))
+}
