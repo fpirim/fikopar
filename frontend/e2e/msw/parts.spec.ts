@@ -1,4 +1,4 @@
-import { test, expect, grid, pinnedBottom, clipped } from './fixtures'
+import { test, expect, grid, pinnedBottom, clipped, cutControls } from './fixtures'
 
 const rows = (page: import('@playwright/test').Page) =>
   grid(page).locator('.ag-center-cols-container .ag-row')
@@ -165,4 +165,40 @@ test('the equivalents card links both parts', async ({ page }) => {
   await expect(
     page.getByRole('region', { name: 'Equivalents' }).getByRole('link', { name: 'CL-1150' }),
   ).toBeVisible()
+})
+
+for (const lang of ['en', 'tr'] as const) {
+  test.describe(`${lang} 1152`, () => {
+    test.use({ lang, viewport: { width: 1152, height: 800 } })
+    test('parts toolbar and part card fit at 1152', async ({ page }) => {
+      await page.goto('/parts')
+      await expect(rows(page).first()).toBeVisible()
+      expect(await cutControls(page)).toEqual([])
+      await page.goto('/parts/1001')
+      await expect(grid(page)).toContainText('SF-2026-1-000418')
+      expect(await cutControls(page)).toEqual([])
+    })
+  })
+}
+
+test('a large price change fits its column', async ({ page }) => {
+  await page.goto('/parts/1001')
+  const prices = page.getByRole('table', { name: 'List prices' })
+  await expect(prices).toContainText('12,400.00')
+  await page.getByRole('button', { name: 'New price' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Price').fill('987,654,321')
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.type('15.10.2026')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await expect(dialog).toBeHidden()
+  await expect(prices.locator('tbody tr').first()).toContainText('987,654,321.00')
+  expect(await cutText(page)).toEqual([])
+  const room = await prices.evaluate((t) => {
+    const panel = t.closest('section')!
+    return t.scrollWidth <= panel.clientWidth + 1
+  })
+  expect(room).toBe(true)
 })

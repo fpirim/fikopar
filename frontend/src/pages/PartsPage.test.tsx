@@ -97,7 +97,7 @@ describe('PartsPage', () => {
     const calls = capture('post', '/api/orgs/:orgId/catalog/parts/grid')
     renderApp('/parts')
     await firstPart()
-    await userEvent.type(screen.getByLabelText('OEM / alt. filtresi'), '3774612')
+    await userEvent.type(screen.getByLabelText('OEM / alternatif filtresi'), '3774612')
     await waitFor(() =>
       expect(last(calls).body).toMatchObject({
         filterModel: { codes: { filterType: 'text', type: 'contains', filter: '3774612' } },

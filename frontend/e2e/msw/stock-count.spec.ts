@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, grid, pinnedBottom, clipped } from './fixtures'
+import { test, expect, grid, pinnedBottom, clipped, cutControls } from './fixtures'
 
 const row = (page: Page, no: string) =>
   grid(page).locator('.ag-center-cols-container .ag-row', { hasText: no })
@@ -104,6 +104,46 @@ for (const lang of ['en', 'tr'] as const) {
       const header = page.locator('h1').locator('..')
       const box = await header.boundingBox()
       expect(box!.height).toBeLessThan(44)
+    })
+  })
+}
+
+test('a negative or malformed count is refused, not saved', async ({ page }) => {
+  const saves: string[] = []
+  page.on('request', (r) => {
+    if (r.method() === 'PATCH') saves.push(r.postData() ?? '')
+  })
+  await shelfA0(page)
+  await counted(page, 'GS-4410').click()
+  await page.keyboard.type('-3')
+  await page.keyboard.press('Enter')
+  await expect(
+    counted(page, 'GS-4410').getByRole('img', { name: /Enter a quantity of 0 or more/ }),
+  ).toBeVisible()
+  await counted(page, 'GS-4418').click()
+  await page.keyboard.type('2,5')
+  await page.keyboard.press('Enter')
+  await expect(
+    counted(page, 'GS-4418').getByRole('img', { name: /Enter a quantity of 0 or more/ }),
+  ).toBeVisible()
+  expect(saves).toEqual([])
+})
+
+test('Esc in a count cell keeps the focus on the cell', async ({ page }) => {
+  await shelfA0(page)
+  await counted(page, 'GS-4410').dblclick()
+  await expect(page.getByLabel('Counted GS-4410')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(counted(page, 'GS-4410')).toBeFocused()
+})
+
+for (const lang of ['en', 'tr'] as const) {
+  test.describe(`${lang} 1152`, () => {
+    test.use({ lang, viewport: { width: 1152, height: 800 } })
+    test('count header actions fit at 1152', async ({ page }) => {
+      await page.goto('/stock-counts/2')
+      await expect(grid(page).locator('.ag-row').first()).toBeVisible()
+      expect(await cutControls(page)).toEqual([])
     })
   })
 }
