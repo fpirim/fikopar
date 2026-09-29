@@ -15,12 +15,14 @@ Demo: https://fikopar.fpirim.me (synthetic data, reset nightly)
 
 ## History
 
+The system was built for Dizel Tarım, a tractor spare-parts wholesaler, and has run its books since 2010.
+
 | Year | Generation | Stack |
 |---|---|---|
 | 2010 | COBOL ERP ([legacy/cobol](legacy/cobol)) | RM/COBOL, indexed files |
-| ~2012 | .NET tools (not included) | C#, MySQL |
-| ~2013 | PHP B2B portal with bank virtual POS (not included) | PHP, MySQL |
-| ~2015 | Desktop order system ([legacy/java-swing](legacy/java-swing)) | Java Swing, Hibernate, JasperReports |
+| 2010 | .NET tools (not included) | C#, MySQL |
+| 2013 | PHP B2B portal with bank virtual POS (not included) | PHP, MySQL |
+| 2013 | Desktop order system ([legacy/java-swing](legacy/java-swing)) | Java Swing, Hibernate, JasperReports |
 | 2023 | Web app v2 ([legacy/jhipster-v2](legacy/jhipster-v2)) | JHipster, Spring Boot, React, PostgreSQL |
 | 2026 | v3, this repo | Go (Echo, GORM), React 19, PostgreSQL |
 
@@ -43,7 +45,7 @@ flowchart LR
 - Writes use optimistic locking (ETag/If-Match) and Idempotency-Key.
 - Deploys are pulled: CI pushes an image to GHCR and sends the digest to the host with an HMAC signature.
 
-Decisions: [docs/adr](docs/adr/). Contracts: [domain model](docs/domain-model.md), [OpenAPI](api/openapi.yaml), [events](api/events/), [draft migrations](backend/migrations/draft/).
+Decisions: [docs/adr](docs/adr/). Contracts: [domain model](docs/domain-model.md), [screens](docs/screens.md), [OpenAPI](api/openapi.yaml), [events](api/events/), [draft migrations](backend/migrations/draft/). Look and feel: [brand](docs/brand.md).
 
 ## Run
 
