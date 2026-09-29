@@ -5,7 +5,7 @@ import (
 )
 
 const partSelect = `SELECT p.id, p.org_id, p.catalog_id, c.code AS catalog_code, c.name AS catalog_name, p.stock_no, p.name, p.type,
-	p.brand, p.unit, p.package_qty, p.vat_pct::text AS vat_pct, p.is_active, p.created_at, p.updated_at, p.version,
+	p.brand, p.unit, p.package_qty, trim_scale(p.vat_pct)::text AS vat_pct, p.is_active, p.created_at, p.updated_at, p.version,
 	lp.price AS list_price, lp.valid_from AS list_price_valid_from,
 	coalesce((SELECT sum(l.on_hand) FROM stock_levels l WHERE l.part_id = p.id), 0) AS on_hand
 	FROM parts p
@@ -108,7 +108,7 @@ func (q *Q) PartIDsByCode(orgID uint, norm string, activeOnly bool) ([]uint, err
 	err := q.db.Raw(`SELECT DISTINCT p.id FROM parts p
 		WHERE p.org_id = ? AND (NOT ? OR p.is_active)
 		  AND (p.stock_no_norm = ? OR EXISTS (SELECT 1 FROM part_codes pc WHERE pc.part_id = p.id AND pc.org_id = p.org_id AND pc.normalized_code = ?))
-		ORDER BY p.id`, orgID, activeOnly, norm, norm, norm).Scan(&ids).Error
+		ORDER BY p.id`, orgID, activeOnly, norm, norm).Scan(&ids).Error
 	return ids, err
 }
 
