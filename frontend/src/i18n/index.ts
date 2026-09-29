@@ -15,6 +15,7 @@ import enErrors from './locales/en/errors.json'
 import enGrid from './locales/en/grid.json'
 import enShell from './locales/en/shell.json'
 import enBalances from './locales/en/balances.json'
+import enLedger from './locales/en/ledger.json'
 
 import trCommon from './locales/tr/common.json'
 import trNav from './locales/tr/nav.json'
@@ -28,6 +29,7 @@ import trErrors from './locales/tr/errors.json'
 import trGrid from './locales/tr/grid.json'
 import trShell from './locales/tr/shell.json'
 import trBalances from './locales/tr/balances.json'
+import trLedger from './locales/tr/ledger.json'
 
 const resources = {
   en: {
@@ -43,6 +45,7 @@ const resources = {
     grid: enGrid,
     shell: enShell,
     balances: enBalances,
+    ledger: enLedger,
   },
   tr: {
     common: trCommon,
@@ -57,6 +60,7 @@ const resources = {
     grid: trGrid,
     shell: trShell,
     balances: trBalances,
+    ledger: trLedger,
   },
 } as const
 

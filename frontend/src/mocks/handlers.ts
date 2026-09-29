@@ -447,6 +447,12 @@ export const handlers = [
     const s = db.current.ledger.sicils.find((x) => x.id === Number(params.sicilId))
     return s ? HttpResponse.json(s) : err(404, 'ERR_SICIL_NOT_FOUND')
   }),
+  http.put(`${O}/sicils/:sicilId`, async ({ params, request }) => {
+    const s = db.current.ledger.sicils.find((x) => x.id === Number(params.sicilId))
+    if (!s) return err(404, 'ERR_SICIL_NOT_FOUND')
+    Object.assign(s, (await request.json()) as object)
+    return HttpResponse.json(s)
+  }),
   http.get(`${O}/sicils/:sicilId/summary`, ({ params, request }) => {
     const p = party(Number(params.sicilId))
     if (!p) return err(404, 'ERR_SICIL_NOT_FOUND')
