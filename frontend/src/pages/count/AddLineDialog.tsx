@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addStockCountLine, searchCatalog } from '../../api/endpoints'
+import { addStockCountLine } from '../../api/endpoints'
 import { errorText } from '../../api/errorText'
 import type { CatalogHit, StockCount } from '../../api/types'
+import { useDepots } from '../../hooks/useDepots'
 import { useIdempotencyKey } from '../../hooks/useIdempotencyKey'
-import { cn } from '@/lib/utils'
+import CatalogSearch from '../../components/catalog/CatalogSearch'
 import { Button } from '../../components/ui/button'
 import {
   Dialog,
@@ -30,27 +31,13 @@ export default function AddLineDialog({
 }>) {
   const { t } = useTranslation(['counts', 'common', 'errors'])
   const idem = useIdempotencyKey()
+  const depots = useDepots().filter((d) => d.id === count.depotId)
   const [q, setQ] = useState('')
-  const [hits, setHits] = useState<CatalogHit[]>([])
+  const [open, setOpen] = useState(false)
   const [part, setPart] = useState<CatalogHit | null>(null)
   const [qty, setQty] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    const text = q.trim()
-    if (text.length < 2) return
-    const ctrl = new AbortController()
-    const timer = setTimeout(() => {
-      searchCatalog(orgId, { q: text, limit: 5 }, ctrl.signal)
-        .then((r) => setHits(r.items))
-        .catch(() => undefined)
-    }, 250)
-    return () => {
-      clearTimeout(timer)
-      ctrl.abort()
-    }
-  }, [orgId, q])
 
   const counted = parseCounted(qty)
 
@@ -77,27 +64,28 @@ export default function AddLineDialog({
           <DialogTitle>{t('add.title', { no: count.countNo })}</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="flex flex-col gap-3">
-          <TextField label={t('add.part')} value={q} onChange={setQ} mono autoFocus />
-          {q.trim().length >= 2 && (
-            <div role="listbox" aria-label={t('add.part')} className="flex flex-col">
-              {hits.map((h) => (
-                <button
-                  key={h.partId}
-                  type="button"
-                  role="option"
-                  aria-selected={part?.partId === h.partId}
-                  onClick={() => setPart(h)}
-                  className={cn(
-                    'flex items-center gap-3 rounded px-2 py-1.5 text-left text-13 hover:bg-fk-sunken',
-                    part?.partId === h.partId && 'bg-fk-selected',
-                  )}
-                >
-                  <span className="w-[88px] shrink-0 font-mono">{h.stockNo}</span>
-                  <span className="min-w-0 truncate">{h.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex min-w-0 flex-col gap-1 text-xs text-fk-muted">
+            <span>{t('add.part')}</span>
+            <CatalogSearch
+              orgId={orgId}
+              depots={depots}
+              open={open}
+              onOpenChange={setOpen}
+              query={q}
+              onQueryChange={(v) => {
+                setQ(v)
+                setPart(null)
+                setOpen(true)
+              }}
+              date={count.countDate}
+              onPick={(hit) => {
+                setPart(hit)
+                setQ(hit.stockNo)
+                setOpen(false)
+              }}
+            />
+            {part && <p className="truncate text-13 text-fk-muted">{part.name}</p>}
+          </div>
           <TextField
             label={t('add.counted')}
             value={qty}
