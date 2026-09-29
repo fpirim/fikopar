@@ -383,6 +383,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SearchResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/admin/users:
@@ -1173,6 +1174,7 @@ paths:
       requestBody: { $ref: '#/components/requestBodies/Reason' }
       responses:
         '201': { $ref: '#/components/responses/JournalEntryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }

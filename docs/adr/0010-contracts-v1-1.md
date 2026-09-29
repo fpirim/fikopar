@@ -43,6 +43,10 @@ Frontend
 - F13 No change (F4).
 - F14 Date parameters and grid date filters take `yyyy-mm-dd`; a time part is ignored.
 
+Erratum (doc only, v1.1 unchanged): `reverseJournalEntry` (no reason) and `globalSearch` (`q` under 2 characters,
+bad `limit`) list the 400 ERR_INVALID_REQUEST they already return; `login` answers 400 ERR_INVALID_REQUEST, not
+401, to a body without email or password.
+
 ## Consequences
 Backend needs a migration to v1.1 DDL (sicil version, run reopen, voidable openings, closed-year trigger,
 TRY CHECKs) and the new codes. Frontend regenerates types, renames balance colIds, sends `If-Match` on sicil and
