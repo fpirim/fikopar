@@ -58,6 +58,7 @@ test.describe('catalog and stock', () => {
     await page.keyboard.type('1')
     await page.keyboard.press('Enter')
     await expect(rows.first().locator('[col-id="countedQty"]')).toHaveText('5')
+    await expect(grid(page).getByRole('img', { name: 'Saved' })).toHaveCount(2)
     await page.reload()
     await expect(rows.first().locator('[col-id="countedQty"]')).toHaveText('5')
     await expect(rows.nth(1).locator('[col-id="countedQty"]')).toHaveText('1')

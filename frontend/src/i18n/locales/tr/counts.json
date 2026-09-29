@@ -107,7 +107,8 @@
     "SKIP": "Değiştirme",
     "ZERO": "0 say",
     "submit": "İşle",
-    "posted": "{{no}} işlendi · {{count}} düzeltme",
+    "posted_one": "{{no}} işlendi · {{count}} düzeltme",
+    "posted_other": "{{no}} işlendi · {{count}} düzeltme",
     "negative": "İşlemden sonra eksi stok",
     "negativeLine": "{{no}} · Depo {{code}}: {{qty}}",
     "done": "Tamam"

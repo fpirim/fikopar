@@ -107,7 +107,8 @@
     "SKIP": "Leave unchanged",
     "ZERO": "Count as 0",
     "submit": "Post",
-    "posted": "{{no}} posted · {{count}} adjustments",
+    "posted_one": "{{no}} posted · {{count}} adjustment",
+    "posted_other": "{{no}} posted · {{count}} adjustments",
     "negative": "Negative stock after posting",
     "negativeLine": "{{no}} · Depot {{code}}: {{qty}}",
     "done": "Done"
