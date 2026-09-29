@@ -132,3 +132,37 @@ test('movements filter by type', async ({ page }) => {
   await expect(rows(page)).toHaveCount(2)
   await expect(rows(page).first()).toContainText('1 → 2')
 })
+
+test('all depots shows on hand per depot side by side, nothing cut', async ({ page }) => {
+  await page.goto('/parts')
+  await page.getByLabel('Filter Part').fill('HP-3774')
+  await expect(rows(page)).toHaveCount(1)
+  await expect(grid(page).getByRole('columnheader', { name: 'Dp 1' })).toBeVisible()
+  await expect(rows(page).first().locator('[col-id="depot.1"]')).toHaveText('10')
+  await expect(rows(page).first().locator('[col-id="depot.2"]')).toHaveText('4')
+  expect(await clipped(page, ['stockNo', 'codes', 'depot.1', 'depot.2'])).toEqual([])
+  expect(await cutText(page)).toEqual([])
+})
+
+test('movements filter by the Out column on the server', async ({ page }) => {
+  await page.goto('/parts/1001')
+  await expect(grid(page)).toContainText('SF-2026-1-000418')
+  await page.getByLabel('Filter Out').fill('>= 2')
+  await expect
+    .poll(async () => {
+      const outs = await rows(page).locator('[col-id="qtyOut"]').allTextContents()
+      return outs.length > 0 && outs.every((v) => Number(v) >= 2)
+    })
+    .toBe(true)
+})
+
+test('the equivalents card links both parts', async ({ page }) => {
+  await page.goto('/parts/1005')
+  const card = page.getByRole('region', { name: 'Equivalents' })
+  await expect(card).toContainText('Clutch disc 12"')
+  await card.getByRole('link', { name: 'CL-1210' }).click()
+  await expect(page.getByRole('heading', { name: 'Clutch disc 12"' })).toBeVisible()
+  await expect(
+    page.getByRole('region', { name: 'Equivalents' }).getByRole('link', { name: 'CL-1150' }),
+  ).toBeVisible()
+})
