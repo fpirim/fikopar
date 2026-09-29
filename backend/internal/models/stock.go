@@ -39,15 +39,6 @@ const (
 	MoveTransferOut = "TRANSFER_OUT"
 )
 
-// Signed is qty for incoming kinds and −qty for outgoing ones.
-func Signed(kind string, qty Dec4) Dec4 {
-	switch kind {
-	case MoveIn, MoveAdjustIn, MoveTransferIn:
-		return qty
-	}
-	return -qty
-}
-
 type StockMovement struct {
 	ID            uint      `json:"id" gorm:"column:id"`
 	PartID        uint      `json:"partId" gorm:"column:part_id"`
