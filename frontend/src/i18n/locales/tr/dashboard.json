@@ -38,5 +38,6 @@
     "BALANCED": "DENGEDE",
     "DRIFT": "FARK VAR",
     "NOT_RUN": "ÇALIŞMADI"
-  }
+  },
+  "depotShort": "Dp {{code}}"
 }

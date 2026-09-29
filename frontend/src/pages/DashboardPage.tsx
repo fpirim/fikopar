@@ -175,7 +175,7 @@ function Overview({ orgId }: Readonly<{ orgId: number }>) {
               <tr>
                 <th className={TH}>{t('col.number')}</th>
                 <th className={TH}>{t('col.type')}</th>
-                <th className={TH}>{t('col.account')}</th>
+                <th className={cn(TH, 'w-full')}>{t('col.account')}</th>
                 <th className={TH}>{t('col.depot')}</th>
                 <th className={cn(TH, 'text-right')}>{t('col.amount')}</th>
               </tr>
@@ -267,7 +267,7 @@ function Overview({ orgId }: Readonly<{ orgId: number }>) {
                   <span className="min-w-0 flex-1 truncate">{l.name}</span>
                   {!depotId && l.depotId !== null && l.depotId !== undefined && (
                     <span className="shrink-0 font-mono text-13 text-fk-muted">
-                      {t('shell:depotN', { code: code(l.depotId) })}
+                      {t('depotShort', { code: code(l.depotId) })}
                     </span>
                   )}
                   <span className={cn('fk-num shrink-0', l.negative && 'text-fk-negative')}>

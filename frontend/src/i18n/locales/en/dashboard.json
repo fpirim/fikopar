@@ -38,5 +38,6 @@
     "BALANCED": "BALANCED",
     "DRIFT": "DRIFT",
     "NOT_RUN": "NOT RUN"
-  }
+  },
+  "depotShort": "Dp {{code}}"
 }
