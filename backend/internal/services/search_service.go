@@ -32,11 +32,15 @@ func (s *ReportService) Search(ctx context.Context, orgID uint, term string, lim
 	if err != nil {
 		return nil, err
 	}
-	parts, err := searchCatalog(q, orgID, SearchRequest{Q: term, Limit: limit})
-	if err != nil {
-		return nil, err
+	res := &models.SearchResult{Accounts: accounts, Parts: []models.CatalogHit{}, Documents: docs}
+	if len([]rune(term)) <= 60 {
+		parts, err := searchCatalog(q, orgID, SearchRequest{Q: term, Limit: limit})
+		if err != nil {
+			return nil, err
+		}
+		res.Parts = parts.Items
 	}
-	return &models.SearchResult{Accounts: accounts, Parts: parts.Items, Documents: docs}, nil
+	return res, nil
 }
 
 // SicilSummary is the credit panel of a card as of a date (today when nil).
