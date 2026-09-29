@@ -3993,6 +3993,7 @@ export interface operations {
           'application/json': components['schemas']['SearchResult']
         }
       }
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
     }
   }
@@ -5139,6 +5140,7 @@ export interface operations {
     requestBody: components['requestBodies']['Reason']
     responses: {
       201: components['responses']['JournalEntryResponse']
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
       404: components['responses']['NotFound']
       409: components['responses']['Conflict']
