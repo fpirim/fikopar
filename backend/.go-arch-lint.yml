@@ -11,6 +11,7 @@ components:
   main: { in: cmd/server }
   config: { in: internal/config }
   db: { in: internal/db }
+  migrations: { in: migrations }
   models: { in: internal/models }
   apierror: { in: internal/apierror }
   observability: { in: internal/observability }
@@ -39,5 +40,7 @@ deps:
     mayDependOn: [config, repository]
   mocks:
     mayDependOn: [repository]
+  db:
+    mayDependOn: [migrations]
   testutil:
     mayDependOn: [db]
