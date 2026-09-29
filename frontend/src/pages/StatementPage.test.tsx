@@ -34,6 +34,40 @@ describe('StatementPage', () => {
     expect(calls[0].url.searchParams.has('depotId')).toBe(false)
   })
 
+  it('labels manual journal lines with a journal badge', async () => {
+    const line = {
+      entryId: 1,
+      entryDate: '2026-09-09',
+      depotId: 1,
+      documentNo: 'YEV-2026-1-000001',
+      sourceType: 'manual',
+      subtype: null,
+      dueDate: null,
+      description: 'Sales invoice SF-2026-1-000391',
+      debit: '72150.00',
+      credit: '0.00',
+      runningBalance: '72150.00',
+    }
+    server.use(
+      http.get('/api/orgs/:orgId/ledger/accounts/:accountId/statement', () =>
+        HttpResponse.json({
+          accountId: 5000,
+          from: '2026-01-01',
+          to: '2026-09-29',
+          broughtForward: [],
+          lines: [line],
+          depotTotals: [{ depotId: 1, debit: '72150.00', credit: '0.00', balance: '72150.00' }],
+          closingBalance: '72150.00',
+        }),
+      ),
+    )
+    renderApp(URL_)
+    await screen.findByText('YEV-2026-1-000001')
+    expect(within(grid()).getByText('YEVMİYE')).toBeInTheDocument()
+    await i18n.changeLanguage('en')
+    expect(await within(grid()).findByText('JOURNAL')).toBeInTheDocument()
+  })
+
   it('fills the credit panel and the account card', async () => {
     renderApp(URL_)
     const credit = await screen.findByRole('region', { name: 'Kredi' })
