@@ -13,6 +13,7 @@ type Tipi = 'MUSTERI' | 'FIRMA' | 'BANKA'
 export interface Seeded {
   token: string
   orgId: number
+  depots: Record<string, number>
   accounts: Record<string, number>
   sicils: Record<string, number>
 }
@@ -236,7 +237,7 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
   const entries = await api.call<{ items: unknown[] }>('GET', `${o}/ledger/entries?limit=1`)
   if (entries.items.length === 0) await activity(api, o, depot, acc, sic)
 
-  return { token: api.token, orgId, accounts: acc, sicils: sic }
+  return { token: api.token, orgId, depots: depot, accounts: acc, sicils: sic }
 }
 
 async function activity(

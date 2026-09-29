@@ -8,12 +8,11 @@ for (const lang of ['en', 'tr'] as const) {
     await page.addInitScript((l) => localStorage.setItem('lang', l), lang)
     await page.goto('/balances?asOf=2026-09-29')
     await expect(page.locator('.fk-grid')).toContainText('Yılmaz Tarım Makinaları')
+    const viewport = page.locator('.fk-grid .ag-center-cols-viewport').first()
+    await expect
+      .poll(() => viewport.evaluate((el) => el.scrollWidth - el.clientWidth))
+      .toBeLessThanOrEqual(0)
     expect(await clipped(page, TEXT_COLS)).toEqual([])
-    const overflow = await page
-      .locator('.fk-grid .ag-center-cols-viewport')
-      .first()
-      .evaluate((el) => el.scrollWidth - el.clientWidth)
-    expect(overflow).toBeLessThanOrEqual(0)
   })
 
   test(
