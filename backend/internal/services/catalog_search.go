@@ -38,6 +38,10 @@ func foldWords(q string) []string {
 
 // Search ranks parts by code and name; inactive parts are left out.
 func (s *CatalogService) Search(ctx context.Context, orgID uint, in SearchRequest) (*SearchResult, error) {
+	return searchCatalog(s.store.Read(ctx), orgID, in)
+}
+
+func searchCatalog(rd *repository.Q, orgID uint, in SearchRequest) (*SearchResult, error) {
 	q := strings.TrimSpace(in.Q)
 	if n := utf8.RuneCountInString(q); n < 2 || n > 60 {
 		return nil, apierror.WithField(apierror.InvalidRequest, "q")
@@ -61,7 +65,6 @@ func (s *CatalogService) Search(ctx context.Context, orgID uint, in SearchReques
 	if has {
 		sq.After = &after
 	}
-	rd := s.store.Read(ctx)
 	total, err := rd.SearchCount(orgID, sq, searchCap+1)
 	if err != nil {
 		return nil, err
