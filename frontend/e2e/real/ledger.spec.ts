@@ -42,6 +42,22 @@ test(
   },
 )
 
+test('statement labels depots by code, not by database id', async ({ page }) => {
+  const { accounts, depots } = seeded()
+  // Seeded in reverse code order, so on a fresh database the ids never equal the codes.
+  expect(depots['1']).not.toBe(1)
+  expect(depots['2']).not.toBe(2)
+  await page.goto(
+    `/statements/${accounts['120.10482']}?from=2026-01-01&to=2026-09-29&depot=${depots['1']}`,
+  )
+  await expect(page.getByText('01.01.2026 – 29.09.2026 · depot 1')).toBeVisible()
+  const totals = page.getByRole('table', { name: 'Depot totals' })
+  await expect(totals.locator('tr').first().locator('td').first()).toHaveText('Depot 1')
+  const dp = grid(page).locator('.ag-cell[col-id="depotId"]')
+  await expect(dp.first()).toHaveText('1')
+  expect(new Set(await dp.allTextContents())).toEqual(new Set(['1']))
+})
+
 test(
   'account card saves with If-Match and a second editor gets a reload',
   V11,

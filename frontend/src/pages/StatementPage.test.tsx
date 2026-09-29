@@ -121,6 +121,46 @@ describe('StatementPage', () => {
     expect(await screen.findByText('10.09.2026 – 29.09.2026 · depo 1')).toBeInTheDocument()
   })
 
+  it('shows depot codes, not database ids, everywhere', async () => {
+    server.use(
+      http.get('/api/orgs/:orgId/depots', () =>
+        HttpResponse.json([
+          {
+            id: 1,
+            code: 'MRK',
+            name: 'Merkez',
+            vatRate: '20',
+            allowNegativeStock: false,
+            version: 1,
+          },
+          {
+            id: 2,
+            code: 'SUB',
+            name: 'Şube',
+            vatRate: '20',
+            allowNegativeStock: false,
+            version: 1,
+          },
+        ]),
+      ),
+    )
+    renderApp(`${URL_}&depot=2`)
+    expect(await screen.findByText('01.01.2026 – 29.09.2026 · depo SUB')).toBeInTheDocument()
+    const totals = await screen.findByRole('table', { name: 'Depo toplamları' })
+    await waitFor(() => expect(within(totals).getByText('Depo SUB')).toBeInTheDocument())
+    expect(within(totals).queryByText('Depo 2')).not.toBeInTheDocument()
+    const dp = () =>
+      [...grid().querySelectorAll('.ag-cell[col-id="depotId"]')]
+        .map((c) => c.textContent)
+        .filter(Boolean)
+    await waitFor(() => expect(dp().length).toBeGreaterThan(0))
+    expect(new Set(dp())).toEqual(new Set(['SUB']))
+    const filter = screen.getByLabelText('Dp filtresi')
+    expect([...filter.querySelectorAll('option')].map((o) => o.textContent)).toEqual(
+      expect.arrayContaining(['MRK', 'SUB']),
+    )
+  })
+
   it('filters lines by type in the client', async () => {
     renderApp(URL_)
     await waitFor(() => expect(within(grid()).getByText('TAH-2026-1-000219')).toBeInTheDocument())

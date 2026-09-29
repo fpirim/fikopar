@@ -145,7 +145,8 @@ async function org(api: Api, name: string, slug: string): Promise<number> {
 
 async function depots(api: Api, o: string): Promise<Record<string, number>> {
   let list = await api.call<{ id: number; code: string }[]>('GET', `${o}/depots`)
-  for (const code of ['1', '2']) {
+  // Reverse code order: ids must not line up with codes, so id-for-code slips show up.
+  for (const code of ['2', '1']) {
     if (list.some((d) => d.code === code)) continue
     await api.call('POST', `${o}/depots`, { code, name: `Depot ${code}`, vatRate: '20' })
   }
