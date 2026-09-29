@@ -139,6 +139,8 @@ describe('SicilPage', () => {
         hesap_adi: 'Ceylan',
         sicil_tipi: 'FIRMA',
         telefonlar: [],
+        iskonto: 0,
+        iskonto2: 0,
       }),
     )
     expect(req.body).not.toHaveProperty('organization_id')
@@ -210,13 +212,15 @@ describe('SicilPage', () => {
           telefon: '',
           tc_no: '',
           gun: '',
-          iskonto: 0,
+          iskonto: 10,
+          iskonto2: 2.5,
           sicil_tipi: 'FIRMA',
           version: 3,
         },
       }),
     )
     await screen.findByRole('heading', { name: 'Hesap Kartını Düzenle' })
+    expect(screen.getByText('İskonto 2 (%)')).toBeInTheDocument()
 
     const idInput = document.querySelector('input[readonly]') as HTMLInputElement
     expect(idInput.value).toBe('5')
@@ -230,6 +234,7 @@ describe('SicilPage', () => {
     expect(req.headers.get('If-Match')).toBe('"3"')
     expect(req.body).not.toHaveProperty('organization_id')
     expect(req.body.hesap_adi).toBe('Eski')
+    expect(req.body).toEqual(expect.objectContaining({ iskonto: 10, iskonto2: 2.5 }))
     expect(api.put).not.toHaveBeenCalled()
   })
 
