@@ -100,9 +100,10 @@ test('a future price is added from the keyboard and marked', async ({ page }) =>
   await page.keyboard.press('Tab')
   await page.keyboard.press('ControlOrMeta+a')
   await page.keyboard.type('15.10.2026')
-  await page.keyboard.press('Enter')
+  // Enter commits the date and saves; the focus goes back to New price.
   await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()
+  await expect(page.getByRole('button', { name: 'New price' })).toBeFocused()
   await expect(prices.locator('tbody tr').first()).toContainText('15.10.2026')
   await expect(prices.locator('tbody tr').first()).toContainText('FUTURE')
   await expect(prices.locator('tbody tr').first()).toContainText('+5.6%')
@@ -204,7 +205,7 @@ test('a large price change fits its column', async ({ page }) => {
   await page.keyboard.press('Tab')
   await page.keyboard.press('ControlOrMeta+a')
   await page.keyboard.type('15.10.2026')
-  await page.keyboard.press('Enter')
+  // Enter commits the date and saves; the focus goes back to New price.
   await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()
   await expect(prices.locator('tbody tr').first()).toContainText('987,654,321.00')
