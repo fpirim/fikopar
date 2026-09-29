@@ -116,6 +116,30 @@ func TestDocumentsConcurrency_ParallelReturnsStayWithinTheOriginal(t *testing.T)
 	noDrift(t)
 }
 
+// Returns into different depots touch different stock levels; only the lock on the original orders them.
+func TestDocumentsConcurrency_ReturnsIntoTwoDepotsStayWithinTheOriginal(t *testing.T) {
+	f := newDocs(t)
+	for round := 0; round < 10; round++ {
+		o := f.posted(t, docBody("SALES_WAYBILL", f.depot, f.cust, "2026-03-01", "", lineJSON(f.p1, "1", "10", "")))
+		drafts := make([]docJSON, 4)
+		for i := range drafts {
+			depot := f.depot
+			if i%2 == 1 {
+				depot = f.depot2
+			}
+			drafts[i] = f.create(t, docBody("SALES_RETURN_WAYBILL", depot, f.cust, "2026-03-02", fmt.Sprintf(`,"linkedDocumentId":%d`, o.ID),
+				lineJSON(f.p1, "1", "10", fmt.Sprintf(`,"originLineId":%d`, o.Lines[0].ID))))
+		}
+		statuses, codes := parallel(len(drafts), func(i int) (int, []byte) {
+			rec := f.postRaw(t, f.token, drafts[i].ID, drafts[i].Version, "")
+			return rec.Code, rec.Body.Bytes()
+		})
+		require.Equal(t, 1, count(statuses, http.StatusOK), "round %d: %v %v", round, statuses, codes)
+		assert.Equal(t, "1", *f.get(t, o.ID).Lines[0].ReturnedQty)
+	}
+	noDrift(t)
+}
+
 func TestDocumentsConcurrency_ReservationRacesAPost(t *testing.T) {
 	f := newDocs(t)
 	for round := 0; round < 6; round++ {
