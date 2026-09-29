@@ -81,4 +81,83 @@ DO $$ BEGIN
   INSERT INTO stock_count_lines (org_id, count_id, part_id, shelf, unit_cost, cost_source) VALUES (1, 1, 1, 'A', NULL, 'LAST_PURCHASE');
   RAISE EXCEPTION 'cost source check missed';
 EXCEPTION WHEN check_violation THEN NULL; END $$;
+
+-- v1.1: sicil version, TRY-only entries, closed years, reopen
+SELECT version FROM sicils WHERE id = 1;   -- 1
+INSERT INTO accounts (org_id, code, name, type, normal_side) VALUES
+  (1, '120.C1', 'Cust', 'ASSET', 'DEBIT'), (1, '500', 'Opening', 'EQUITY', 'CREDIT');
+
+DO $$ BEGIN
+  INSERT INTO accounts (org_id, code, name, type, normal_side, currency) VALUES (1, '120.X', 'X', 'ASSET', 'DEBIT', 'USD');
+  RAISE EXCEPTION 'non-TRY account missed';
+EXCEPTION WHEN check_violation THEN NULL; END $$;
+
+WITH e AS (INSERT INTO journal_entries (org_id, depot_id, entry_no, entry_date, description, source_type)
+           VALUES (1, 1, 'J-2025-1-000001', '2025-06-01', 'sale', 'manual') RETURNING id)
+INSERT INTO postings (org_id, entry_id, line_no, account_id, side, amount)
+SELECT 1, e.id, n, a, s, 100 FROM e, (VALUES (1, 1, 'DEBIT'), (2, 2, 'CREDIT')) v(n, a, s);
+
+-- carry forward into 2026: run 1 and its opening entry
+INSERT INTO carry_forward_runs (org_id, year, entry_count, total_debit, total_credit) VALUES (1, 2026, 1, 100, 100);
+WITH e AS (INSERT INTO journal_entries (org_id, depot_id, entry_no, entry_date, description, source_type, source_id)
+           VALUES (1, 1, 'J-2026-1-000001', '2026-01-01', 'opening', 'opening', '2026:1:1:1') RETURNING id),
+     p AS (INSERT INTO postings (org_id, entry_id, line_no, account_id, side, amount)
+           SELECT 1, e.id, n, a, s, 100 FROM e, (VALUES (1, 1, 'DEBIT'), (2, 2, 'CREDIT')) v(n, a, s))
+INSERT INTO opening_balances (org_id, account_id, depot_id, year, debit, source, run_id, journal_entry_id)
+SELECT 1, 1, 1, 2026, 100, 'CARRY_FORWARD', 1, e.id FROM e;
+
+SELECT ledger_start(1, '2026-03-01');   -- 2026-01-01
+
+DO $$ BEGIN  -- 2025 is closed
+  INSERT INTO journal_entries (org_id, depot_id, entry_no, entry_date, description, source_type)
+  VALUES (1, 1, 'J-2025-1-000002', '2025-12-31', 'late', 'manual');
+  RAISE EXCEPTION 'closed year missed';
+EXCEPTION WHEN check_violation THEN NULL; END $$;
+
+DO $$ BEGIN  -- one active run per year
+  INSERT INTO carry_forward_runs (org_id, year, entry_count, total_debit, total_credit) VALUES (1, 2026, 0, 0, 0);
+  RAISE EXCEPTION 'second active run missed';
+EXCEPTION WHEN unique_violation THEN NULL; END $$;
+
+DO $$ BEGIN  -- mixed currency
+  INSERT INTO postings (org_id, entry_id, line_no, account_id, side, amount, currency) VALUES (1, 1, 9, 1, 'DEBIT', 1, 'USD');
+  RAISE EXCEPTION 'non-TRY posting missed';
+EXCEPTION WHEN check_violation THEN NULL; END $$;
+
+-- reopen 2026: reverse the opening entry on 1 January, void the opening row, mark the run
+WITH o AS (SELECT journal_entry_id AS id FROM opening_balances WHERE run_id = 1),
+     e AS (INSERT INTO journal_entries (org_id, depot_id, entry_no, entry_date, description, source_type, source_id, reverses_entry_id)
+           SELECT 1, 1, 'J-2026-1-000002', '2026-01-01', 'reopen', 'reversal', o.id::text, o.id FROM o RETURNING id, reverses_entry_id),
+     p AS (INSERT INTO postings (org_id, entry_id, line_no, account_id, side, amount)
+           SELECT 1, e.id, n, a, s, 100 FROM e, (VALUES (1, 1, 'CREDIT'), (2, 2, 'DEBIT')) v(n, a, s))
+UPDATE opening_balances b SET voided_by_entry_id = e.id FROM e WHERE b.journal_entry_id = e.reverses_entry_id;
+UPDATE carry_forward_runs SET reopened_at = now(), reopen_reason = 'late invoice' WHERE id = 1;
+
+SELECT ledger_start(1, '2026-03-01');   -- -infinity
+BEGIN;   -- 2025 is open again
+INSERT INTO journal_entries (org_id, depot_id, entry_no, entry_date, description, source_type)
+VALUES (1, 1, 'J-2025-1-000003', '2025-12-31', 'late', 'manual');
+ROLLBACK;
+
+DO $$ BEGIN  -- a run reopens once
+  UPDATE carry_forward_runs SET reopen_reason = 'again' WHERE id = 1;
+  RAISE EXCEPTION 'second reopen missed';
+EXCEPTION WHEN restrict_violation THEN NULL; END $$;
+
+DO $$ BEGIN  -- a voided opening stays voided
+  UPDATE opening_balances SET voided_by_entry_id = NULL WHERE run_id = 1;
+  RAISE EXCEPTION 'unvoid missed';
+EXCEPTION WHEN restrict_violation THEN NULL; END $$;
+
+-- run 2 posts the year again
+WITH r AS (INSERT INTO carry_forward_runs (org_id, year, entry_count, total_debit, total_credit)
+           VALUES (1, 2026, 1, 90, 90) RETURNING id),
+     e AS (INSERT INTO journal_entries (org_id, depot_id, entry_no, entry_date, description, source_type, source_id)
+           SELECT 1, 1, 'J-2026-1-000003', '2026-01-01', 'opening', 'opening', '2026:' || r.id || ':1:1' FROM r RETURNING id),
+     p AS (INSERT INTO postings (org_id, entry_id, line_no, account_id, side, amount)
+           SELECT 1, e.id, n, a, s, 90 FROM e, (VALUES (1, 1, 'DEBIT'), (2, 2, 'CREDIT')) v(n, a, s))
+INSERT INTO opening_balances (org_id, account_id, depot_id, year, debit, source, run_id, journal_entry_id)
+SELECT 1, 1, 1, 2026, 90, 'CARRY_FORWARD', r.id, e.id FROM r, e;
+SELECT count(*) FROM opening_balances WHERE year = 2026 AND voided_by_entry_id IS NULL;   -- 1
+
 SELECT 'invariants ok';

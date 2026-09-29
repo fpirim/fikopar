@@ -67,10 +67,11 @@
           ]
         },
         "currency": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
+          "const": "TRY",
+          "description": "One currency per entry; TRY only in contracts v1.1."
         },
         "total": {
+          "description": "Σ debit (= Σ credit) of the entry.",
           "type": "string",
           "pattern": "^-?\\d{1,16}\\.\\d{2}$"
         },
