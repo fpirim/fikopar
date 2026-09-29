@@ -21,3 +21,10 @@ Contracts v1.2 were not changed in phase 2. The backend behaviour for each gap i
 | 13 | `gridParts stock=IN_STOCK` | Not defined | available > 0 in the scope (depot or all depots) |
 | 14 | `globalSearch` parts group | Ranking and length limits vs `searchCatalog` | Same ranking as `searchCatalog`, `limit` per group; terms over 60 characters skip the part group |
 | 15 | `searchCatalog` | A `q` without letters or digits (e.g. `--`) | Code match is skipped, the name match still runs |
+| 16 | `gridPriceImportRows unfilteredCount` | Scope not stated | Rows of the selected tab before column filters |
+| 17 | `PriceImportRow.changedFields` | Whether `price` is listed | PRICE rows list `price` |
+| 18 | `createPriceImport` idempotency | What the request hash covers for multipart | File SHA-256 plus the form fields, so a retry with a new boundary replays |
+| 19 | Import NEW part without description | `PartWrite.name` is required | Stock no becomes the name |
+| 20 | LISAKT op 0 for an unknown part | Not stated | OP_MISMATCH warning, no change |
+| 21 | Upload over 10 MiB | FAILED job vs error | `400 ERR_FILE_TOO_LARGE`, no job |
+| 22 | CP857 decoding | `x/text` has no code page 857 | Own decoding table in `internal/pricefile` |

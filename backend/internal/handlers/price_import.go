@@ -31,10 +31,6 @@ func NewPriceImportHandler(svc *services.PriceImportService, idem *services.Idem
 	return &PriceImportHandler{svc: svc, idem: idem}
 }
 
-func notImplemented(c echo.Context) error {
-	return c.JSON(http.StatusNotImplemented, map[string]string{"code": "ERR_INTERNAL"})
-}
-
 // maxUpload leaves room for the multipart envelope around a 10 MiB file.
 const maxUpload = services.MaxImportFile + 512<<10
 

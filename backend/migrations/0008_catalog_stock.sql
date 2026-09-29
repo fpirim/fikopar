@@ -211,21 +211,25 @@ SELECT pr.*, lead(pr.valid_from) OVER w - 1 AS valid_to,
 FROM prices pr
 WINDOW w AS (PARTITION BY pr.part_id ORDER BY pr.valid_from);
 
+-- One catalog update per statement, so an import of many rows touches each catalog once.
 CREATE OR REPLACE FUNCTION bump_catalog_content() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   IF TG_TABLE_NAME = 'parts' THEN
-    UPDATE catalogs SET content_version = content_version + 1 WHERE id = NEW.catalog_id;
+    UPDATE catalogs SET content_version = content_version + 1
+    WHERE id IN (SELECT DISTINCT catalog_id FROM new_rows);
   ELSE
     UPDATE catalogs SET content_version = content_version + 1
-    WHERE id = (SELECT catalog_id FROM parts WHERE id = NEW.part_id);
+    WHERE id IN (SELECT DISTINCT p.catalog_id FROM new_rows n JOIN parts p ON p.id = n.part_id);
   END IF;
   RETURN NULL;
 END $$;
-CREATE TRIGGER parts_bump_catalog  AFTER INSERT OR UPDATE ON parts
-  FOR EACH ROW EXECUTE FUNCTION bump_catalog_content();
+CREATE TRIGGER parts_bump_catalog_ins AFTER INSERT ON parts
+  REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION bump_catalog_content();
+CREATE TRIGGER parts_bump_catalog_upd AFTER UPDATE ON parts
+  REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION bump_catalog_content();
 CREATE TRIGGER prices_bump_catalog AFTER INSERT ON prices
-  FOR EACH ROW EXECUTE FUNCTION bump_catalog_content();
+  REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION bump_catalog_content();
 
 -- Count valuation (ADR-0008). Documents arrive with F3, which adds the LAST_PURCHASE branch
 -- (migrations/draft/0004_documents.sql); until then the catalog price is the fallback.

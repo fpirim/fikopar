@@ -51,7 +51,7 @@ parallel worktrees against the scaffolding commit and merged here.
 | NEGATIVE_STOCK warning suppressed | transfer and count finalize tests fail |
 | Different price on an existing date accepted | 3 price tests fail |
 | Part catalog change allowed in the service | `CreateGetUpdateDeactivate` fails |
-IMPORT_MUTATIONS
+| Import apply idempotency, stale check, `price_imports_transition` | **not run** — Docker went down before the import fork could run them |
 
 All restored; suite green after each.
 
@@ -63,7 +63,12 @@ Postgres 16 in Docker on an M-series Mac, statistics analyzed. Without `ANALYZE`
 over the trigram index and p95 is ~45 ms.
 
 ## Gates
-GATES
+`go build`, `go vet -tags=integration`, `golangci-lint` (0 issues), `go-arch-lint` and `deadcode` (Go 1.25) clean after the
+final merge. `go test -race -count=3 -timeout 30m -tags=integration ./...` green on the tree before the price-import
+merge (router 97 s). Coverage on that tree: services 84.9 %, handlers 84.5 %, repository 92.0 %, models 95.7 %;
+import files 85.5 % (fork run). **Not yet run after the import merge:** the integration suite, `-race -count=3`, and the
+switch of the catalog `content_version` triggers to statement level (import apply of 100k rows: 4 m 52 s → 5.8 s,
+measured by the import fork). Docker went down during phase 2 and was not restarted.
 
 ## Open
 - LAST_PURCHASE valuation, document labels and sicil names on movements wait for F3 documents.
