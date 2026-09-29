@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"os"
 	"strconv"
 	"strings"
@@ -376,6 +377,38 @@ func lisaktLine(op, katno, stno, oem, name, price, deg, bkatno, bstno string) st
 	return op + katno + pad(stno, 15) + pad("", 30) + pad(oem, 30) + pad("", 30) + pad(name, 60) + pad("", 30) +
 		strings.Repeat("0", 32) + price + pad("", 10) + deg + "00001" + strings.Repeat("0", 15) + bkatno + pad(bstno, 15) +
 		strings.Repeat("0", 16) + "\r\n"
+}
+
+// Browsers send a JSON form part as a file part (filename "blob", application/json), per the spec encoding.
+func TestPriceImport_MappingAsJSONFilePart(t *testing.T) {
+	f := newStock(t)
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	part, err := w.CreateFormFile("file", "LISAKT.txt")
+	require.NoError(t, err)
+	_, err = part.Write([]byte(lisaktLine("1", "0010", "NEW-1", "", "Yeni", "00000000025000", "00000000", "0000", "")))
+	require.NoError(t, err)
+	require.NoError(t, w.WriteField("catalogId", idStr(f.catalog)))
+	require.NoError(t, w.WriteField("validFrom", "2026-06-01"))
+	h := textproto.MIMEHeader{}
+	h.Set("Content-Disposition", `form-data; name="mapping"; filename="blob"`)
+	h.Set("Content-Type", "application/json")
+	part, err = w.CreatePart(h)
+	require.NoError(t, err)
+	_, err = part.Write([]byte(`{"preset":"LISAKT"}`))
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	r := httptest.NewRequest(http.MethodPost, f.path("/catalog/imports"), bytes.NewReader(buf.Bytes()))
+	r.Header.Set(echo.HeaderContentType, w.FormDataContentType())
+	r.Header.Set(echo.HeaderAuthorization, "Bearer "+f.token)
+	r.Header.Set("Idempotency-Key", uuid.NewString())
+	rec := httptest.NewRecorder()
+	f.e.ServeHTTP(rec, r)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	job := decode[importJSON](t, rec)
+	assert.Equal(t, "READY", job.Status, "%+v", job)
+	assert.Equal(t, "FIXED_WIDTH", job.Format)
+	assert.Equal(t, 1, job.Counts["new"])
 }
 
 func TestPriceImport_LISAKTEndToEnd(t *testing.T) {
