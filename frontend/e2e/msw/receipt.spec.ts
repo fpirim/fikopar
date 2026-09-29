@@ -25,6 +25,11 @@ test('cash collection posts, prints and shows in recent receipts and the cash bo
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name: /Cash book/ })
     .click()
+  // Wait for the cash book itself: the receipts grid still on screen would match too.
+  const pick = page.getByRole('region', { name: 'Choose a depot' })
+  await pick.getByRole('button', { name: 'Depot 1' }).click()
+  await expect(page).toHaveURL(/\/cash-book\?depot=1$/)
+  await expect(page.getByRole('heading', { name: 'Cash book' })).toBeVisible()
   await expect(grid(page).getByText('TAH-2026-1-000234')).toBeVisible()
 })
 
