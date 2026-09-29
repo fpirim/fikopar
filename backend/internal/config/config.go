@@ -31,6 +31,8 @@ type Config struct {
 	SentryRelease        string
 	Version              string
 	StaticDir            string
+	// BcryptCost is set by tests only; zero means bcrypt.DefaultCost.
+	BcryptCost int
 }
 
 func Load() *Config {

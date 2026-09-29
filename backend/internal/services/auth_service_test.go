@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func newAuthService(secret string, expiryHours int) *AuthService {
@@ -23,6 +24,16 @@ func TestHashAndCheckPassword(t *testing.T) {
 
 	assert.True(t, s.CheckPassword(hash, "hunter2"))
 	assert.False(t, s.CheckPassword(hash, "wrong"))
+}
+
+func TestHashPassword_UsesConfiguredCost(t *testing.T) {
+	for cost, want := range map[int]int{0: bcrypt.DefaultCost, bcrypt.MinCost: bcrypt.MinCost} {
+		hash, err := NewAuthService(&config.Config{BcryptCost: cost}).HashPassword("pw")
+		require.NoError(t, err)
+		got, err := bcrypt.Cost([]byte(hash))
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+	}
 }
 
 func TestGenerateAndParseToken_RoundTrip(t *testing.T) {
