@@ -26,7 +26,7 @@ for (const lang of ['en', 'tr'] as const) {
 
     test(`09b part${sfx}`, V12, async ({ page }) => {
       await page.goto(`/parts/${seeded().parts['HP-3774']}`)
-      await expect(grid(page)).toContainText(/TRF-2026-/)
+      await expect(grid(page)).toContainText(/TRF-\d{4}-/)
       await page.mouse.move(0, 0)
       expect(await clipped(page)).toEqual([])
       await page.screenshot({ path: shot(`09b-part${sfx}`), animations: 'disabled' })

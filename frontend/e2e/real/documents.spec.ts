@@ -40,7 +40,7 @@ test.describe('documents', () => {
       await expect(page).toHaveURL(/\/invoices\/\d+$/)
       await expect(page.getByText(/^Stock held until /)).toBeVisible()
       await page.getByRole('button', { name: 'Post' }).click()
-      await expect(page.getByText(/^SF-2026-\d+-\d{6} posted$/)).toBeVisible()
+      await expect(page.getByText(/^SF-\d{4}-\d+-\d{6} posted$/)).toBeVisible()
       await expect(page.getByText('POSTED', { exact: true })).toBeVisible()
       await expect(page.getByRole('link', { name: /^Entry \d+$/ })).toBeVisible({ timeout: 15_000 })
     },
@@ -101,7 +101,7 @@ test.describe('documents', () => {
 
   test('the bill of a waybill points at it and moved no stock', V14, async ({ page }) => {
     await page.goto(`/invoices/${doc('bill')}`)
-    await expect(page.getByRole('link', { name: /^Bills SIR-2026-/ })).toBeVisible()
+    await expect(page.getByRole('link', { name: /^Bills SIR-\d{4}-/ })).toBeVisible()
     await expect(onPost(page)).toContainText('Stock—')
     await page.goto(`/invoices/${doc('waybill')}`)
     await expect(page.getByRole('link', { name: 'Billed — open the invoice' })).toBeVisible()
@@ -117,7 +117,7 @@ test.describe('documents', () => {
       await page.getByLabel('Reason').fill('Wrong depot')
       await page.getByRole('dialog').getByRole('button', { name: 'Cancel document' }).click()
       await expect(page.getByRole('dialog')).toContainText('cancel them first')
-      await expect(page.getByRole('dialog').getByRole('link', { name: /^SI-2026-/ })).toBeVisible()
+      await expect(page.getByRole('dialog').getByRole('link', { name: /^SI-\d{4}-/ })).toBeVisible()
       await page.getByRole('dialog').getByRole('button', { name: 'Close' }).first().click()
 
       await page.goto(`/invoices/${doc('decrease')}`)
@@ -136,14 +136,14 @@ test.describe('documents', () => {
 
   test('dashboard, statement and movements link the documents', V14, async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('table', { name: 'Latest documents' })).toContainText(/SF-2026-/)
+    await expect(page.getByRole('table', { name: 'Latest documents' })).toContainText(/SF-\d{4}-/)
     await page.getByRole('table', { name: 'Latest documents' }).getByRole('link').first().click()
     await expect(page).toHaveURL(/\/invoices\/\d+$/)
     await page.goto(`/parts/${seeded().parts['HP-3702']}`)
     const sale = page
       .locator('.fk-grid')
       .first()
-      .getByRole('link', { name: /^SF-2026-/ })
+      .getByRole('link', { name: /^SF-\d{4}-/ })
       .first()
     await expect(sale).toBeVisible({ timeout: 15_000 })
     await sale.click()
@@ -191,6 +191,6 @@ test.describe('documents', () => {
     const box = page.getByRole('region', { name: 'Last purchase cost' })
     await expect(box).toContainText('8,900.00')
     await expect(box).toContainText('20.09.2026')
-    await expect(box).toContainText(/AF-2026-\d+-\d{6}/)
+    await expect(box).toContainText(/AF-\d{4}-\d+-\d{6}/)
   })
 })

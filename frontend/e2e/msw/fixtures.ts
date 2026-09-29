@@ -1,10 +1,12 @@
 import { test as base, expect, type Page } from '@playwright/test'
+import { mswToday } from '../today'
 
 // Signed in as the MSW demo user (or an admin), company 1, English unless a test picks Turkish.
 export const test = base.extend<{ page: Page; lang: 'en' | 'tr'; admin: boolean }>({
   lang: ['en', { option: true }],
   admin: [false, { option: true }],
   page: async ({ page, lang, admin }, use) => {
+    await page.clock.setSystemTime(new Date(`${mswToday}T09:00:00+03:00`))
     await page.addInitScript(
       ([l, token]) => {
         localStorage.setItem('token', token)
@@ -23,4 +25,5 @@ export { expect }
 export const grid = (page: Page) => page.locator('.fk-grid').first()
 export const pinnedBottom = (page: Page) => grid(page).locator('.ag-floating-bottom')
 
-export { clipped, cutControls } from '../clipped'
+export { clipped, cutControls, cutHeaders, sideways } from '../clipped'
+export { mswToday as today, addDays, shown } from '../today'

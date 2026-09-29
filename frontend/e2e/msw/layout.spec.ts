@@ -1,4 +1,4 @@
-import { test, expect, clipped } from './fixtures'
+import { test, expect, clipped, cutControls, cutHeaders, sideways } from './fixtures'
 
 // Document numbers, dates and amounts are never cut, in either language.
 const SCREENS = [
@@ -70,4 +70,31 @@ for (const lang of ['en', 'tr'] as const) {
       expect(box.overflow).toBeLessThanOrEqual(0)
     })
   })
+}
+
+// Below 1300 px the less needed columns go instead of a sideways scroll.
+const WIDE = [
+  '/parts',
+  '/parts?depot=1',
+  '/balances?asOf=2026-09-29',
+  '/balances?asOf=2026-09-29&depot=1',
+]
+
+for (const lang of ['en', 'tr'] as const) {
+  for (const width of [1440, 1152]) {
+    test.describe(`${lang} ${width}`, () => {
+      test.use({ lang, viewport: { width, height: 900 } })
+      for (const url of WIDE) {
+        test(`${url} fits without a sideways scroll`, async ({ page }) => {
+          await page.goto(url)
+          await expect(page.locator('.fk-grid .ag-row').first()).toBeVisible()
+          await page.waitForTimeout(300)
+          expect(await sideways(page)).toEqual([])
+          expect(await clipped(page)).toEqual([])
+          expect(await cutHeaders(page)).toEqual([])
+          expect(await cutControls(page)).toEqual([])
+        })
+      }
+    })
+  }
 }
