@@ -78,7 +78,15 @@ func parseUpload(contentType string, body []byte) (services.ImportCreate, error)
 		}
 		in.ValidFrom = &d
 	}
-	if v := value("mapping"); v != "" {
+	v := value("mapping")
+	if files := form.File["mapping"]; v == "" && len(files) > 0 {
+		b, err := readPart(files[0])
+		if err != nil {
+			return in, err
+		}
+		v = strings.TrimSpace(string(b))
+	}
+	if v != "" {
 		var m services.ImportMapping
 		if err := json.Unmarshal([]byte(v), &m); err != nil {
 			return in, apierror.WithField(apierror.InvalidRequest, "mapping")
@@ -86,17 +94,25 @@ func parseUpload(contentType string, body []byte) (services.ImportCreate, error)
 		in.Mapping = &m
 	}
 	if files := form.File["file"]; len(files) > 0 {
-		f, err := files[0].Open()
-		if err != nil {
-			return in, apierror.FileOpen
-		}
-		defer func() { _ = f.Close() }()
-		if in.Content, err = io.ReadAll(f); err != nil {
-			return in, apierror.FileOpen
+		if in.Content, err = readPart(files[0]); err != nil {
+			return in, err
 		}
 		in.FileName = files[0].Filename
 	}
 	return in, nil
+}
+
+func readPart(fh *multipart.FileHeader) ([]byte, error) {
+	f, err := fh.Open()
+	if err != nil {
+		return nil, apierror.FileOpen
+	}
+	defer func() { _ = f.Close() }()
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return nil, apierror.FileOpen
+	}
+	return b, nil
 }
 
 // uploadFingerprint is the request as idempotency sees it: a retry sends a new multipart boundary.
