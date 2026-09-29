@@ -172,3 +172,14 @@ func itoa(u uint) string {
 	}
 	return string(b[i:])
 }
+
+func TestLogin_MalformedBodyIsInvalidRequest(t *testing.T) {
+	app := newTestApp(t)
+	app.seedUser(t, "admin@x.com", "pw", models.RoleAdmin)
+
+	for _, body := range []string{`{"email":`, `[]`, `{}`, `{"email":"admin@x.com"}`, `{"password":"pw"}`, `{"email":1,"password":"pw"}`, `{"email":"","password":""}`} {
+		rec := app.do(t, http.MethodPost, "/api/auth/login", "", body)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, body)
+		assert.Contains(t, rec.Body.String(), `"ERR_INVALID_REQUEST"`, body)
+	}
+}
