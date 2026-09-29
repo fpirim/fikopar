@@ -48,6 +48,7 @@ func New(db *gorm.DB, cfg *config.Config) *App {
 		Import:  handlers.NewPriceImportHandler(services.NewPriceImportService(store), idem),
 		Count:   handlers.NewStockCountHandler(services.NewStockCountService(store), idem),
 		Doc:     handlers.NewDocumentHandler(services.NewDocumentService(store), idem),
+		Audit:   handlers.NewAuditHandler(services.NewAuditService(store)),
 	}, router.Services{Auth: authService, Membership: services.NewMembershipService(orgRepo)}, cfg)
 	return &App{Echo: e, UserService: userService, Relay: services.NewOutboxRelay(store, services.LedgerCheck{},
 		services.DocumentExport{Exporter: services.NoopExporter{}}),
