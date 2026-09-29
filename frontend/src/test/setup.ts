@@ -1,9 +1,11 @@
 import '@testing-library/jest-dom/vitest'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import i18n from '../i18n'
 import { server } from '../mocks/node'
 import { resetDb } from '../mocks/handlers'
+
+configure({ asyncUtilTimeout: 5000 })
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'warn' }))
 afterAll(() => server.close())

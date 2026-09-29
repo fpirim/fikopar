@@ -13,6 +13,7 @@
     "RECEIVABLE_NOTE": "RCV. NOTE",
     "PAYABLE_CHEQUE": "PAY. CHEQUE",
     "PAYABLE_NOTE": "PAY. NOTE",
+    "manual": "JOURNAL",
     "opening": "OPENING"
   },
   "depotN": "Depot {{id}}",
@@ -49,7 +50,6 @@
     "discountValue": "{{a}}% + {{b}}%",
     "cheques": "Cheques in portfolio",
     "card": "Account card",
-    "taxOffice": "Tax office {{office}} · {{no}}",
     "editCard": "Edit card",
     "editTitle": "Edit account card",
     "save": "Save",

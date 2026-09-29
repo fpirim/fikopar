@@ -23,6 +23,7 @@ import type {
   ReceiptsRequest,
   SearchResult,
   Sicil,
+  SicilCreate,
   SicilSummary,
   SicilUpdate,
   Statement,
@@ -93,6 +94,9 @@ export const exportAccountStatement = (
 
 export const getSicil = (orgId: number, sicilId: number) =>
   data(apiRequest<Sicil>('GET', `${org(orgId)}/sicils/${sicilId}`))
+
+export const createSicil = (orgId: number, body: SicilCreate) =>
+  data(apiRequest<Sicil>('POST', `${org(orgId)}/sicils`, { body }))
 
 export const updateSicil = (orgId: number, sicil: Sicil, body: SicilUpdate) =>
   data(

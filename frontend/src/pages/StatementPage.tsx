@@ -184,6 +184,7 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
           anyLabel: t('grid:fk.any'),
           options: SUBTYPES.map((s) => ({ value: s, label: t(`docType.${s}`) })),
         }),
+        valueGetter: (p) => p.data?.subtype ?? (p.data?.sourceType === 'manual' ? 'manual' : null),
         cellRenderer: (p: ICellRendererParams<StatementLine>) =>
           p.data?.resetsBalance && !p.node.rowPinned ? (
             <Chip tone="grey">{t('statement.opening')}</Chip>
@@ -415,8 +416,11 @@ function CardPanel({
       {sicil.emails?.[0] && <div className="break-all text-13">{sicil.emails[0]}</div>}
       {place && <div className="text-fk-muted">{place}</div>}
       {(sicil.v_dairesi || sicil.v_no) && (
-        <div className="font-mono text-13 text-fk-muted">
-          {t('statement.taxOffice', { office: sicil.v_dairesi ?? '', no: sicil.v_no ?? '' })}
+        <div className="text-13 text-fk-muted">
+          {t('statement.field.taxOffice')}{' '}
+          <span className="whitespace-nowrap font-mono">
+            {[sicil.v_dairesi, sicil.v_no].filter(Boolean).join(' · ')}
+          </span>
         </div>
       )}
       <Button variant="outline" className="mt-1 self-start" onClick={() => setEditing(true)}>

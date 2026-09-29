@@ -13,6 +13,7 @@
     "RECEIVABLE_NOTE": "ALACAK SENEDİ",
     "PAYABLE_CHEQUE": "BORÇ ÇEKİ",
     "PAYABLE_NOTE": "BORÇ SENEDİ",
+    "manual": "YEVMİYE",
     "opening": "AÇILIŞ"
   },
   "depotN": "Depo {{id}}",
@@ -49,7 +50,6 @@
     "discountValue": "%{{a}} + %{{b}}",
     "cheques": "Portföydeki çekler",
     "card": "Hesap kartı",
-    "taxOffice": "Vergi dairesi {{office}} · {{no}}",
     "editCard": "Kartı düzenle",
     "editTitle": "Hesap kartını düzenle",
     "save": "Kaydet",
