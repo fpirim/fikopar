@@ -156,6 +156,7 @@ export function useInfiniteGrid<T>(
       onViewportChanged,
       onBodyScroll: onViewportChanged,
       onModelUpdated: onViewportChanged,
+      onGridSizeChanged: onViewportChanged,
     },
     clearFilters,
     request,

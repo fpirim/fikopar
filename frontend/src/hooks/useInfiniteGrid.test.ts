@@ -28,9 +28,7 @@ describe('useInfiniteGrid range', () => {
     expect(result.current.range).toEqual([0, 0])
 
     view.bottom = 4 * 34
-    act(() =>
-      (result.current.gridProps as { onGridSizeChanged?: () => void }).onGridSizeChanged?.(),
-    )
+    act(() => result.current.gridProps.onGridSizeChanged())
     expect(result.current.range).toEqual([0, 3])
   })
 
