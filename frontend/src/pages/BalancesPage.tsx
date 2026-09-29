@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { AgGridReact } from 'ag-grid-react'
@@ -40,6 +40,15 @@ type Row = BalanceRow & { label?: string }
 
 function SelectHeader(props: IHeaderParams & { ariaLabel: string }) {
   const [, force] = useState(0)
+  useEffect(() => {
+    const update = () => force((x) => x + 1)
+    props.api.addEventListener('selectionChanged', update)
+    props.api.addEventListener('modelUpdated', update)
+    return () => {
+      props.api.removeEventListener('selectionChanged', update)
+      props.api.removeEventListener('modelUpdated', update)
+    }
+  }, [props.api])
   let loaded = 0
   let selected = 0
   props.api.forEachNode((n) => {
@@ -103,7 +112,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
     headerName: t(`col.${colId}`),
     field,
     flex: 0,
-    width: colId === 'overdue' ? 108 : 124,
+    width: colId === 'overdue' ? 108 : 136,
     ...numCol,
     ...exprFilter({ kind: 'number', placeholder: t('grid:fk.positive') }),
     valueFormatter: (p) => formatMoney(p.value),
@@ -326,10 +335,9 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
           rowSelection="multiple"
           suppressRowClickSelection
           pinnedBottomRowData={pinned}
-          onSelectionChanged={(e: SelectionChangedEvent<Row>) => {
+          onSelectionChanged={(e: SelectionChangedEvent<Row>) =>
             setSelected(e.api.getSelectedRows())
-            e.api.refreshHeader()
-          }}
+          }
         />
         <GridFooter
           sorted={grid.sorted.map(

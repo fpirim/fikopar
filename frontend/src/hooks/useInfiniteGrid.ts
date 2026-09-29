@@ -10,6 +10,8 @@ import type {
 } from 'ag-grid-community'
 import type { FilterModel, GridRequest, GridResponse, SortModel } from '../api/types'
 
+const ROW_H = 34
+
 export interface GridInfo {
   totalCount: number
   unfilteredCount: number
@@ -42,6 +44,7 @@ export function useInfiniteGrid<T>(
   useEffect(() => {
     fetchRef.current = fetchPage
   }, [fetchPage])
+  const seq = useRef(0)
   const lastReq = useRef<{ sortModel: SortModel; filterModel: FilterModel }>({
     sortModel: [],
     filterModel: {},
@@ -59,14 +62,16 @@ export function useInfiniteGrid<T>(
           filterModel: toApiFilter(p.filterModel),
         }
         lastReq.current = req
+        const id = ++seq.current
         fetchRef
           .current({ ...req, startRow: p.startRow, endRow: p.endRow })
           .then((r) => {
-            setInfo({
-              totalCount: r.totalCount,
-              unfilteredCount: r.unfilteredCount ?? r.totalCount,
-              totals: r.totals ?? null,
-            })
+            if (id === seq.current)
+              setInfo({
+                totalCount: r.totalCount,
+                unfilteredCount: r.unfilteredCount ?? r.totalCount,
+                totals: r.totals ?? null,
+              })
             p.successCallback(r.rows, r.totalCount)
           })
           .catch(() => p.failCallback())
@@ -113,10 +118,18 @@ export function useInfiniteGrid<T>(
     )
   }, [])
 
+  // Rows actually in view (the rendered range includes AG Grid's row buffer).
   const onViewportChanged = useCallback(() => {
     const api = apiRef.current
     if (!api) return
-    setRange([api.getFirstDisplayedRow(), api.getLastDisplayedRow()])
+    const { top, bottom } = api.getVerticalPixelRange()
+    const rendered = api.getLastDisplayedRow()
+    if (bottom <= top) {
+      setRange([api.getFirstDisplayedRow(), rendered])
+      return
+    }
+    const first = Math.floor(top / ROW_H)
+    setRange([first, Math.min(Math.ceil(bottom / ROW_H) - 1, rendered)])
   }, [])
 
   const clearFilters = useCallback(() => apiRef.current?.setFilterModel(null), [])
@@ -141,6 +154,7 @@ export function useInfiniteGrid<T>(
       onFilterChanged,
       onSortChanged,
       onViewportChanged,
+      onBodyScroll: onViewportChanged,
       onModelUpdated: onViewportChanged,
     },
     clearFilters,
