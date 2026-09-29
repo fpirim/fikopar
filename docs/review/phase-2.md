@@ -51,7 +51,10 @@ parallel worktrees against the scaffolding commit and merged here.
 | NEGATIVE_STOCK warning suppressed | transfer and count finalize tests fail |
 | Different price on an existing date accepted | 3 price tests fail |
 | Part catalog change allowed in the service | `CreateGetUpdateDeactivate` fails |
-| Import apply idempotency, stale check, `price_imports_transition` | **not run** — Docker went down before the import fork could run them |
+| Import apply without `Idempotency-Key` replay | `CSVPreviewApplyAndReplay` fails |
+| Import apply without the catalog `content_version` compare | `StaleThenRefresh` fails |
+| `price_imports_transition` body emptied | `V12_ImportAppliedOnlyFromApplying` fails |
+| Upload reads `mapping` from form values only | `MappingAsJSONFilePart` fails |
 
 All restored; suite green after each.
 
@@ -62,13 +65,38 @@ p50 8.5 ms, **p95 18.8 ms**, max 33.8 ms. `BenchmarkCatalogSearch` (600 ops): 10
 Postgres 16 in Docker on an M-series Mac, statistics analyzed. Without `ANALYZE` the planner picks the org index
 over the trigram index and p95 is ~45 ms.
 
+Price import at 100 000 rows (`TestPriceImport_LargeFile`, `FIKOPAR_LARGE=1`, statement-level catalog version
+triggers, merged tree): preview 2.0 s, apply 5.6 s (row-level triggers: 4 m 52 s).
+
 ## Gates
-`go build`, `go vet -tags=integration`, `golangci-lint` (0 issues), `go-arch-lint` and `deadcode` (Go 1.25) clean after the
-final merge. `go test -race -count=3 -timeout 30m -tags=integration ./...` green on the tree before the price-import
-merge (router 97 s). Coverage on that tree: services 84.9 %, handlers 84.5 %, repository 92.0 %, models 95.7 %;
-import files 85.5 % (fork run). **Not yet run after the import merge:** the integration suite, `-race -count=3`, and the
-switch of the catalog `content_version` triggers to statement level (import apply of 100k rows: 4 m 52 s → 5.8 s,
-measured by the import fork). Docker went down during phase 2 and was not restarted.
+`go build`, `go vet -tags=integration`, `golangci-lint` (0 issues), `go-arch-lint` and `deadcode` (Go 1.25) clean on the
+merged tree (`f2/int-fix`). `go test -race -count=3 -timeout 30m -tags=integration ./...` green on the merged tree
+(router 86 s, whole run 89 s); `TestPriceImport_AttributesCodesAndReactivation` passes. Earlier coverage: services
+84.9 %, handlers 84.5 %, repository 92.0 %, models 95.7 %; import files 85.5 %. `golangci-lint --build-tags=integration`
+reports 5 older findings in integration tests (weak rand, unchecked `Close`), outside the gate.
+
+Frontend: eslint (0 errors, 7 older warnings), `tsc`, prettier, knip, depcruise clean; vitest 262/262 three times
+(lines 92.2 %, branches 80.2 %); build ok.
+
+## Integration (f2/int-fix)
+Real API (compose profile `e2e`, fresh company per run): `e2e:real` 14, `e2e:real:v11` 22, `e2e:real:v12` 31 (+6
+screenshot tests on demand), whole suite twice in a row green. Legacy e2e 47/47 (repeated runs), MSW e2e 71.
+
+Found and fixed:
+- Upload sent `mapping` as a JSON part (browser `Blob`, per the spec encoding); the server read form values only, so
+  a chosen preset was dropped and LISAKT ran as CSV. The server now reads the part either way.
+- A `.txt` file under the automatic format went up as CSV; the upload step now picks the LISAKT preset for `.txt`.
+  MSW read `.txt` as fixed width without a preset and hid this.
+- `/healthz` was not proxied (Vite dev, nginx), so the sidebar version never came from the API.
+- Stock count "Add part" uses the shared `CatalogSearch`.
+- Count number wrapped when the count date differs from the start date; "1 adjustments" plural.
+- Company switcher did not scroll with many companies (legacy spec timed out once earlier runs left companies).
+- Real specs written before the screens (import steps, search popup, post dialog, autosave before reload) and legacy
+  login / organizations specs follow the built screens. New real e2e: add part, LISAKT `.txt` in CP857 (319-byte
+  records, wrong-catalog row skipped), health check, count header, long company list.
+
+Screenshots: MSW set regenerated, `10f-add-part`; real API `09-parts`, `09b-part`, `10-stock-count` (EN, TR) with a
+`-real` suffix.
 
 ## Open
 - LAST_PURCHASE valuation, document labels and sicil names on movements wait for F3 documents.
