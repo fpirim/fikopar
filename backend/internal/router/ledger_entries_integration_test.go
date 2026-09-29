@@ -280,7 +280,9 @@ func TestJournal_ListFiltersAndPaging(t *testing.T) {
 		}
 		return out
 	}
-	get := func(q string) page { return decode[page](t, f.do(t, http.MethodGet, f.path("/ledger/entries"+q), f.token, "")) }
+	get := func(q string) page {
+		return decode[page](t, f.do(t, http.MethodGet, f.path("/ledger/entries"+q), f.token, ""))
+	}
 
 	p := get("?limit=3")
 	assert.Equal(t, []uint{e3.ID, e4.ID, e2.ID}, ids(p))

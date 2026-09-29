@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/fpirim/fikopar/backend/internal/app"
 	"github.com/fpirim/fikopar/backend/internal/config"
@@ -34,8 +40,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go a.Relay.Run(ctx, time.Second)
+	go func() {
+		<-ctx.Done()
+		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = a.Echo.Shutdown(shutdown)
+	}()
+
 	slog.Info("server starting", slog.String("port", cfg.Port), slog.String("env", cfg.Env))
-	if err := a.Echo.Start(":" + cfg.Port); err != nil {
+	if err := a.Echo.Start(":" + cfg.Port); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server stopped", slog.Any("error", err))
 		os.Exit(1)
 	}

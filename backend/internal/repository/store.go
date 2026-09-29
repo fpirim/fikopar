@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -72,3 +73,5 @@ func list[T any](db *gorm.DB, sql string, args ...any) ([]T, error) {
 	err := db.Raw(sql, args...).Scan(&rows).Error
 	return rows, err
 }
+
+func uintText(id uint) string { return strconv.FormatUint(uint64(id), 10) }

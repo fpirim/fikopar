@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
+	"github.com/fpirim/fikopar/backend/internal/models"
 	"github.com/fpirim/fikopar/backend/internal/services"
 
 	"github.com/google/uuid"
@@ -102,4 +103,16 @@ func bindJSON(c echo.Context, v any) error {
 		return apierror.InvalidRequest
 	}
 	return nil
+}
+
+func queryDate(c echo.Context, name string) (*models.Date, error) {
+	v := c.QueryParam(name)
+	if v == "" {
+		return nil, nil
+	}
+	d, err := models.ParseDate(v)
+	if err != nil {
+		return nil, apierror.WithField(apierror.InvalidRequest, name)
+	}
+	return &d, nil
 }

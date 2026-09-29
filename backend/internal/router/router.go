@@ -103,6 +103,13 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.GET("/ledger/account-roles", h.Ledger.ListAccountRoles)
 	org.PUT("/ledger/account-roles", h.Ledger.SetAccountRoles, orgAdmin)
 
+	const entryPath = "/ledger/entries/:entryId"
+	org.GET("/ledger/entries", h.Ledger.ListEntries)
+	org.POST("/ledger/entries", h.Ledger.PostEntry)
+	org.GET(entryPath, h.Ledger.GetEntry)
+	org.GET(entryPath+"/trail", h.Ledger.EntryTrail)
+	org.POST(entryPath+"/reversal", h.Ledger.ReverseEntry)
+
 	// Admin only
 	admin := api.Group("/admin")
 	admin.Use(appMiddleware.RequireRole(models.RoleAdmin))

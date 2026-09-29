@@ -65,6 +65,7 @@ LANGUAGE sql STABLE AS $$
   WHERE org_id = p_org AND year <= extract(year FROM p_date)::int
 $$;
 
+ALTER TABLE outbox ADD COLUMN actor_user_id bigint REFERENCES users(id);
 CREATE INDEX outbox_aggregate_idx ON outbox (org_id, aggregate_type, aggregate_id);
 
 -- Consumer idempotency: one row per (event, consumer), written in the consumer's transaction.

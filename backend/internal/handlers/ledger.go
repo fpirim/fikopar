@@ -142,3 +142,83 @@ func (h *LedgerHandler) UpdateNumberSeries(c echo.Context) error {
 	setETag(c, out.Version)
 	return c.JSON(http.StatusOK, out)
 }
+
+func (h *LedgerHandler) PostEntry(c echo.Context) error {
+	org := orgID(c)
+	return idempotent(c, h.idem, func(ctx context.Context, body []byte) (int, any, error) {
+		var in services.EntryCreate
+		if err := json.Unmarshal(body, &in); err != nil {
+			return 0, nil, apierror.InvalidRequest
+		}
+		return created(h.ledger.PostManual(ctx, org, in))
+	})
+}
+
+func (h *LedgerHandler) GetEntry(c echo.Context) error {
+	id, err := pathID(c, "entryId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	e, err := h.ledger.GetEntry(c.Request().Context(), orgID(c), id)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, e)
+}
+
+func (h *LedgerHandler) EntryTrail(c echo.Context) error {
+	id, err := pathID(c, "entryId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	items, err := h.ledger.Trail(c.Request().Context(), orgID(c), id)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, items)
+}
+
+type reasonBody struct {
+	Reason string `json:"reason"`
+}
+
+func (h *LedgerHandler) ReverseEntry(c echo.Context) error {
+	id, err := pathID(c, "entryId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	org := orgID(c)
+	return idempotent(c, h.idem, func(ctx context.Context, body []byte) (int, any, error) {
+		var in reasonBody
+		if err := json.Unmarshal(body, &in); err != nil {
+			return 0, nil, apierror.InvalidRequest
+		}
+		return created(h.ledger.Reverse(ctx, org, id, in.Reason))
+	})
+}
+
+func (h *LedgerHandler) ListEntries(c echo.Context) error {
+	var q services.EntryQuery
+	var err error
+	if q.DepotID, err = queryUint(c, "depotId"); err != nil {
+		return apierror.Respond(c, err)
+	}
+	if q.AccountID, err = queryUint(c, "accountId"); err != nil {
+		return apierror.Respond(c, err)
+	}
+	if q.From, err = queryDate(c, "from"); err != nil {
+		return apierror.Respond(c, err)
+	}
+	if q.To, err = queryDate(c, "to"); err != nil {
+		return apierror.Respond(c, err)
+	}
+	q.Limit, _ = strconv.Atoi(c.QueryParam("limit"))
+	q.Cursor = c.QueryParam("cursor")
+	q.SourceType = c.QueryParam("sourceType")
+	q.Search = c.QueryParam("q")
+	page, err := h.ledger.ListEntries(c.Request().Context(), orgID(c), q)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, page)
+}

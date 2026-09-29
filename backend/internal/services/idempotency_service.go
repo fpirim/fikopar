@@ -52,7 +52,7 @@ func (s *IdempotencyService) Do(ctx context.Context, orgID uint, key, endpoint s
 
 	var result IdempotentResult
 	err = s.store.InTx(ctx, func(q *repository.Q) error {
-		status, resp, err := op(repository.WithTx(ctx, q))
+		status, resp, err := op(withIdempotencyKey(repository.WithTx(ctx, q), key))
 		if err != nil {
 			return err
 		}
