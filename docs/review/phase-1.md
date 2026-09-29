@@ -41,9 +41,9 @@ All restored; suite green after each.
 
 ## Gates
 `go build`, `go vet`, `golangci-lint` (0 issues), `go-arch-lint` (needs Go 1.25 toolchain; 1.27
-crashes the loader), `deadcode`, `go test -race -count=3 -tags=integration ./...` green.
+crashes the loader), `deadcode`, `go test -race -count=3 -timeout 30m -tags=integration ./...` green.
 
 ## Open
 - `getSicilSummary`, `getTrialBalance`, dashboard, print endpoints: not in F1 scope.
-- Router integration tests take ~2 min under `-race` (bcrypt cost in logins).
+- Router integration tests: ~3 min under `-race` before, ~15 s with bcrypt.MinCost in tests.
 - Contract gaps: [phase-1-contract-issues.md](phase-1-contract-issues.md).
