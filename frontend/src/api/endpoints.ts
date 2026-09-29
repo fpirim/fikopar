@@ -26,7 +26,6 @@ import type {
   SicilUpdate,
   Statement,
   TrailItem,
-  User,
 } from './types'
 
 const org = (orgId: number) => `/api/orgs/${orgId}`
@@ -34,9 +33,6 @@ const data = <T>(p: Promise<{ data: T }>) => p.then((r) => r.data)
 
 export const getHealth = () =>
   data(apiRequest<{ status: string; version: string }>('GET', '/healthz'))
-
-export const loginDemo = () =>
-  data(apiRequest<{ token: string; user: User; resetAt?: string }>('POST', '/api/auth/demo'))
 
 export const listDepots = (orgId: number) =>
   data(apiRequest<Depot[]>('GET', `${org(orgId)}/depots`))
@@ -64,7 +60,7 @@ export const printReminderLetters = (orgId: number, body: AccountSelection) =>
 export const getAccount = (orgId: number, accountId: number) =>
   data(apiRequest<Account>('GET', `${org(orgId)}/ledger/accounts/${accountId}`))
 
-export const listAccounts = (
+const listAccounts = (
   orgId: number,
   query: { type?: Account['type']; sicilId?: number; limit?: number; cursor?: string } = {},
 ) => data(apiRequest<AccountPage>('GET', `${org(orgId)}/ledger/accounts`, { query }))

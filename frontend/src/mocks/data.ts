@@ -332,7 +332,7 @@ function synthParties(): Omit<Party, 'sicilId' | 'accountId'>[] {
   return out
 }
 
-export interface Ledger {
+interface Ledger {
   parties: Party[]
   sicils: Sicil[]
   accounts: Account[]
@@ -429,7 +429,7 @@ export function balanceRow(p: Party, depotId: number | null): BalanceRow {
   }
 }
 
-export interface LedgerLine extends StatementLine {
+interface LedgerLine extends StatementLine {
   accountId: number
 }
 

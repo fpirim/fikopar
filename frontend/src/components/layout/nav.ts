@@ -1,4 +1,4 @@
-export interface NavItem {
+interface NavItem {
   tag: string
   key: string
   to: string

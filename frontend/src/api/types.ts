@@ -2,7 +2,6 @@ import type { components } from './schema'
 
 type S = components['schemas']
 
-export type Money = S['Money']
 export type GridRequest = S['GridRequest']
 export type FilterModel = NonNullable<GridRequest['filterModel']>
 export type SortModel = NonNullable<GridRequest['sortModel']>
@@ -35,14 +34,11 @@ export type CashCount = S['CashCount']
 export type CashCountCreate = S['CashCountCreate']
 export type CarryForward = S['CarryForward']
 export type CarryForwardRow = CarryForward['rows'][number]
-export type CarryForwardCheck = CarryForward['checks'][number]
 export type CarryForwardOverride = S['CarryForwardOverride']
 export type JournalEntry = S['JournalEntry']
 export type JournalEntryPage = S['JournalEntryPage']
 export type Posting = S['Posting']
 export type TrailItem = S['TrailItem']
-export type SourceType = S['SourceType']
-export type ApiErrorBody = S['Error']
 
 export type BalancesRequest = GridRequest & {
   asOf: string

@@ -39,7 +39,9 @@ export function useInfiniteGrid<T>(
   const apiRef = useRef<GridApi | null>(null)
   const columnApiRef = useRef<ColumnApi | null>(null)
   const fetchRef = useRef(fetchPage)
-  fetchRef.current = fetchPage
+  useEffect(() => {
+    fetchRef.current = fetchPage
+  }, [fetchPage])
   const lastReq = useRef<{ sortModel: SortModel; filterModel: FilterModel }>({
     sortModel: [],
     filterModel: {},

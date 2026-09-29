@@ -12,7 +12,8 @@ import { formatDay, formatMoney } from '../lib/format'
 import { Button } from '../components/ui/button'
 import { Chip } from '../components/ui/chip'
 import { Panel } from '../components/ui/panel'
-import { FkGrid, exprFilter, numCol } from '../components/grid/FkGrid'
+import { FkGrid } from '../components/grid/FkGrid'
+import { exprFilter, numCol } from '../components/grid/columns'
 import SelectCompany from '../components/layout/SelectCompany'
 
 type Row = JournalEntry & { total: number }

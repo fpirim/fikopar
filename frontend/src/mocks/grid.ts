@@ -49,7 +49,7 @@ function compare(n: number, c: Cond, from: number, to: number): boolean {
 
 const day = (s: string | null | undefined) => (s ? Date.parse(s.slice(0, 10)) : Number.NaN)
 
-export function matches(value: string | number | null | undefined, c: Cond): boolean {
+function matches(value: string | number | null | undefined, c: Cond): boolean {
   if (c.type === 'blank') return value === null || value === undefined || value === ''
   if (c.type === 'notBlank') return !(value === null || value === undefined || value === '')
   if (value === null || value === undefined) return false

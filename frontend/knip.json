@@ -1,4 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/components/ui/[a-z]*.tsx"]
+  "entry": [
+    "src/components/ui/[a-z]*.tsx"
+  ],
+  "ignoreDependencies": [
+    "@fontsource-variable/archivo"
+  ]
 }

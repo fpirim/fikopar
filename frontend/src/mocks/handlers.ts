@@ -32,7 +32,7 @@ const m = (n: number) => n.toFixed(2)
 const O = '/api/orgs/:orgId'
 const err = (status: number, code: string) => HttpResponse.json({ code }, { status })
 
-export const db: { current: Db } = { current: createDb() }
+const db: { current: Db } = { current: createDb() }
 
 export function resetDb() {
   db.current = createDb()
@@ -628,5 +628,3 @@ export const handlers = [
     return idempotent(request, () => reverse(e))
   }),
 ]
-
-export const MOCK_ORG_ID = ORG_ID
