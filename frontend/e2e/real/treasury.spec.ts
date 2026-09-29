@@ -40,7 +40,7 @@ test('cash collection posts and shows in the cash book', V11, async ({ page }) =
   const pdf = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Post & print' }).click()
   await pdf
-  await expect(page.getByText(/TAH-2026-1-\d+ posted/)).toBeVisible()
+  await expect(page.getByText(/TAH-\d{4}-1-\d+ posted/)).toBeVisible()
 })
 
 test('carry forward posts, closes 2025, and reopens', V11, async ({ page }) => {

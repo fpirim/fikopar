@@ -30,11 +30,11 @@ test.describe('catalog and stock', () => {
       await expect(main).toContainText('12,400.00')
       await expect(main).toContainText('13,100.00')
       const moves = grid(page)
-      await expect(moves).toContainText(/TRF-2026-/)
-      await expect(moves).toContainText(/SAY-2026-/)
+      await expect(moves).toContainText(/TRF-\d{4}-/)
+      await expect(moves).toContainText(/SAY-\d{4}-/)
       // 12 counted in depot 1 and 2 in depot 2, the transfer moves stock between them, the seeded
       // purchase adds 5; later sales depend on the document specs, so the purchase row is checked.
-      await expect(moves.locator('.ag-row', { hasText: /AF-2026-/ })).toContainText('19')
+      await expect(moves.locator('.ag-row', { hasText: /AF-\d{4}-/ })).toContainText('19')
     },
   )
 
@@ -45,7 +45,7 @@ test.describe('catalog and stock', () => {
     await dialog.getByLabel(/^(Qty|Quantity)$/).fill('9')
     await dialog.getByRole('button', { name: /^(Transfer|Post)$/ }).click()
     await expect(page.getByText(/negative/i).first()).toBeVisible()
-    await expect(page.getByText(/TRF-2026-/).first()).toBeVisible()
+    await expect(page.getByText(/TRF-\d{4}-/).first()).toBeVisible()
   })
 
   test('a part off the sheet joins the count through the catalog search', V12, async ({ page }) => {
@@ -218,7 +218,7 @@ test.describe('catalog and stock', () => {
 
   test('movements filter by the Out column on the server', V13, async ({ page }) => {
     await page.goto(`/parts/${part('HP-3774')}`)
-    await expect(grid(page)).toContainText(/TRF-2026-/)
+    await expect(grid(page)).toContainText(/TRF-\d{4}-/)
     await page.getByLabel('Filter Out').fill('>= 1')
     await expect
       .poll(async () => {

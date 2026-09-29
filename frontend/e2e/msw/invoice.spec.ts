@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, clipped, cutControls } from './fixtures'
+import { test, expect, clipped, cutControls, today, addDays, shown } from './fixtures'
 
 const lines = (page: Page) => page.locator('.fk-doc-lines')
 const cell = (page: Page, row: number, col: string) =>
@@ -36,7 +36,7 @@ test('an invoice typed from the keyboard: part popup, quantity, discounts, Tab t
   await page.goto('/invoices/new?type=SALES_INVOICE')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('SF-2026-1-000419')
   await pickAccount(page, 'Yılmaz')
-  await expect(page.getByLabel('Due')).toHaveValue('29.10.2026')
+  await expect(page.getByLabel('Due')).toHaveValue(shown(addDays(today, 30)))
   await expect(page.getByLabel('Salesperson')).toHaveValue('7')
 
   await page.keyboard.press('Insert')
