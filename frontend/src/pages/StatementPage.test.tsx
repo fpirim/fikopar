@@ -145,6 +145,28 @@ describe('StatementPage', () => {
     expect(puts[1].headers.get('If-Match')).toBe('"2"')
   })
 
+  it('drops the email and contact when cleared, and shows other errors inline', async () => {
+    const puts = capture('put', '/api/orgs/:orgId/sicils/:sicilId')
+    renderApp(URL_)
+    await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    await userEvent.clear(within(dialog).getByLabelText('E-posta'))
+    await userEvent.clear(within(dialog).getByLabelText('Yetkili'))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(puts).toHaveLength(1))
+    expect(puts[0].body).toMatchObject({ emails: [], contacts: [], credit_limit: '250000.00' })
+
+    server.use(
+      http.put('/api/orgs/:orgId/sicils/:sicilId', () =>
+        HttpResponse.json({ code: 'ERR_INTERNAL' }, { status: 500 }),
+      ),
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
+    const again = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    await userEvent.click(within(again).getByRole('button', { name: 'Kaydet' }))
+    expect(await within(again).findByRole('alert')).toHaveTextContent('Sunucu hatası')
+  })
+
   it('offers a reload when someone else changed the card', async () => {
     server.use(
       http.put('/api/orgs/:orgId/sicils/:sicilId', () =>
@@ -175,6 +197,26 @@ describe('StatementPage', () => {
     await userEvent.type(await screen.findByRole('combobox', { name: 'Hesap' }), 'Kaya')
     await userEvent.click(await screen.findByRole('option', { name: /Kaya Ziraat/ }))
     await waitFor(() => expect(location()).toBe('/statements/5006'))
+  })
+
+  it('says when a picked card has no current account', async () => {
+    server.use(
+      http.get('/api/orgs/:orgId/search', () =>
+        HttpResponse.json({
+          accounts: [{ sicilId: 9, accountId: null, hesapNo: '10999', hesapAdi: 'Yeni Müşteri' }],
+          parts: [],
+          documents: [],
+        }),
+      ),
+    )
+    renderApp('/statements')
+    await userEvent.type(await screen.findByRole('combobox', { name: 'Hesap' }), 'Yeni')
+    await userEvent.click(await screen.findByRole('option', { name: /Yeni Müşteri/ }))
+    expect(await screen.findByText('Bu kartın henüz cari hesabı yok')).toHaveAttribute(
+      'role',
+      'status',
+    )
+    expect(location()).toBe('/statements')
   })
 
   it('writes the period in English', async () => {

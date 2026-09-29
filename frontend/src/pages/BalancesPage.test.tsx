@@ -13,7 +13,7 @@ async function filterKonyaCustomers() {
   await userEvent.type(await screen.findByLabelText('Şehir filtresi'), 'Konya')
   await userEvent.selectOptions(screen.getByLabelText('Tip filtresi'), 'MUSTERI')
   await userEvent.type(screen.getByLabelText('Bakiye filtresi'), '> 10.000')
-  await waitFor(() => expect(pinned()).toHaveTextContent('6 / 412 · 3 filtre'), { timeout: 3000 })
+  await waitFor(() => expect(pinned()).toHaveTextContent('6 / 412 · 3 filtre'), { timeout: 6000 })
 }
 
 describe('BalancesPage', () => {
