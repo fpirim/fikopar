@@ -4,5 +4,5 @@ useDefault = true
 [allowlist]
 description = "Well-known JHipster generator test fixtures (identical in every generated project; not real secrets)."
 paths = [
-  '''legacy/jhipster-v2/src/test/java/com/dizel/fikopar/security/jwt/.*Test[s]?\.java''',
+  '''legacy/jhipster-v2/src/test/java/dev/fikopar/security/jwt/.*Test[s]?\.java''',
 ]

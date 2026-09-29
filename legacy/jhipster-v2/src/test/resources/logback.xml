@@ -4,7 +4,7 @@
 <configuration scan="true">
     <include resource="org/springframework/boot/logging/logback/base.xml"/>
 
-    <logger name="com.dizel.fikopar" level="INFO"/>
+    <logger name="dev.fikopar" level="INFO"/>
 
     <logger name="tech.jhipster" level="WARN"/>
 

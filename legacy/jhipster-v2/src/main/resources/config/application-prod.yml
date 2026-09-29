@@ -17,7 +17,7 @@ logging:
   level:
     ROOT: INFO
     tech.jhipster: INFO
-    com.dizel.fikopar: INFO
+    dev.fikopar: INFO
 
 management:
   metrics:
