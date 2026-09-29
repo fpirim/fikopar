@@ -43,13 +43,13 @@ describe('StockCountPage', () => {
     const diff = await screen.findByRole('button', { name: 'Yalnız farklar' })
     await userEvent.click(diff)
     expect(diff).toHaveAttribute('aria-pressed', 'true')
-    await waitFor(() => expect(calls.at(-1)!.body).toMatchObject({ only: 'DIFFERENCES' }))
+    await waitFor(() => expect(calls[calls.length - 1].body).toMatchObject({ only: 'DIFFERENCES' }))
     await userEvent.type(screen.getByLabelText('Raf başı'), 'C{Enter}')
     await waitFor(() =>
-      expect(calls.at(-1)!.body).toMatchObject({ only: 'DIFFERENCES', shelfFrom: 'C' }),
+      expect(calls[calls.length - 1].body).toMatchObject({ only: 'DIFFERENCES', shelfFrom: 'C' }),
     )
     await userEvent.click(diff)
-    await waitFor(() => expect(calls.at(-1)!.body).toMatchObject({ only: 'ALL' }))
+    await waitFor(() => expect(calls[calls.length - 1].body).toMatchObject({ only: 'ALL' }))
   })
 
   it('autosaves a count with the line version and moves on', async () => {
