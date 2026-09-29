@@ -39,9 +39,15 @@ type Consumer interface {
 
 // emit appends an outbox row; depotID 0 is a company-wide event (depotId null).
 func emit(ctx context.Context, q *repository.Q, orgID, depotID uint, eventType, aggregateType string, aggregateID uint, aggregateVersion *int, payload any) error {
+	_, err := emitEnvelope(ctx, q, orgID, depotID, eventType, aggregateType, aggregateID, aggregateVersion, payload)
+	return err
+}
+
+// emitEnvelope appends an outbox row and returns it as the relay would deliver it.
+func emitEnvelope(ctx context.Context, q *repository.Q, orgID, depotID uint, eventType, aggregateType string, aggregateID uint, aggregateVersion *int, payload any) (Envelope, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return Envelope{}, err
 	}
 	a := actorFrom(ctx)
 	var depot *uint
@@ -52,11 +58,14 @@ func emit(ctx context.Context, q *repository.Q, orgID, depotID uint, eventType, 
 	if a.RequestID != "" {
 		corr = &a.RequestID
 	}
-	return q.AppendOutbox(repository.OutboxEvent{
+	ev := repository.OutboxEvent{
 		ID: uuid.NewString(), OrgID: orgID, DepotID: depot, EventType: eventType, EventVersion: 1,
 		AggregateType: aggregateType, AggregateID: strconv.FormatUint(uint64(aggregateID), 10),
 		AggregateVersion: aggregateVersion, Payload: string(body), CorrelationID: corr, ActorUserID: a.userID(),
-	})
+	}
+	return Envelope{ID: ev.ID, Type: eventType, Version: 1, OccurredAt: time.Now().UTC(), OrgID: orgID, DepotID: depot,
+		AggregateType: aggregateType, AggregateID: ev.AggregateID, AggregateVersion: aggregateVersion, CorrelationID: corr,
+		ActorUserID: ev.ActorUserID, Payload: body}, q.AppendOutbox(ev)
 }
 
 type idemKey struct{}
@@ -93,24 +102,40 @@ func (r *OutboxRelay) Register(c Consumer) {
 	r.consumers = append(r.consumers, c)
 }
 
-// RunOnce delivers one batch and returns how many events were published.
+// relayRounds bounds how often one run re-reads the outbox for events their predecessors released.
+const relayRounds = 10
+
+// RunOnce delivers what is deliverable now and returns how many events were published. An event waits for the earlier
+// events of its aggregate, so the run re-reads the outbox after each round; an event is tried at most once per run.
 func (r *OutboxRelay) RunOnce(ctx context.Context) (int, error) {
-	ids, err := r.store.Read(ctx).PendingOutboxIDs(100)
-	if err != nil {
-		return 0, err
-	}
 	published := 0
-	for _, id := range ids {
-		ok, err := r.deliver(ctx, id)
+	tried := map[string]bool{}
+	for round := 0; round < relayRounds; round++ {
+		ids, err := r.store.Read(ctx).PendingOutboxIDs(100)
 		if err != nil {
-			slog.Warn("outbox delivery failed", "event", id, "err", err)
-			if ferr := r.store.InTx(ctx, func(q *repository.Q) error { return q.RecordOutboxFailure(id, err.Error()) }); ferr != nil {
-				return published, ferr
-			}
-			continue
+			return published, err
 		}
-		if ok {
-			published++
+		fresh := 0
+		for _, id := range ids {
+			if tried[id] {
+				continue
+			}
+			tried[id] = true
+			fresh++
+			ok, err := r.deliver(ctx, id)
+			if err != nil {
+				slog.Warn("outbox delivery failed", "event", id, "err", err)
+				if ferr := r.store.InTx(ctx, func(q *repository.Q) error { return q.RecordOutboxFailure(id, err.Error()) }); ferr != nil {
+					return published, ferr
+				}
+				continue
+			}
+			if ok {
+				published++
+			}
+		}
+		if fresh == 0 {
+			break
 		}
 	}
 	return published, nil

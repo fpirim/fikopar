@@ -67,6 +67,7 @@ type SourceType string
 
 const (
 	SourceManual      SourceType = "manual"
+	SourceDocument    SourceType = "document"
 	SourceReceipt     SourceType = "receipt"
 	SourceCashVoucher SourceType = "cash_voucher"
 	SourceCashCount   SourceType = "cash_count"

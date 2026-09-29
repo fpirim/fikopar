@@ -24,7 +24,7 @@ var (
 	codePrefix   = regexp.MustCompile(`^[0-9]{1,3}(\.[0-9A-Za-z-]*)*$`)
 	pickerRoles  = map[string]string{"CASH": "100", "BANK": "102", "CUSTOMER": "120", "SUPPLIER": "320", "EXPENSE": "770"}
 	accountRoles = map[string]bool{
-		"CASH": true, "SALES": true, "SALES_RETURNS": true, "PURCHASES": true, "PURCHASE_RETURNS": true,
+		"CASH": true, "SALES": true, "SALES_RETURNS": true, "SALES_DISCOUNTS": true, "PURCHASES": true, "PURCHASE_RETURNS": true,
 		"PRICE_DIFFERENCE": true, "OUTPUT_VAT": true, "INPUT_VAT": true, "RECEIVABLE_CHEQUES": true,
 		"RECEIVABLE_NOTES": true, "CHEQUES_AT_BANK": true, "PAYABLE_CHEQUES": true, "PAYABLE_NOTES": true,
 		"OPENING": true, "CASH_OVER_SHORT": true,

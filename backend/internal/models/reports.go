@@ -23,6 +23,8 @@ type StatementLine struct {
 	SourceType     SourceType `json:"sourceType" gorm:"column:source_type"`
 	SourceID       *string    `json:"sourceId" gorm:"column:source_id"`
 	Subtype        *string    `json:"subtype" gorm:"column:subtype"`
+	DocumentID     *uint      `json:"documentId" gorm:"column:document_id"`
+	DocumentType   *string    `json:"documentType" gorm:"column:document_type"`
 	DueDate        *Date      `json:"dueDate" gorm:"column:due_date"`
 	Description    string     `json:"description" gorm:"column:description"`
 	Debit          Money      `json:"debit" gorm:"column:debit"`

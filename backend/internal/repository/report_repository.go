@@ -110,8 +110,9 @@ func IsBadFilter(err error) bool { return errors.Is(err, ErrBadFilter) }
 // reversals net to zero and are left out.
 func (q *Q) StatementLines(orgID, accountID uint, depotID *uint, from, to models.Date) ([]models.StatementLine, error) {
 	return list[models.StatementLine](q.db, `
-		SELECT e.id AS entry_id, e.entry_date, e.depot_id, coalesce(r.receipt_no, v.voucher_no, e.entry_no) AS document_no,
-		       e.source_type, e.source_id, coalesce(r.kind, v.kind) AS subtype, p.due_date, e.description,
+		SELECT e.id AS entry_id, e.entry_date, e.depot_id, coalesce(r.receipt_no, v.voucher_no, doc.document_no, e.entry_no) AS document_no,
+		       e.source_type, e.source_id, coalesce(r.kind, v.kind, doc.type) AS subtype, doc.id AS document_id,
+		       doc.type AS document_type, p.due_date, e.description,
 		       CASE p.side WHEN 'DEBIT' THEN p.amount ELSE 0 END AS debit,
 		       CASE p.side WHEN 'CREDIT' THEN p.amount ELSE 0 END AS credit,
 		       e.source_type = 'opening' AS resets_balance
@@ -119,6 +120,9 @@ func (q *Q) StatementLines(orgID, accountID uint, depotID *uint, from, to models
 		JOIN journal_entries e ON e.id = p.entry_id
 		LEFT JOIN receipts r ON r.org_id = e.org_id AND e.id IN (r.journal_entry_id, r.voided_by_entry_id)
 		LEFT JOIN cash_vouchers v ON v.org_id = e.org_id AND e.id IN (v.journal_entry_id, v.voided_by_entry_id)
+		LEFT JOIN journal_entries oe ON oe.id = e.reverses_entry_id
+		LEFT JOIN documents doc ON doc.org_id = e.org_id AND doc.id::text = CASE
+		     WHEN e.source_type = 'document' THEN e.source_id WHEN oe.source_type = 'document' THEN oe.source_id END
 		WHERE e.org_id = ? AND p.account_id = ? AND e.entry_date BETWEEN ? AND ?
 		  AND (?::bigint IS NULL OR e.depot_id = ?)
 		  AND (NOT `+isOpening+` OR (e.source_type = 'opening' AND e.entry_date > ?

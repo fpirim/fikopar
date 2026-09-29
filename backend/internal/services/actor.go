@@ -11,6 +11,7 @@ import (
 // Actor is who made the request; it flows through the context into audit and outbox rows.
 type Actor struct {
 	UserID    uint
+	Admin     bool
 	RequestID string
 	IP        string
 }
