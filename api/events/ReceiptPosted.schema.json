@@ -79,8 +79,8 @@
           "pattern": "^-?\\d{1,16}\\.\\d{2}$"
         },
         "currency": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
+          "const": "TRY",
+          "description": "TRY only in contracts v1.1."
         },
         "journalEntryId": {
           "type": "integer"

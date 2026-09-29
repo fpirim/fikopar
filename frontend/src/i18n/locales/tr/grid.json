@@ -54,5 +54,28 @@
     "rowGroupColumnsEmptyMessage": "Gruplamak için buraya sürükleyin",
     "totalRows": "Toplam Satır",
     "totalAndFilteredRows": "Satır"
+  },
+  "fk": {
+    "shownOf": "{{shown}} / {{total}}",
+    "filters_one": "{{count}} filtre",
+    "filters_other": "{{count}} filtre",
+    "sortedBy": "Sıralama: {{cols}}",
+    "filteredBy": "filtreler: {{cols}}",
+    "noSort": "Sırasız",
+    "range": "{{from}}–{{to}} / {{total}}",
+    "clearFilters": "Filtreleri temizle",
+    "columns": "Sütunlar",
+    "csv": "CSV",
+    "excel": "Excel",
+    "pdf": "PDF",
+    "contains": "İçerir…",
+    "any": "Hepsi",
+    "all": "Tümü",
+    "before": "Önce…",
+    "range_hint": "Aralık…",
+    "positive": "> 0",
+    "nonZero": "≠ 0",
+    "total": "Toplam",
+    "filterCol": "{{col}} filtresi"
   }
 }

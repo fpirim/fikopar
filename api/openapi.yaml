@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: fikopar API
-  version: 0.1.0-draft
+  version: 1.1.0
   summary: B2B trade, ledger and instrument management for a spare-parts distributor.
   description: |
     **DRAFT / provisional.** Revised against the live JHipster (v2) inventory; see `docs/domain-model.md`.
@@ -15,10 +15,19 @@ info:
       requires a token and membership of the organization (company) in the path, otherwise
       `403 ERR_FORBIDDEN`; the `user` role never sees other companies' data.
     - **Tenancy**: new endpoints are scoped by path `/api/orgs/{orgId}/…`; most also carry a depot.
-    - **Dates**: date ranges are inclusive on both ends; years are calendar years.
+    - **Dates**: date ranges are inclusive on both ends; years are calendar years. Date parameters and
+      grid date filters are `yyyy-mm-dd`; a time part (`yyyy-mm-dd hh:mm:ss`, AG Grid) is accepted and ignored.
+    - **Unknown ids**: an unknown id in the path answers `404 ERR_*_NOT_FOUND`; an unknown id in the request
+      body (account, depot, sicil, part …) answers `422 ERR_*_NOT_FOUND` with `field`.
+    - **Closed years**: posting the carry-forward into year Y closes Y − 1 and every earlier year. Any operation
+      that writes a journal entry dated in a closed year answers `409 ERR_YEAR_CLOSED` (manual and reversal
+      entries, document post/cancel, receipts and their voids, cash vouchers and counts, instrument operations).
+      `reopenCarryForward` opens it again.
+    - **Currency**: one currency per journal entry; v1.1 accepts `TRY` only.
     - **Exports**: reports and printable documents honour `Accept: application/pdf`. Grid endpoints return
       every filtered row as XLSX when `Accept` is the XLSX media type (server-side Excel). CSV is built in the client.
     - **Numbers**: `PREFIX-YEAR-DEPOT-COUNTER`, e.g. `SF-2026-1-000418`; one counter per company, depot, prefix and year.
+      Every number in requests, responses, events and examples uses this dashed form (legacy imports excepted).
     - **Money** is a decimal string (`"1250.00"`), never a JSON number.
     - **Idempotency**: unsafe POSTs in new contexts require `Idempotency-Key`. A replay with the same key
       and body returns the original response with `Idempotent-Replayed: true`.
@@ -258,6 +267,8 @@ paths:
       responses:
         '201':
           description: Created
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Sicil' }
@@ -276,6 +287,8 @@ paths:
       responses:
         '200':
           description: Account card
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Sicil' }
@@ -285,7 +298,8 @@ paths:
     put:
       tags: [Sicil]
       operationId: updateSicil
-      summary: Partial update (whitelisted fields); `telefonlar`, when present, replaces all phones
+      summary: Partial update (whitelisted fields); `telefonlar`, `emails` and `contacts`, when present, replace the list
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
         content:
@@ -294,6 +308,8 @@ paths:
       responses:
         '200':
           description: Updated card
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Sicil' }
@@ -302,6 +318,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
     delete:
       tags: [Sicil]
       operationId: deleteSicil
@@ -365,6 +383,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SearchResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /api/admin/users:
@@ -607,9 +626,14 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Depot' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '409':
+          description: Depot code already used in this company (ERR_DEPOT_CODE_EXISTS)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /api/orgs/{orgId}/number-series:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
@@ -653,10 +677,17 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/NumberSeries' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No such series in this company (ERR_NUMBER_SERIES_NOT_FOUND)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
 
   /api/orgs/{orgId}/ledger/accounts:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
@@ -669,6 +700,14 @@ paths:
         - $ref: '#/components/parameters/Cursor'
         - { name: type, in: query, schema: { $ref: '#/components/schemas/AccountType' } }
         - { name: sicilId, in: query, schema: { type: integer } }
+        - name: codePrefix
+          in: query
+          description: 'Code starts with this value, e.g. `102` or `120.10`. AND-combined with the other filters.'
+          schema: { type: string, pattern: '^[0-9]{1,3}(\.[0-9A-Za-z-]*)*$' }
+        - name: role
+          in: query
+          description: 'Picker shortcut: CASH = 100, BANK = 102, CUSTOMER = 120, SUPPLIER = 320, EXPENSE = 770 (code prefix).'
+          schema: { $ref: '#/components/schemas/AccountPickerRole' }
       responses:
         '200':
           description: Accounts
@@ -733,7 +772,15 @@ paths:
       tags: [Ledger]
       operationId: getAccountStatement
       summary: Statement (ekstre) with brought-forward row, running balance and per-depot totals
-      description: '`from` and `to` are inclusive. Excel or PDF via the Accept header.'
+      description: |
+        `from` and `to` are inclusive. Excel or PDF via the Accept header.
+        Balances follow the ledger start: the balance as of D is the opening entries of the latest carried-forward
+        year Y ≤ D plus postings from 1 January Y to D. `broughtForward` is that balance as of `from − 1` per depot
+        (opening entries of `from`'s year are folded in). When the range crosses 1 January of a carried-forward
+        year, that year's opening entries appear as lines with `sourceType: opening` and `resetsBalance: true`: the
+        running balance restarts at the opening amount instead of adding it, and `depotTotals` debit/credit leave
+        them out. Without an override the restart equals the previous closing; with one the difference is visible
+        on that line. `closingBalance` always equals the balance as of `to`.
       parameters:
         - { name: from, in: query, required: true, schema: { type: string, format: date } }
         - { name: to, in: query, required: true, schema: { type: string, format: date } }
@@ -757,8 +804,9 @@ paths:
       operationId: gridBalances
       summary: Current-account balances as of a date (cari toplam); end date inclusive
       description: |
-        Columns: accountCode, name, city, sicilTipi, debit, credit, balance, overdue, lastMoveDate; all filterable.
-        `totals` sums the filtered rows (pinned row). XLSX via Accept.
+        `colId` in `sortModel` / `filterModel` is a `BalanceColId` (the `BalanceRow` property names); others answer
+        400 ERR_INVALID_REQUEST. `totals` sums the filtered rows (pinned row) with the keys of `BalanceTotals`.
+        XLSX via Accept.
       requestBody:
         required: true
         content:
@@ -771,6 +819,15 @@ paths:
                   properties:
                     asOf: { type: string, format: date }
                     depotId: { type: [integer, 'null'] }
+                    sortModel:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          colId: { $ref: '#/components/schemas/BalanceColId' }
+                    filterModel:
+                      type: object
+                      propertyNames: { $ref: '#/components/schemas/BalanceColId' }
                     sicilTipi: { oneOf: [{ $ref: '#/components/schemas/SicilTipi' }, { type: 'null' }] }
       responses:
         '200':
@@ -781,8 +838,10 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/GridResponse'
                   - type: object
+                    required: [totals]
                     properties:
                       rows: { type: array, items: { $ref: '#/components/schemas/BalanceRow' } }
+                      totals: { $ref: '#/components/schemas/BalanceTotals' }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: { $ref: '#/components/schemas/Xlsx' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -865,12 +924,16 @@ paths:
       tags: [Ledger]
       operationId: getCarryForward
       summary: Preview opening entries for `year` from closing balances of `year - 1`; PDF via Accept
-      description: One row per (account, depot) with a non-zero closing balance or an override.
+      description: |
+        One row per (account, depot) with a non-zero closing balance or an override. `ETag` is the preview
+        version; it changes with every override, post and reopen.
       parameters:
         - $ref: '#/components/parameters/DepotIdQuery'
       responses:
         '200':
           description: Preview, or the posted result
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CarryForward' }
@@ -886,7 +949,13 @@ paths:
       tags: [Ledger]
       operationId: setCarryForwardOverride
       summary: Edit one opening amount before posting (admin); the row shows EDITED
-      description: '`debit` and `credit` both "0.00" skips the row. Removing an override restores the computed amount.'
+      description: |
+        `debit` and `credit` both "0.00" skips the row. Removing an override restores the computed amount.
+        `previewDepotId` restricts the returned preview like `depotId` on `getCarryForward`.
+        409 ERR_ALREADY_CARRIED_FORWARD while the year is POSTED.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/PreviewDepotId'
       requestBody:
         required: true
         content:
@@ -895,27 +964,45 @@ paths:
       responses:
         '200':
           description: Updated preview
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CarryForward' }
+        '400':
+          description: Invalid amounts or reason (ERR_INVALID_AMOUNT, ERR_INVALID_REQUEST)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+    delete:
+      tags: [Ledger]
+      operationId: deleteCarryForwardOverride
+      summary: Remove an override
+      description: '`accountId` and `depotId` name the row; `previewDepotId` restricts the returned preview.'
+      parameters:
+        - { name: accountId, in: query, required: true, schema: { type: integer } }
+        - { name: depotId, in: query, required: true, schema: { type: integer } }
+        - $ref: '#/components/parameters/PreviewDepotId'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Updated preview
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CarryForward' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
-    delete:
-      tags: [Ledger]
-      operationId: deleteCarryForwardOverride
-      summary: Remove an override
-      parameters:
-        - { name: accountId, in: query, required: true, schema: { type: integer } }
-        - { name: depotId, in: query, required: true, schema: { type: integer } }
-      responses:
-        '200':
-          description: Updated preview
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/CarryForward' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
   /api/orgs/{orgId}/ledger/carry-forwards/{year}/post:
     parameters:
       - $ref: '#/components/parameters/OrgId'
@@ -926,11 +1013,14 @@ paths:
       summary: Post all opening entries of `year` in one transaction (admin)
       description: |
         Blocking checks must pass (422 ERR_CARRY_FORWARD_BLOCKED). One entry per (account, depot) dated 1 January,
-        counter-account OPENING. A repeat returns 409 ERR_ALREADY_CARRIED_FORWARD.
+        counter-account OPENING. A repeat returns 409 ERR_ALREADY_CARRIED_FORWARD. Posting closes `year − 1`
+        (409 ERR_YEAR_CLOSED for later postings dated in it). Allowed again after `reopenCarryForward`.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       responses:
         '201':
           description: Posted
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CarryForward' }
@@ -938,6 +1028,36 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/ledger/carry-forwards/{year}/reopen:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/Year'
+    post:
+      tags: [Ledger]
+      operationId: reopenCarryForward
+      summary: Void the posted carry-forward of `year` so it can be edited and posted again (admin)
+      description: |
+        Reverses every opening entry of the active run (reversal entries dated 1 January, `sourceType: reversal`),
+        marks the run REOPENED and opens `year − 1` for posting. Overrides are kept. Status becomes REOPENED
+        (behaves like PREVIEW). 409 ERR_NOT_CARRIED_FORWARD when the year has no active run;
+        409 ERR_YEAR_CLOSED while `year + 1` is carried forward (reopen that first).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200':
+          description: Reopened preview
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CarryForward' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
   /api/orgs/{orgId}/ledger/account-roles:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     get:
@@ -995,7 +1115,9 @@ paths:
       tags: [Ledger]
       operationId: postJournalEntry
       summary: Post a balanced manual journal entry
-      description: '`422 ERR_ENTRY_UNBALANCED` unless Σ debit = Σ credit with at least two lines.'
+      description: |
+        `422 ERR_ENTRY_UNBALANCED` unless Σ debit = Σ credit with at least two lines. Every line is TRY
+        (422 ERR_CURRENCY_MISMATCH for an account in another currency). 409 ERR_YEAR_CLOSED for `entryDate` in a closed year.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
@@ -1007,6 +1129,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/ledger/entries/{entryId}:
     parameters:
@@ -1044,11 +1167,14 @@ paths:
       tags: [Ledger]
       operationId: reverseJournalEntry
       summary: Reverse a manual entry
-      description: Entries owned by a document, receipt, instrument or cash voucher return 409 ERR_ENTRY_OWNED_BY_SOURCE; reverse them through the owner.
+      description: |
+        Entries owned by a document, receipt, instrument or cash voucher return 409 ERR_ENTRY_OWNED_BY_SOURCE with
+        `owner`; reverse them through the owner. The reversal is dated today; 409 ERR_YEAR_CLOSED if that year is closed.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody: { $ref: '#/components/requestBodies/Reason' }
       responses:
         '201': { $ref: '#/components/responses/JournalEntryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -1182,7 +1308,12 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/GridRequest' }
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/GridRequest'
+                - type: object
+                  properties:
+                    depotId: { type: [integer, 'null'], description: Top-bar depot; null = all depots }
       responses:
         '200':
           description: One page of receipts
@@ -1206,6 +1337,8 @@ paths:
       description: |
         CASH posts to the depot's cash book, BANK_TRANSFER to `bankAccountId`. CHEQUE and NOTE register the
         instrument in `instrument` in the same transaction (the receipt then belongs to it).
+        Until F4 CHEQUE and NOTE answer 400 ERR_METHOD_NOT_AVAILABLE with `field: method`.
+        409 ERR_YEAR_CLOSED for `date` in a closed year.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
@@ -1216,6 +1349,7 @@ paths:
         '201': { $ref: '#/components/responses/ReceiptResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/receipts/{receiptId}:
     parameters:
@@ -1255,6 +1389,9 @@ paths:
       tags: [Cash]
       operationId: getCashBook
       summary: Cash book (kasa defteri) of one depot with opening row, in/out totals and running balance
+      description: |
+        One till per depot, so `depotId` is required; there is no combined book. With "All depots" in the top bar
+        the client asks the user to pick a depot. Missing `depotId` answers 400 ERR_DEPOT_REQUIRED.
       parameters:
         - { name: depotId, in: query, required: true, schema: { type: integer } }
         - { name: from, in: query, required: true, schema: { type: string, format: date } }
@@ -1269,6 +1406,7 @@ paths:
               schema: { $ref: '#/components/schemas/Pdf' }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: { $ref: '#/components/schemas/Xlsx' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/orgs/{orgId}/cash-vouchers:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
@@ -1289,6 +1427,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CashVoucher' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/cash-vouchers/{voucherId}/void:
     parameters:
@@ -1347,6 +1486,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CashCount' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
   /api/orgs/{orgId}/instruments/grid:
@@ -2194,6 +2334,11 @@ components:
       in: path
       required: true
       schema: { type: string }
+    PreviewDepotId:
+      name: previewDepotId
+      in: query
+      description: Restrict the returned carry-forward preview to one depot; omitted means all depots.
+      schema: { type: integer }
     Limit:
       name: limit
       in: query
@@ -2245,7 +2390,7 @@ components:
 
   responses:
     BadRequest:
-      description: Invalid input (ERR_INVALID_REQUEST, ERR_INVALID_ID, field validation codes)
+      description: Invalid input (ERR_INVALID_REQUEST, ERR_INVALID_ID, ERR_METHOD_NOT_AVAILABLE, field validation codes)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -2265,7 +2410,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     Conflict:
-      description: Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS)
+      description: Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_ENTRY_OWNED_BY_SOURCE with `owner`)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -2280,7 +2425,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     Unprocessable:
-      description: Business rule violated (ERR_ENTRY_UNBALANCED, ERR_INSUFFICIENT_STOCK, ERR_IDEMPOTENCY_KEY_REUSED, …)
+      description: Business rule violated or unknown id in the body (ERR_ENTRY_UNBALANCED, ERR_INSUFFICIENT_STOCK, ERR_IDEMPOTENCY_KEY_REUSED, ERR_*_NOT_FOUND, …)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -2368,6 +2513,15 @@ components:
         detail: { type: string, description: Developer-facing detail; never shown to end users }
         field: { type: string, description: Offending field for validation errors }
         traceId: { type: string, description: Request ID (X-Request-Id) }
+        owner: { $ref: '#/components/schemas/EntryOwner' }
+    EntryOwner:
+      type: object
+      description: Set only with ERR_ENTRY_OWNED_BY_SOURCE; the document, receipt, instrument or voucher that owns the entry.
+      required: [sourceType, sourceId]
+      properties:
+        sourceType: { $ref: '#/components/schemas/SourceType' }
+        sourceId: { type: string }
+        sourceNo: { type: [string, 'null'], examples: [SF-2026-1-000418] }
     ErrorCode:
       type: string
       description: Language-agnostic code; translated by the client. The first group exists today.
@@ -2408,6 +2562,8 @@ components:
         - ERR_INVALID_STATE_TRANSITION
         - ERR_DEPOT_NOT_FOUND
         - ERR_DEPOT_REQUIRED
+        - ERR_DEPOT_CODE_EXISTS
+        - ERR_NUMBER_SERIES_NOT_FOUND
         - ERR_NUMBER_SERIES_BACKWARDS
         - ERR_ACCOUNT_NOT_FOUND
         - ERR_ACCOUNT_CODE_EXISTS
@@ -2419,6 +2575,8 @@ components:
         - ERR_ENTRY_ALREADY_REVERSED
         - ERR_ENTRY_OWNED_BY_SOURCE
         - ERR_ALREADY_CARRIED_FORWARD
+        - ERR_NOT_CARRIED_FORWARD
+        - ERR_YEAR_CLOSED
         - ERR_INVALID_AMOUNT
         - ERR_PART_NOT_FOUND
         - ERR_PART_CODE_EXISTS
@@ -2442,6 +2600,7 @@ components:
         - ERR_SICIL_HAS_POSTINGS
         - ERR_BANK_ACCOUNT_REQUIRED
         - ERR_INSTRUMENT_REQUIRED
+        - ERR_METHOD_NOT_AVAILABLE
         - ERR_AMOUNT_EXCEEDS_REMAINING
         - ERR_ENDORSEE_REQUIRED
         - ERR_ACCOUNT_ROLE_MISSING
@@ -2476,7 +2635,8 @@ components:
       examples: ['18']
     Currency:
       type: string
-      pattern: '^[A-Z]{3}$'
+      description: One currency per journal entry; v1.1 accepts TRY only.
+      enum: [TRY]
       default: TRY
 
     GridRequest:
@@ -2504,8 +2664,8 @@ components:
                        lessThan, lessThanOrEqual, greaterThan, greaterThanOrEqual, inRange]
               filter: { type: [string, number] }
               filterTo: { type: [string, number] }
-              dateFrom: { type: [string, 'null'], description: 'yyyy-mm-dd' }
-              dateTo: { type: [string, 'null'], description: 'yyyy-mm-dd, inclusive' }
+              dateFrom: { type: [string, 'null'], description: 'yyyy-mm-dd; a time part is ignored' }
+              dateTo: { type: [string, 'null'], description: 'yyyy-mm-dd, inclusive; a time part is ignored' }
         search: { type: string, description: Free-text OR ILIKE across searchable columns }
     GridResponse:
       type: object
@@ -2571,7 +2731,7 @@ components:
     Sicil:
       type: object
       description: Account card (sicil) of a trading partner.
-      required: [id, organization_id, hesap_no, hesap_adi, sicil_tipi]
+      required: [id, organization_id, hesap_no, hesap_adi, sicil_tipi, version]
       properties:
         id: { type: integer }
         organization_id: { type: integer }
@@ -2587,24 +2747,24 @@ components:
         iskonto: { type: number, description: Default discount percent (legacy field; kept numeric for compatibility) }
         sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
         telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
-        credit_limit: { $ref: '#/components/schemas/Money', description: Planned }
+        credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }], description: Null = no limit }
+        contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
+        emails: { type: array, items: { type: string, format: email } }
         iskonto2: { type: number, description: Second cascaded discount percent (planned) }
         sales_rep_user_id: { type: [integer, 'null'], description: Planned }
-        contacts:
-          description: Planned; contact people with their own phones and emails
-          type: array
-          items:
-            type: object
-            required: [name]
-            properties:
-              name: { type: string }
-              role: { type: string }
-              phone: { type: string }
-              email: { type: string, format: email }
-        emails: { type: array, items: { type: string, format: email }, description: Planned }
         account_id: { type: [integer, 'null'], description: 'Current account (120 / 320 / 102), planned' }
+        version: { type: integer, description: Also sent as ETag; updates need If-Match }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    SicilContact:
+      type: object
+      description: Contact person; the first one is shown on the statement card.
+      required: [name]
+      properties:
+        name: { type: string }
+        role: { type: string }
+        phone: { type: string }
+        email: { type: string, format: email }
     SicilCreate:
       type: object
       required: [hesap_no, hesap_adi]
@@ -2621,6 +2781,9 @@ components:
         iskonto: { type: number, minimum: 0, maximum: 100 }
         sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
         telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
+        credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
+        emails: { type: array, items: { type: string, format: email } }
     SicilUpdate:
       type: object
       description: Partial update; unknown fields are ignored, organization_id cannot change.
@@ -2637,6 +2800,9 @@ components:
         iskonto: { type: number, minimum: 0, maximum: 100 }
         sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
         telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
+        credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
+        emails: { type: array, items: { type: string, format: email } }
     SicilSummary:
       type: object
       required: [sicilId, accountId, balance, overdue, chequesInPortfolio]
@@ -2734,9 +2900,10 @@ components:
           type: array
           items:
             type: object
-            required: [sicilId, hesapNo, hesapAdi]
+            required: [sicilId, accountId, hesapNo, hesapAdi]
             properties:
               sicilId: { type: integer }
+              accountId: { type: [integer, 'null'], description: 'Current account (120 / 320 / 102) for the statement; null if none' }
               hesapNo: { type: string }
               hesapAdi: { type: string }
         parts: { type: array, items: { $ref: '#/components/schemas/CatalogHit' } }
@@ -2771,6 +2938,7 @@ components:
       enum: [SF, SIR, SI, SIRI, AF, AIR, AI, AIRI, FF, TAH, TED, AC, AS, BC, BS, GDR, VRM, TRF, SAY, J]
 
     AccountType: { type: string, enum: [ASSET, LIABILITY, EQUITY, INCOME, EXPENSE] }
+    AccountPickerRole: { type: string, enum: [CASH, BANK, CUSTOMER, SUPPLIER, EXPENSE], description: 'Code prefix 100 / 102 / 120 / 320 / 770' }
     Side: { type: string, enum: [DEBIT, CREDIT] }
     SourceType: { type: string, enum: [manual, document, receipt, instrument, cash_voucher, cash_count, opening, reversal, legacy_import] }
     Account:
@@ -2818,6 +2986,19 @@ components:
         balance: { $ref: '#/components/schemas/Money', description: 'debitTotal − creditTotal' }
         overdue: { $ref: '#/components/schemas/Money' }
         lastMoveDate: { type: [string, 'null'], format: date }
+    BalanceColId:
+      type: string
+      description: '`colId` values accepted by `gridBalances`'
+      enum: [accountCode, accountName, city, sicilTipi, debitTotal, creditTotal, balance, overdue, lastMoveDate]
+    BalanceTotals:
+      type: object
+      description: Pinned total row of `gridBalances` over all filtered rows
+      required: [debitTotal, creditTotal, balance, overdue]
+      properties:
+        debitTotal: { $ref: '#/components/schemas/Money' }
+        creditTotal: { $ref: '#/components/schemas/Money' }
+        balance: { $ref: '#/components/schemas/Money' }
+        overdue: { $ref: '#/components/schemas/Money' }
     AccountSelection:
       type: object
       required: [accountIds, to]
@@ -2838,13 +3019,37 @@ components:
         totalCredit: { $ref: '#/components/schemas/Money' }
     CarryForward:
       type: object
-      required: [year, status, checks, accountCount, entryCount, totalDebit, totalCredit, rows]
+      required: [year, status, version, checks, steps, accountCount, entryCount, totalDebit, totalCredit, rows]
       properties:
         year: { type: integer }
-        status: { type: string, enum: [PREVIEW, POSTED] }
+        status:
+          type: string
+          enum: [PREVIEW, POSTED, REOPENED]
+          description: REOPENED = a posted run was voided by `reopenCarryForward`; editable and postable like PREVIEW
+        version: { type: integer, description: 'Preview version; also the ETag' }
+        postedAt: { type: [string, 'null'], format: date-time, description: Active run }
+        reopenedAt: { type: [string, 'null'], format: date-time, description: Last reopened run }
+        reopenReason: { type: [string, 'null'] }
+        steps:
+          type: array
+          description: |
+            The four steps of the screen, in order. CLOSE_DOCUMENTS ← NO_DRAFT_DOCUMENTS, STOCK_COUNTS ←
+            STOCK_COUNTS_POSTED, ACCOUNT_BALANCES ← LEDGER_BALANCED, OPEN_YEAR ← YEAR_NOT_OPENED and the post.
+            A failing blocking check makes its step BLOCKED; the first step not DONE is CURRENT; all four are
+            DONE when status is POSTED.
+          minItems: 4
+          maxItems: 4
+          items:
+            type: object
+            required: [code, status]
+            properties:
+              code: { type: string, enum: [CLOSE_DOCUMENTS, STOCK_COUNTS, ACCOUNT_BALANCES, OPEN_YEAR] }
+              status: { type: string, enum: [DONE, CURRENT, TODO, BLOCKED] }
         checks:
           type: array
-          description: Close previous-year documents, stock counts posted, balances, open the year
+          description: |
+            Close previous-year documents, stock counts posted, balances, open the year.
+            NO_DRAFT_DOCUMENTS and STOCK_COUNTS_POSTED are always ok until documents (F2) and stock (F3) exist.
           items:
             type: object
             required: [code, ok, blocking]
@@ -2901,6 +3106,7 @@ components:
         label: { type: string, examples: [document.posted, DocumentPosted, ledger] }
         ref: { type: [string, 'null'], description: 'Outbox id, If-Match version, depot …' }
         actorUserId: { type: [integer, 'null'] }
+        actorLogin: { type: [string, 'null'], description: 'Login shown in the UI (email local part)', examples: [a.kaya] }
     OpeningBalance:
       type: object
       required: [accountId, depotId, year, debit, credit, journalEntryId]
@@ -2953,7 +3159,10 @@ components:
         sourceType: { $ref: '#/components/schemas/SourceType' }
         sourceId: { type: [string, 'null'] }
         reversesEntryId: { type: [integer, 'null'] }
+        reversesEntryNo: { type: [string, 'null'], examples: [J-2026-1-000118] }
         reversedByEntryId: { type: [integer, 'null'] }
+        reversedByEntryNo: { type: [string, 'null'] }
+        currency: { $ref: '#/components/schemas/Currency' }
         sourceNo: { type: [string, 'null'], description: 'Number of the owning document, receipt, instrument or voucher' }
         idempotencyKey: { type: [string, 'null'] }
         postings: { type: array, items: { $ref: '#/components/schemas/Posting' } }
@@ -2981,6 +3190,10 @@ components:
         debit: { $ref: '#/components/schemas/Money' }
         credit: { $ref: '#/components/schemas/Money' }
         runningBalance: { $ref: '#/components/schemas/Money' }
+        resetsBalance:
+          type: boolean
+          default: false
+          description: 'Opening line of a carried-forward year inside the range: runningBalance restarts at its amount'
     Statement:
       type: object
       required: [accountId, from, to, broughtForward, lines, depotTotals, closingBalance]
@@ -2995,6 +3208,7 @@ components:
         lines: { type: array, items: { $ref: '#/components/schemas/StatementLine' } }
         depotTotals:
           type: array
+          description: Debit and credit of `lines` per depot, without `resetsBalance` lines; balance = closing balance of the depot
           items:
             type: object
             required: [depotId, debit, credit, balance]
@@ -3201,7 +3415,7 @@ components:
           properties:
             id: { type: integer }
             orgId: { type: integer }
-            receiptNo: { type: string, examples: [TAH20261000042] }
+            receiptNo: { type: string, examples: [TAH-2026-1-000042] }
             origin: { type: string, enum: [MANUAL, INSTRUMENT], description: INSTRUMENT receipts are read-only; change them through the instrument }
             instrumentId: { type: [integer, 'null'] }
             instrumentNo: { type: [string, 'null'], description: '"Source" column' }

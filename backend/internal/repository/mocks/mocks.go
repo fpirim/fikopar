@@ -105,6 +105,11 @@ func (m *OrganizationRepository) Delete(id uint) error {
 	return m.Called(id).Error(0)
 }
 
+func (m *OrganizationRepository) IsMember(userID, orgID uint) (bool, error) {
+	args := m.Called(userID, orgID)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *OrganizationRepository) ListForGrid(req repository.GridRequest) (*repository.GridResponse, error) {
 	args := m.Called(req)
 	if r, ok := args.Get(0).(*repository.GridResponse); ok {
@@ -125,24 +130,21 @@ func (m *SicilRepository) Create(card *models.Sicil) error {
 	return m.Called(card).Error(0)
 }
 
-func (m *SicilRepository) GetByID(id uint) (*models.Sicil, error) {
-	args := m.Called(id)
-	if c, ok := args.Get(0).(*models.Sicil); ok {
-		return c, args.Error(1)
+func (m *SicilRepository) GetByID(organizationID, id uint) (*models.Sicil, error) {
+	args := m.Called(organizationID, id)
+	if v := args.Get(0); v != nil {
+		return v.(*models.Sicil), args.Error(1)
 	}
 	return nil, args.Error(1)
 }
 
-func (m *SicilRepository) Update(card *models.Sicil) error {
-	return m.Called(card).Error(0)
+func (m *SicilRepository) Update(organizationID, id uint, version int, fields map[string]any, telefonlar *[]models.SicilTelefon) (bool, error) {
+	args := m.Called(organizationID, id, version, fields, telefonlar)
+	return args.Bool(0), args.Error(1)
 }
 
-func (m *SicilRepository) UpdateFields(id uint, fields map[string]any) error {
-	return m.Called(id, fields).Error(0)
-}
-
-func (m *SicilRepository) Delete(id uint) error {
-	return m.Called(id).Error(0)
+func (m *SicilRepository) Delete(organizationID, id uint) error {
+	return m.Called(organizationID, id).Error(0)
 }
 
 func (m *SicilRepository) ListForGrid(req repository.GridRequest, organizationID uint) (*repository.GridResponse, error) {
@@ -151,8 +153,4 @@ func (m *SicilRepository) ListForGrid(req repository.GridRequest, organizationID
 		return r, args.Error(1)
 	}
 	return nil, args.Error(1)
-}
-
-func (m *SicilRepository) ReplaceTelefonlar(sicilID uint, telefonlar []models.SicilTelefon) error {
-	return m.Called(sicilID, telefonlar).Error(0)
 }

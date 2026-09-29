@@ -8,9 +8,18 @@ import { initSentry } from './lib/sentry'
 
 initSentry()
 
-createRoot(document.getElementById('root')!).render(
-  // Rendered outside the React tree, so use the global i18n instance.
-  <Sentry.ErrorBoundary fallback={<p className="p-4">{i18n.t('errors:ERR_UNKNOWN')}</p>}>
-    <App />
-  </Sentry.ErrorBoundary>,
+async function mocks() {
+  if (import.meta.env.DEV && import.meta.env.VITE_MSW === '1') {
+    const { worker } = await import('./mocks/browser')
+    await worker.start({ onUnhandledFrame: 'bypass', quiet: true })
+  }
+}
+
+void mocks().then(() =>
+  createRoot(document.getElementById('root')!).render(
+    // Rendered outside the React tree, so use the global i18n instance.
+    <Sentry.ErrorBoundary fallback={<p className="p-4">{i18n.t('errors:ERR_UNKNOWN')}</p>}>
+      <App />
+    </Sentry.ErrorBoundary>,
+  ),
 )

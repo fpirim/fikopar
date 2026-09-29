@@ -79,8 +79,8 @@
           "description": "amount − Σ settled after this step"
         },
         "currency": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
+          "const": "TRY",
+          "description": "TRY only in contracts v1.1."
         },
         "dueDate": {
           "type": "string",

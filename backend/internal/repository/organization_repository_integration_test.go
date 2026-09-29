@@ -14,7 +14,7 @@ import (
 )
 
 func TestOrgRepository_CRUD(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	repo := repository.NewOrganizationRepository(testDB)
 
 	o := &models.Organization{Name: "Acme", Slug: "acme"}
@@ -37,7 +37,7 @@ func TestOrgRepository_CRUD(t *testing.T) {
 }
 
 func TestOrgRepository_UniqueSlugConflict(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	repo := repository.NewOrganizationRepository(testDB)
 
 	require.NoError(t, repo.Create(&models.Organization{Name: "A", Slug: "dup"}))
@@ -46,7 +46,7 @@ func TestOrgRepository_UniqueSlugConflict(t *testing.T) {
 }
 
 func TestOrgRepository_Grid(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	repo := repository.NewOrganizationRepository(testDB)
 
 	require.NoError(t, repo.Create(&models.Organization{Name: "Alpha", Slug: "alpha"}))
@@ -70,7 +70,7 @@ func TestOrgRepository_Grid(t *testing.T) {
 // TestOrgRepository_GridSearch covers the free-text Search term, which matches
 // across name and slug (OR ILIKE), case-insensitively.
 func TestOrgRepository_GridSearch(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	repo := repository.NewOrganizationRepository(testDB)
 
 	require.NoError(t, repo.Create(&models.Organization{Name: "Acme Corp", Slug: "acme"}))

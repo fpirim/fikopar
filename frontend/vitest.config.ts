@@ -22,6 +22,8 @@ export default defineConfig({
         'src/test/**',
         'src/main.tsx',
         'src/types/**',
+        'src/api/schema.d.ts',
+        'src/mocks/**',
         // E2E-only: jsdom cannot drive the caret logic, and v8 + Istanbul line models clash in Sonar.
         'src/components/ui/NumericInput.tsx',
         'src/pages/NumericInputPlayground.tsx',

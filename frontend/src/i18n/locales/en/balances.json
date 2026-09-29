@@ -1,0 +1,37 @@
+{
+  "title": "Account balances",
+  "asOf": "As of",
+  "accountType": "Account type",
+  "types": {
+    "all": "All",
+    "MUSTERI": "Customers",
+    "FIRMA": "Suppliers",
+    "BANKA": "Banks"
+  },
+  "chip": {
+    "MUSTERI": "CUSTOMER",
+    "FIRMA": "SUPPLIER",
+    "BANKA": "BANK"
+  },
+  "typeOption": {
+    "MUSTERI": "Customer",
+    "FIRMA": "Supplier",
+    "BANKA": "Bank"
+  },
+  "selected": "{{count}} selected",
+  "statementsPdf": "Statements PDF",
+  "reminderLetters": "Reminder letters",
+  "col": {
+    "account": "Account",
+    "name": "Name",
+    "city": "City",
+    "type": "Type",
+    "debit": "Debit",
+    "credit": "Credit",
+    "balance": "Balance",
+    "overdue": "Overdue",
+    "lastMove": "Last move"
+  },
+  "selectAll": "Select all",
+  "selectRow": "Select row"
+}

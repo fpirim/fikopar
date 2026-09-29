@@ -9,20 +9,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fpirim/fikopar/backend/internal/app"
 	"github.com/fpirim/fikopar/backend/internal/config"
-	"github.com/fpirim/fikopar/backend/internal/handlers"
 	"github.com/fpirim/fikopar/backend/internal/models"
 	"github.com/fpirim/fikopar/backend/internal/repository"
-	"github.com/fpirim/fikopar/backend/internal/router"
 	"github.com/fpirim/fikopar/backend/internal/services"
 	"github.com/fpirim/fikopar/backend/internal/testutil"
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type testApp struct {
+	app  *app.App
 	e    *echo.Echo
 	auth *services.AuthService
 	repo repository.UserRepository
@@ -30,7 +31,7 @@ type testApp struct {
 
 func newTestApp(t *testing.T) *testApp {
 	t.Helper()
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 
 	cfg := &config.Config{
 		JWTSecret:          "test-secret",
@@ -38,24 +39,11 @@ func newTestApp(t *testing.T) *testApp {
 		UploadDir:          t.TempDir(),
 		LogoUploadDir:      t.TempDir(),
 		CORSAllowedOrigins: "*",
+		BcryptCost:         bcrypt.MinCost,
 	}
 
-	userRepo := repository.NewUserRepository(testDB)
-	orgRepo := repository.NewOrganizationRepository(testDB)
-	sicilRepo := repository.NewSicilRepository(testDB)
-	authService := services.NewAuthService(cfg)
-	userService := services.NewUserService(userRepo, authService, cfg)
-	orgService := services.NewOrganizationService(orgRepo, cfg)
-	sicilService := services.NewSicilService(sicilRepo)
-
-	authHandler := handlers.NewAuthHandler(userRepo, authService)
-	userHandler := handlers.NewUserHandler(userRepo, userService, authService)
-	adminHandler := handlers.NewAdminHandler(userService, userRepo)
-	orgHandler := handlers.NewOrganizationHandler(orgService)
-	sicilHandler := handlers.NewSicilHandler(sicilService)
-
-	e := router.New(authHandler, userHandler, adminHandler, orgHandler, sicilHandler, authService, cfg)
-	return &testApp{e: e, auth: authService, repo: userRepo}
+	a := app.New(testDB, cfg)
+	return &testApp{app: a, e: a.Echo, auth: services.NewAuthService(cfg), repo: repository.NewUserRepository(testDB)}
 }
 
 // seedUser creates a user with a bcrypt-hashed password and returns it.
@@ -185,4 +173,15 @@ func itoa(u uint) string {
 		u /= 10
 	}
 	return string(b[i:])
+}
+
+func TestLogin_MalformedBodyIsInvalidRequest(t *testing.T) {
+	app := newTestApp(t)
+	app.seedUser(t, "admin@x.com", "pw", models.RoleAdmin)
+
+	for _, body := range []string{`{"email":`, `[]`, `{}`, `{"email":"admin@x.com"}`, `{"password":"pw"}`, `{"email":1,"password":"pw"}`, `{"email":"","password":""}`} {
+		rec := app.do(t, http.MethodPost, "/api/auth/login", "", body)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, body)
+		assert.Contains(t, rec.Body.String(), `"ERR_INVALID_REQUEST"`, body)
+	}
 }

@@ -1,0 +1,48 @@
+{
+  "mainNav": "Main",
+  "section": {
+    "overview": "Overview",
+    "trade": "Trade",
+    "accounts": "Accounts",
+    "treasury": "Treasury",
+    "stock": "Stock",
+    "system": "System"
+  },
+  "item": {
+    "dashboard": "Dashboard",
+    "invoices": "Invoices & returns",
+    "balances": "Balances",
+    "statements": "Statements",
+    "carryForward": "Carry forward",
+    "receipts": "Receipts",
+    "cheques": "Cheques & notes",
+    "cashBook": "Cash book",
+    "parts": "Parts & prices",
+    "counts": "Stock counts",
+    "journal": "Journal",
+    "migration": "Migration",
+    "profile": "Profile",
+    "sicil": "Account cards",
+    "organizations": "Organizations",
+    "users": "Users"
+  },
+  "company": "Company",
+  "companyOf": "Company · {{index}} of {{count}}",
+  "depot": "Depot",
+  "allDepots": "All depots",
+  "depotN": "Depot {{code}}",
+  "language": "Language",
+  "search": "Search",
+  "searchPlaceholder": "Account, part, document no.",
+  "searchResults": "Search results",
+  "searchNone": "No matches",
+  "hits": {
+    "accounts": "Accounts",
+    "documents": "Documents",
+    "parts": "Parts"
+  },
+  "accountMenu": "Account menu",
+  "demo": "DEMO",
+  "selectCompany": "Select a company in the sidebar.",
+  "notInBuild": "Not in this build yet."
+}

@@ -1,8 +1,17 @@
 [extend]
 useDefault = true
 
-[allowlist]
-description = "Well-known JHipster generator test fixtures (identical in every generated project; not real secrets)."
+[[allowlists]]
+description = "Well-known JHipster generator test fixtures (identical in every generated project; not real secrets). Package moved com/dizel -> dev in history."
+targetRules = ["generic-api-key"]
 paths = [
-  '''legacy/jhipster-v2/src/test/java/dev/fikopar/security/jwt/.*Test[s]?\.java''',
+  '''^legacy/jhipster-v2/src/test/java/(com/dizel|dev)/fikopar/security/jwt/(JWTFilterTest|TokenProviderTest|TokenProviderSecurityMetersTests)\.java$''',
 ]
+
+[[allowlists]]
+description = "Fixed idempotency-key UUID in the schema integration test (not a secret)."
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^backend/internal/db/schema_integration_test\.go$''']
+regexTarget = "match"
+regexes = ['''key = "8c7e1f36-4a55-4c52-9d9e-0d1c2a3b4c5d"''']

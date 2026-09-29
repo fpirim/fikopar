@@ -14,6 +14,7 @@ ALTER TABLE sicils
   ADD COLUMN sales_rep_user_id bigint        REFERENCES users(id),
   ADD COLUMN contacts          jsonb         NOT NULL DEFAULT '[]',
   ADD COLUMN emails            text[]        NOT NULL DEFAULT '{}',
+  ADD COLUMN version           int           NOT NULL DEFAULT 1,   -- ETag / If-Match on updateSicil
   ADD CONSTRAINT sicils_org_id_uq UNIQUE (organization_id, id);
 
 CREATE TABLE depots (

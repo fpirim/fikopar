@@ -1,5 +1,5 @@
 version: 3
-# Layers: repository → services → handlers → router, wired in cmd/server.
+# Layers: repository → services → handlers → router, wired in internal/app.
 # Lower layers must not import higher ones; models and apierror are shared.
 allow:
   depOnAnyVendor: true
@@ -9,8 +9,10 @@ excludeFiles:
 
 components:
   main: { in: cmd/server }
+  app: { in: internal/app }
   config: { in: internal/config }
   db: { in: internal/db }
+  migrations: { in: migrations }
   models: { in: internal/models }
   apierror: { in: internal/apierror }
   observability: { in: internal/observability }
@@ -19,6 +21,7 @@ components:
   services: { in: internal/services }
   middleware: { in: internal/middleware }
   handlers: { in: internal/handlers }
+  export: { in: internal/export }
   router: { in: internal/router }
   testutil: { in: internal/testutil }
 
@@ -28,16 +31,20 @@ commonComponents:
 
 deps:
   main:
-    mayDependOn: [config, db, observability, repository, services, handlers, router]
+    mayDependOn: [app, config, db, observability]
+  app:
+    mayDependOn: [config, repository, services, handlers, router]
   router:
     mayDependOn: [config, services, middleware, handlers]
   handlers:
-    mayDependOn: [services, repository]
+    mayDependOn: [services, repository, export]
   middleware:
     mayDependOn: [services]
   services:
     mayDependOn: [config, repository]
   mocks:
     mayDependOn: [repository]
+  db:
+    mayDependOn: [migrations]
   testutil:
     mayDependOn: [db]

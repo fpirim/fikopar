@@ -158,8 +158,8 @@
           "type": "boolean"
         },
         "currency": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
+          "const": "TRY",
+          "description": "TRY only in contracts v1.1."
         },
         "grossTotal": {
           "type": "string",

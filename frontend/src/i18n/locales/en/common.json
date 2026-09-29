@@ -28,5 +28,6 @@
     "admin": "Admin",
     "user": "User"
   },
-  "noResult": "No results"
+  "noResult": "No results",
+  "reload": "Reload"
 }

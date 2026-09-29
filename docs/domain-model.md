@@ -50,15 +50,20 @@ flowchart LR
 
 ## 3. Entities
 
-**Sicil** `{hesap_no, hesap_adi, sicil_tipi: MUSTERI (customer) | FIRMA (supplier) | BANKA (bank), address, v_dairesi, v_no, tc_no, gun (payment term), iskonto, credit_limit, phones[], emails[], contacts[]}`.
+**Sicil** `{hesap_no, hesap_adi, sicil_tipi: MUSTERI (customer) | FIRMA (supplier) | BANKA (bank), address, v_dairesi, v_no, tc_no, gun (payment term), iskonto, credit_limit?, phones[], emails[], contacts[], version}`.
+`credit_limit`, `emails[]` and `contacts[]` are v1.1 API fields (`contacts[0]` is the statement card contact).
+`version` is the ETag; `updateSicil` needs `If-Match`.
 Each sicil gets a current account (`120.<hesapNo>` customer, `320.<hesapNo>` supplier, `102.<hesapNo>` bank).
 
 **Ledger**
 - `Account {code, name, type, normal_side, sicil_id?, currency, is_active, version}`.
 - `JournalEntry {depot_id, entry_no, entry_date, description, source_type: manual|document|receipt|instrument|opening|reversal|legacy_import, source_id, reverses_entry_id?}`.
-- `Posting {entry_id, line_no, account_id, side, amount > 0, currency, due_date?}`.
-- `OpeningBalance {account_id, depot_id, year, debit, credit, source: CARRY_FORWARD|LEGACY_IMPORT, journal_entry_id}` — the entry is dated 1 January; the counter-account is the OPENING role.
+- `Posting {entry_id, line_no, account_id, side, amount > 0, currency, due_date?}` — one currency per entry; TRY only in v1.1.
+- `CarryForwardRun {year, entry_count, totals, posted_at, reopened_at?, reopen_reason?}` — a posted carry-forward into `year`;
+  at most one active (not reopened) run per (company, year). The active run closes `year − 1` and earlier.
+- `OpeningBalance {account_id, depot_id, year, debit, credit, source: CARRY_FORWARD|LEGACY_IMPORT, run_id?, journal_entry_id, voided_by_entry_id?}` — the entry is dated 1 January; the counter-account is the OPENING role. Reopening voids it with a reversal dated 1 January.
 - `CarryForwardOverride {year, account_id, depot_id, debit, credit, reason}` — an edited preview row (EDITED); both zero skips the row.
+  The preview of a year has a `version` (ETag) that changes with every override, post and reopen.
 - `AccountBalance {account_id, depot_id, debit_total, credit_total}` — projection.
 - `AccountRole {role, depot_id?, account_id}` — accounts used by posting rules (CASH, SALES, OUTPUT_VAT, RECEIVABLE_CHEQUES, OPENING, …); a depot row overrides the company default.
 
@@ -104,11 +109,13 @@ Legacy numbers (v2 `DZ…`, COBOL `EVRAKNO`) are imported as they are and never 
 always come from a series. Migration runs (`MIG-0007`) are company-wide.
 
 **Receipts** `{depot_id, receipt_no, kind: COLLECTION|PAYMENT, origin: MANUAL|INSTRUMENT, instrument_id?, sicil_id, date, method: CASH|BANK_TRANSFER|CHEQUE|NOTE|ENDORSEMENT, bank_account_id?, amount, journal_entry_id, voided_by_entry_id?}`.
-CHEQUE and NOTE register the instrument in the same transaction; the receipt then belongs to it.
+CHEQUE and NOTE register the instrument in the same transaction; the receipt then belongs to it. Until F4 they
+answer `400 ERR_METHOD_NOT_AVAILABLE`.
 
 **Cash** — cash goes to the depot's CASH account. `CashVoucher {depot_id, voucher_no, kind: EXPENSE|BANK_DEPOSIT|BANK_WITHDRAWAL, account_id, amount}`
 posts cash against an expense or bank account. `CashCount {depot_id, book_balance, counted_amount, difference}`
 optionally posts the difference to CASH_OVER_SHORT. The cash book is a view over cash postings with an opening row.
+There is one till per depot and no combined book: `getCashBook` needs a depot.
 
 **Instruments** `{depot_id, instrument_no, type: RECEIVABLE_CHEQUE|RECEIVABLE_NOTE|PAYABLE_CHEQUE|PAYABLE_NOTE, serial_no, amount, remaining, issue_date, due_date, sicil_id, drawer_name, drawer_tax_no, bank_name, bank_branch, bank_city, account_no, status, version}` and append-only `InstrumentEvent {seq, action, from_status, to_status, amount?, remaining_after, counterparty_sicil_id?, receipt_id?, journal_entry_id?}`.
 
@@ -130,12 +137,14 @@ optionally posts the difference to CASH_OVER_SHORT. The cash book is a view over
 
 | # | Invariant | Enforced by |
 |---|---|---|
-| L1 | Each JournalEntry has ≥ 2 postings and Σ debit = Σ credit per currency | Deferred constraint trigger at COMMIT |
+| L1 | Each JournalEntry has ≥ 2 postings in one currency (TRY in v1.1) and Σ debit = Σ credit | Deferred constraint trigger at COMMIT; CHECK on `postings.currency` |
 | L2 | Postings and entries are immutable; corrections are reversal entries (at most one per entry) | Append-only triggers; `UNIQUE(reverses_entry_id)` |
 | L3 | Entries owned by a document, receipt or instrument are reversed only through their owner | Service; `ERR_ENTRY_OWNED_BY_SOURCE` |
 | L4 | Balance = Σ postings; account_balances has no drift | Same-TX projection; `account_balance_drift` view |
-| L5 | One opening entry per (account, depot, calendar year), dated 1 January; an edited amount carries a reason | PK on `opening_balances`; CHECK on entry date; `carry_forward_overrides.reason` |
-| L6 | Balance "as of D" and statements include postings dated D (`<=`) | Query contract; tests on the boundary day |
+| L5 | One active opening entry per (account, depot, calendar year), dated 1 January; an edited amount carries a reason | Partial unique index on `opening_balances`; CHECK on entry date; `carry_forward_overrides.reason` |
+| L6 | Balance "as of D" and statements include postings dated D (`<=`). Balance as of D = opening entries of the latest active run year Y ≤ D + postings from 1 January Y to D | Query contract (`ledger_start()`); tests on the boundary day |
+| L7 | No journal entry is dated in a closed year (before the latest active run's year); `ERR_YEAR_CLOSED`. Reopening a year reverses its opening entries on 1 January; a later carried year must be reopened first | `journal_entries_year_open` trigger; one active run per year; run and opening guards |
+| L8 | A statement crossing 1 January of a carried year restarts the running balance at the opening entry (`resetsBalance`); `closingBalance` = balance as of `to` (L6) | Query contract |
 | D1 | Document status DRAFT → POSTED → CANCELLED only; POSTED documents are not edited | Trigger |
 | D2 | Waybills (incl. return waybills) never post to the ledger; price-difference invoices never move stock | Triggers on `journal_entries` and `stock_movements` |
 | D3 | A document posts at most once to the ledger and once per line to stock | `UNIQUE(org, source_type, source_id)` on entries; unique source on movements |
@@ -149,7 +158,7 @@ optionally posts the difference to CASH_OVER_SHORT. The cash book is a view over
 | S3 | A count line is saved only while its count is OPEN; posting uses the system quantity and last purchase cost at that moment | Service; snapshot columns; CHECK `unit_cost` ⇔ `cost_source` |
 | C1 | Cash counts are immutable; vouchers are voided by reversal | Append-only trigger; service |
 | X1 | Idempotency key unique per (org, key) with request hash; replay / 422 / 409 | `idempotency_keys` |
-| X2 | Optimistic lock on mutable aggregates (`version`, `If-Match`) | Repository |
+| X2 | Optimistic lock on mutable aggregates (`version`, `If-Match`), sicils and carry-forward previews included | Repository |
 | X3 | Every row has `org_id`; composite FKs keep references inside one company | Schema |
 | A1 | Audit events are append-only, written in the same TX | Trigger |
 

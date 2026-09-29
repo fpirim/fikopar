@@ -12,22 +12,3 @@ export interface SicilTelefon {
   tipi: TelefonTipi
   numara: string
 }
-
-export interface Sicil {
-  id: number
-  organization_id: number
-  hesap_no: string
-  hesap_adi: string
-  adres: string
-  ilce: string
-  sehir: string
-  v_dairesi: string
-  v_no: string
-  tc_no: string
-  gun: string
-  iskonto: number
-  sicil_tipi: SicilTipi
-  telefonlar: SicilTelefon[]
-  created_at: string
-  updated_at: string
-}

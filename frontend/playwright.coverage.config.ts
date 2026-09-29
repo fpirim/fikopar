@@ -5,6 +5,7 @@ const apiTarget = process.env.VITE_API_TARGET || 'http://localhost:8080'
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: 'msw/**',
   fullyParallel: false,
   workers: 1,
   reporter: 'list',

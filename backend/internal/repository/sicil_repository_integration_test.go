@@ -24,8 +24,8 @@ func seedOrgs(t *testing.T) (uint, uint) {
 }
 
 func TestSicilRepository_CRUD(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
-	orgA, _ := seedOrgs(t)
+	testutil.TruncateAll(t)
+	orgA, orgB := seedOrgs(t)
 	repo := repository.NewSicilRepository(testDB)
 
 	c := &models.Sicil{
@@ -34,22 +34,38 @@ func TestSicilRepository_CRUD(t *testing.T) {
 	require.NoError(t, repo.Create(c))
 	assert.NotZero(t, c.ID)
 
-	got, err := repo.GetByID(c.ID)
+	got, err := repo.GetByID(orgA, c.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Ceylan", got.HesapAdi)
 
-	require.NoError(t, repo.UpdateFields(c.ID, map[string]any{"hesap_adi": "Ceylan A.Ş."}))
-	reloaded, err := repo.GetByID(c.ID)
+	assert.Equal(t, 1, got.Version)
+	phones := []models.SicilTelefon{{Tipi: models.TelefonTipiIs, Numara: "212"}}
+	ok, err := repo.Update(orgA, c.ID, 1, map[string]any{"hesap_adi": "Ceylan A.Ş."}, &phones)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	reloaded, err := repo.GetByID(orgA, c.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Ceylan A.Ş.", reloaded.HesapAdi)
+	assert.Equal(t, 2, reloaded.Version)
+	require.Len(t, reloaded.Telefonlar, 1)
+	ok, err = repo.Update(orgA, c.ID, 1, map[string]any{"hesap_adi": "stale"}, nil)
+	require.NoError(t, err)
+	assert.False(t, ok, "a stale version changes nothing")
+	ok, err = repo.Update(orgB, c.ID, 2, map[string]any{"hesap_adi": "foreign"}, nil)
+	require.NoError(t, err)
+	assert.False(t, ok)
 
-	require.NoError(t, repo.Delete(c.ID))
-	_, err = repo.GetByID(c.ID)
+	_, err = repo.GetByID(orgB, c.ID)
+	assert.Error(t, err, "a card is invisible through another org")
+	assert.Error(t, repo.Delete(orgB, c.ID))
+
+	require.NoError(t, repo.Delete(orgA, c.ID))
+	_, err = repo.GetByID(orgA, c.ID)
 	assert.Error(t, err)
 }
 
 func TestSicilRepository_UniqueHesapNoPerOrg(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	orgA, orgB := seedOrgs(t)
 	repo := repository.NewSicilRepository(testDB)
 
@@ -65,7 +81,7 @@ func TestSicilRepository_UniqueHesapNoPerOrg(t *testing.T) {
 }
 
 func TestSicilRepository_GridScopedByOrg(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	orgA, orgB := seedOrgs(t)
 	repo := repository.NewSicilRepository(testDB)
 
@@ -84,7 +100,7 @@ func TestSicilRepository_GridScopedByOrg(t *testing.T) {
 }
 
 func TestSicilRepository_GridSearch(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	orgA, _ := seedOrgs(t)
 	repo := repository.NewSicilRepository(testDB)
 

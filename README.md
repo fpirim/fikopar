@@ -41,11 +41,12 @@ flowchart LR
 
 - Modular monolith, layer rules enforced by go-arch-lint and dependency-cruiser.
 - Double-entry ledger: entries must balance, postings are append-only, corrections are reversals.
+- The server connects as `fikopar_app` (rows only: no DDL, no TRUNCATE); migrations run as the owner (`MIGRATE_DATABASE_URL`).
 - Posting a document writes ledger and stock events through a transactional outbox.
 - Writes use optimistic locking (ETag/If-Match) and Idempotency-Key.
 - Deploys are pulled: CI pushes an image to GHCR and sends the digest to the host with an HMAC signature.
 
-Decisions: [docs/adr](docs/adr/). Contracts ([v1, frozen](docs/CONTRACTS.md)): [domain model](docs/domain-model.md), [screens](docs/screens.md), [OpenAPI](api/openapi.yaml), [events](api/events/), [draft migrations](backend/migrations/draft/). Look and feel: [brand](docs/brand.md).
+Decisions: [docs/adr](docs/adr/). Contracts ([v1.1, frozen](docs/CONTRACTS.md)): [domain model](docs/domain-model.md), [screens](docs/screens.md), [OpenAPI](api/openapi.yaml), [events](api/events/), [draft migrations](backend/migrations/draft/). Look and feel: [brand](docs/brand.md).
 
 ## Run
 

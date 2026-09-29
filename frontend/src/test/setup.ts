@@ -1,7 +1,14 @@
 import '@testing-library/jest-dom/vitest'
-import { afterEach, beforeEach, vi } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
+import { cleanup, configure } from '@testing-library/react'
 import i18n from '../i18n'
+import { server } from '../mocks/node'
+import { resetDb } from '../mocks/handlers'
+
+configure({ asyncUtilTimeout: 5000 })
+
+beforeAll(() => server.listen({ onUnhandledFrame: 'warn' }))
+afterAll(() => server.close())
 
 // Unit tests assert Turkish UI text; the app default (en) is covered in i18n.test.tsx.
 beforeEach(async () => {
@@ -11,6 +18,8 @@ beforeEach(async () => {
 afterEach(() => {
   cleanup()
   localStorage.clear()
+  server.resetHandlers()
+  resetDb()
 })
 
 // jsdom lacks window.matchMedia.
