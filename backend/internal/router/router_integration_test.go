@@ -22,6 +22,7 @@ import (
 )
 
 type testApp struct {
+	app  *app.App
 	e    *echo.Echo
 	auth *services.AuthService
 	repo repository.UserRepository
@@ -40,7 +41,7 @@ func newTestApp(t *testing.T) *testApp {
 	}
 
 	a := app.New(testDB, cfg)
-	return &testApp{e: a.Echo, auth: services.NewAuthService(cfg), repo: repository.NewUserRepository(testDB)}
+	return &testApp{app: a, e: a.Echo, auth: services.NewAuthService(cfg), repo: repository.NewUserRepository(testDB)}
 }
 
 // seedUser creates a user with a bcrypt-hashed password and returns it.
