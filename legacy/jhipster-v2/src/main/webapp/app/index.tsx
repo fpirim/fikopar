@@ -14,7 +14,6 @@ import { clearAuthentication } from 'app/shared/reducers/authentication';
 import ErrorBoundary from 'app/shared/error/error-boundary';
 import AppComponent from 'app/app';
 import { loadIcons } from 'app/config/icon-loader';
-import { LicenseInfo } from '@mui/x-data-grid-pro';
 
 const store = getStore();
 registerLocale(store);
@@ -27,7 +26,6 @@ loadIcons();
 const rootEl = document.getElementById('root');
 const root = createRoot(rootEl);
 
-LicenseInfo.setLicenseKey('REDACTED');
 
 Number.prototype.round = function (places) {
   return +(Math.round(Number(this + 'e+' + places)) + 'e-' + places);
