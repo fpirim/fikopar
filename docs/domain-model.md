@@ -39,8 +39,8 @@ events from the transactional outbox ([ADR-0004](adr/0004-transactional-outbox.m
 ```mermaid
 flowchart LR
   Identity --> Sicil & Ledger & Documents & Receipts & Instruments & Catalog & Stock
-  Documents -. DocumentPosted .-> Ledger
-  Documents -. DocumentPosted .-> Stock
+  Documents -->|same TX| Ledger
+  Documents -->|same TX| Stock
   Instruments -->|same TX| Receipts
   Receipts -->|same TX| Ledger
   Stock -. StockMoved .-> Audit
@@ -50,7 +50,7 @@ flowchart LR
 
 ## 3. Entities
 
-**Sicil** `{hesap_no, hesap_adi, sicil_tipi: MUSTERI (customer) | FIRMA (supplier) | BANKA (bank), address, v_dairesi, v_no, tc_no, gun (payment term), iskonto, credit_limit?, phones[], emails[], contacts[], version}`.
+**Sicil** `{hesap_no, hesap_adi, sicil_tipi: MUSTERI (customer) | FIRMA (supplier) | BANKA (bank), address, v_dairesi, v_no, tc_no, gun (payment term), iskonto, credit_limit?, sales_rep_user_id?, phones[], emails[], contacts[], version}`. `sales_rep_user_id` is a company member (v1.5).
 `credit_limit`, `emails[]` and `contacts[]` are v1.1 API fields (`contacts[0]` is the statement card contact).
 `version` is the ETag; `updateSicil` needs `If-Match`.
 Each sicil gets a current account (`120.<hesapNo>` customer, `320.<hesapNo>` supplier, `102.<hesapNo>` bank).
@@ -80,7 +80,13 @@ Each sicil gets a current account (`120.<hesapNo>` customer, `320.<hesapNo>` sup
   `iskonto2`), due date = document date + the card's `gun` days, salesperson = the card's (a company member).
 - `StockReservation {document_id, line_id, part_id, depot_id, qty, reserved_at, expires_at}` — held by a DRAFT that
   will move stock OUT: `min(qty, available)` per line at save, until save + 48 h. A row exists only while held;
-  post, delete, a new save and the sweeper delete it.
+  post, delete, a new save and the sweeper delete it. The sweeper runs every 5 minutes, 500 rows per run, locking
+  the rows' levels in (part, depot) order first. `lock_stock_levels()` (definer) locks the levels a document touches
+  in (part, depot) order before any release, reservation or movement, so opposite part orders cannot deadlock.
+- **STOCK_SHORT** (v1.5): a draft line is short when on hand − reserved by other documents < qty in its depot; what
+  the draft itself holds, expired or not, does not count against it. Lines of one part report the same available.
+- A document movement's `unit_cost` = line net / qty, 4 decimals half-up. The card's `sales_rep_user_id` (v1.5, a
+  company member) is the document's default salesperson.
 - `NumberSeries {depot_id, prefix, year, width, next_value}` → `PREFIX-YEAR-DEPOT-COUNTER`, e.g. `SF-2026-1-000418`, `TAH-2026-2-000007`.
 
 | Type | Prefix | Ledger | Stock | May bill (`waybill_id`) |
@@ -118,15 +124,18 @@ One entry per document on its date and depot; the C posting carries the due date
 Cancel = the reversal of that entry, dated the cancel date.
 
 **Returns and price differences.** A return links the document that moved the goods (SF, SF with waybill, SIR; AF,
-AF with waybill, AIR; not a bill) and each line an original line. A price difference links a posted invoice of the
+AF with waybill, AIR; not a bill) and each line an original line. The original must be POSTED when the draft is
+saved; a return may go to another depot of the company; a return that bills a return waybill defaults its link to
+the waybill's original. A price difference links a posted invoice of the
 same card and depot, raises (INCREASE) or lowers (DECREASE) it by amount-only lines, optionally per original line, with
 VAT and no stock. A DECREASE never takes the invoice below zero: original net − posted decreases − posted returns ≥ 0
 (`ERR_PRICE_DIFFERENCE_EXCEEDED`).
 
 **Credit limit.** Posting SF, SF with waybill or an FF INCREASE on a sale with balance + total > the card's limit is refused
 (`ERR_CREDIT_LIMIT_EXCEEDED`: limit, balance, document total, excess). balance = current account over all depots and
-dates plus the card's posted or cancelled documents whose ledger event is not delivered yet. An admin posts with a
-reason; it is stored on the document and in the audit trail.
+dates (v1.5: entries are written with the post, so nothing is pending). An admin posts with a reason; it is stored
+on the document and in the audit trail. A non-admin gets 403 only when the limit would block; an override that is not
+needed is ignored for everyone.
 
 **Number prefixes** (the only list; the API enum and the `number_series` CHECK follow it):
 
@@ -280,7 +289,7 @@ stateDiagram-v2
   DRAFT --> DRAFT: update (StockReleased UPDATED, StockReserved)
   DRAFT --> [*]: delete (StockReleased DELETED)
   DRAFT --> POSTED: post (number, StockReleased POSTED, DocumentPosted)
-  POSTED --> CANCELLED: cancel (DocumentCancelled → reversal entry + opposite movements)
+  POSTED --> CANCELLED: cancel (reversal entry + opposite movements, DocumentCancelled)
 ```
 
 A draft's reservations also end 48 h after its last save (sweeper, `StockReleased EXPIRED`); the draft stays.
@@ -337,12 +346,13 @@ deposit `DR 101.bank / CR 101`; collect `DR 100|102 / CR 101` for the collected 
 
 ## 6. Outbox and events
 
-Posting a document writes the status change, the number, the release of its reservations and a `DocumentPosted` row
-to `outbox` in one transaction. An in-process relay delivers at least once, per aggregate in outbox order; the ledger
-consumer writes the entry (skipped for waybills) and the stock consumer writes movements (skipped for price
-differences and for documents that bill a waybill). Both are idempotent on the source key and emit
-`LedgerEntryPosted` / `StockMoved`. `DocumentCancelled` drives the reversal entry and the opposite movements the same
-way. Draft saves emit `StockReserved` / `StockReleased`; the sweeper emits `StockReleased EXPIRED`. A
+Posting a document writes the status change, the number, the release of its reservations, the journal entry
+(skipped for waybills and zero totals), the stock movements (skipped for price differences and for documents that
+bill a waybill) and a `DocumentPosted` row to `outbox` in one transaction (v1.5, ADR-0014); cancel writes the
+reversal entry, the opposite movements and `DocumentCancelled` the same way. The entry and the movements are
+idempotent on their source keys and emit `LedgerEntryPosted` / `StockMoved`. An in-process relay delivers the
+outbox at least once to external consumers, per aggregate in outbox order (`outbox.seq` orders the events of one
+transaction); a run re-reads the outbox after each round, at most 10 rounds. Draft saves emit `StockReserved` / `StockReleased`; the sweeper emits `StockReleased EXPIRED`. A
 `DocumentExporter` consumer (e-Fatura port, no-op) sees posted and cancelled documents. Receipts and instrument operations post synchronously and emit
 `ReceiptPosted` / `InstrumentStatusChanged`. Transfers and count finalize emit `StockMoved` per movement. A manual
 price emits `PriceChanged`; an applied import emits one `PriceListImported` (company-wide events, `depotId` null). Envelope: [`api/events/envelope.schema.json`](../api/events/envelope.schema.json).

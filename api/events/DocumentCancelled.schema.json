@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fikopar.fpirim.me/schemas/events/DocumentCancelled.schema.json",
   "title": "DocumentCancelled",
-  "description": "A posted document was cancelled (contracts v1.4). The ledger consumer reverses the document's entry (reversal entry dated cancelDate, once per entry); the stock consumer writes one opposite movement per line that moved stock, dated cancelDate. Delivered after the document's DocumentPosted (per-aggregate order).",
+  "description": "A posted document was cancelled (contracts v1.4, v1.5). The reversal of the document's entry and one opposite movement per line that moved stock, both dated cancelDate (the later of today, Europe/Istanbul, and the document date), are written in the cancel transaction itself (ADR-0014); the event is for external consumers. Delivered after the document's DocumentPosted (per-aggregate order).",
   "allOf": [
     {
       "$ref": "envelope.schema.json"

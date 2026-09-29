@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: fikopar API
-  version: 1.4.0
+  version: 1.5.0
   summary: B2B trade, ledger and instrument management for a spare-parts distributor.
   description: |
     **DRAFT / provisional.** Revised against the live JHipster (v2) inventory; see `docs/domain-model.md`.
@@ -30,7 +30,11 @@ info:
       count finalize) never fail on it; they return `warnings[]` with `NEGATIVE_STOCK`, the part, the depot and
       the on hand after. Stock movements follow the ledger's closed years (`409 ERR_YEAR_CLOSED`).
     - **Reservations** (v1.4): drafts that will move stock OUT hold what is available in their depot for 48 h after
-      the last save; available = onHand − reserved. A shortfall is a `STOCK_SHORT` warning, never a block.
+      the last save; available = onHand − reserved. A shortfall is a `STOCK_SHORT` warning, never a block (v1.5: a
+      line is short when onHand − reserved by other documents < qty, whatever this draft holds).
+    - **Documents post in one transaction** (v1.5): post and cancel write the journal entry and the stock movements
+      in their own transaction; `DocumentPosted` / `DocumentCancelled` are still written to the outbox for external
+      consumers (e-Fatura exporter).
     - **Rounding** (v1.4): money is rounded per document line, half-up to 2 decimals; document totals are Σ lines.
     - **Exports**: reports and printable documents honour `Accept: application/pdf`. Grid endpoints return
       every filtered row as XLSX when `Accept` is the XLSX media type (server-side Excel). CSV is built in the client.
@@ -1222,11 +1226,13 @@ paths:
       summary: Documents list (type, status, card, depot, date range, number; column filters; totals); XLSX via Accept
       description: |
         Top-level filters and column filters (`DocumentColId`) are AND-combined. `documentNo` matches a substring of the
-        number literally (drafts have none). `search` is OR over documentNo, hesapNo and sicilName. Default sort
-        documentDate desc, then id desc. `totals` has grossTotal, discountTotal, netTotal, vatTotal and grandTotal:
+        number literally (`%`, `_`, `\` are plain characters), case-insensitive (drafts have none). `search` is OR over
+        documentNo, hesapNo and sicilName. `billed` and `billsWaybill` (v1.5) feed the waybill and original pickers.
+        Default sort documentDate desc, then id desc. `totals` has grossTotal, discountTotal, netTotal, vatTotal and grandTotal:
         Σ over the filtered rows except CANCELLED ones. `unfilteredCount` = documents of the company (and `depotId`)
         before the other filters. XLSX carries every filtered row (at most 100 000) with the same columns.
-        Dashboard "Latest documents" = this grid with `statuses` [POSTED, CANCELLED], sort postedAt desc, rows 0–10.
+        Dashboard "Latest documents" = this grid with `statuses` [POSTED, CANCELLED], sort postedAt desc, rows 0–10
+        (v1.5: `Dashboard.latest` is removed).
       requestBody:
         required: true
         content:
@@ -1257,12 +1263,20 @@ paths:
         Server defaults: `dueDate` = documentDate + the card's payment term (`gun` in days; blank or not a number = 0),
         `salesRepUserId` = the card's salesperson, line `vatPct` = the part's, `discount1Pct` / `discount2Pct` = the
         card's `iskonto` / `iskonto2`. With `waybillDocumentId` and no lines the waybill's lines are copied (part,
-        qty, prices, discounts, VAT, `billedLineId`). Amounts and totals are computed by the server (`Document`).
+        qty, prices, discounts, VAT, `billedLineId`). There is no preview endpoint: an editor that shows the lines
+        before the first save reads the waybill (`getDocument`) and sends its lines with `billedLineId` itself (v1.5).
+        Every line of a bill needs `billedLineId` (a line of the waybill, same part); quantities are checked on post.
+        A return that bills a return waybill without `linkedDocumentId` takes the waybill's original. A return may
+        go to another depot of the company than its original. The original of a return or price difference must be
+        POSTED when the draft is saved.
+        Amounts and totals are computed by the server (`Document`).
         A draft that will move stock OUT reserves `min(qty, available)` per line for 48 h (`StockReserved`).
         422: ERR_SICIL_NOT_FOUND, ERR_DEPOT_NOT_FOUND, ERR_PART_NOT_FOUND / ERR_PART_INACTIVE (`lines[i].partId`),
-        ERR_USER_NOT_FOUND (`salesRepUserId`, not a member), ERR_LINKED_DOCUMENT_INVALID (`linkedDocumentId`,
-        `lines[i].originLineId`), ERR_WAYBILL_INVALID (`waybillDocumentId`, `lines[i].billedLineId`). 400
-        ERR_INVALID_REQUEST (`field`): `priceDirection` missing on PRICE_DIFFERENCE or set on another type; a
+        ERR_USER_NOT_FOUND (`salesRepUserId`, not a member), ERR_LINKED_DOCUMENT_INVALID (`linkedDocumentId`:
+        missing on a return or price difference, not POSTED, wrong type or card; `lines[i].originLineId`),
+        ERR_WAYBILL_INVALID (`waybillDocumentId`, `lines[i].billedLineId`). 400
+        ERR_INVALID_REQUEST (`field`): `priceDirection` missing on PRICE_DIFFERENCE or set on another type;
+        `linkedDocumentId` on a type other than a return or price difference; a
         price-difference line with qty ≠ 1, discounts or a `partId` other than its origin line's; another type's
         line without `partId` or with `description`. 409
         ERR_WAYBILL_BILLED (the waybill has another non-cancelled bill), ERR_YEAR_CLOSED.
@@ -1309,7 +1323,8 @@ paths:
       summary: Replace header and lines of a DRAFT document
       description: |
         Same defaults and 422 codes as create. Replaces the draft's reservations (`StockReleased UPDATED`, then
-        `StockReserved`) and restarts their 48 h. 409 ERR_DOCUMENT_NOT_DRAFT, ERR_WAYBILL_BILLED, ERR_YEAR_CLOSED.
+        `StockReserved`) and restarts their 48 h. 409 ERR_DOCUMENT_NOT_DRAFT, ERR_WAYBILL_BILLED, ERR_YEAR_CLOSED,
+        ERR_DOCUMENT_HAS_DEPENDENTS (another draft bills or links this draft's lines; `details` = `DocumentDependents`).
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
@@ -1328,7 +1343,9 @@ paths:
       tags: [Documents]
       operationId: deleteDocument
       summary: Delete a DRAFT (no number was allocated); releases its reservations
-      description: 409 ERR_DOCUMENT_NOT_DRAFT for a POSTED or CANCELLED document. Emits `StockReleased DELETED`.
+      description: |
+        409 ERR_DOCUMENT_NOT_DRAFT for a POSTED or CANCELLED document; ERR_DOCUMENT_HAS_DEPENDENTS when another draft
+        bills or links this draft's lines (`details` = `DocumentDependents`). Emits `StockReleased DELETED`.
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       responses:
         '204': { description: Deleted }
@@ -1346,13 +1363,15 @@ paths:
       operationId: postDocument
       summary: DRAFT → POSTED; allocates the number, releases reservations, emits DocumentPosted
       description: |
-        One transaction: checks, number (`next_number`, prefix of the type, year of documentDate), card snapshot,
-        reservations released (`StockReleased POSTED`), `DocumentPosted`. The ledger entry and the stock movements
-        follow from the event (ADR-0013 posting table). Negative stock never blocks: `warnings` NEGATIVE_STOCK.
+        One transaction (v1.5): checks, number (`next_number`, prefix of the type, year of documentDate), card
+        snapshot, reservations released (`StockReleased POSTED`), the journal entry (ADR-0013 posting table) and the
+        stock movements, and `DocumentPosted` in the outbox for external consumers. `journalEntryId` is set in the
+        response (null for waybills and zero totals). Negative stock never blocks: `warnings` NEGATIVE_STOCK.
         409: ERR_DOCUMENT_NOT_DRAFT, ERR_YEAR_CLOSED, ERR_WAYBILL_BILLED, ERR_CREDIT_LIMIT_EXCEEDED (SF, SF with
         waybill, FF INCREASE on a sale; card limit set and balance + grandTotal > limit; `details` = `CreditLimitExceeded`)
-        unless `creditOverride` is sent by an admin (403 ERR_FORBIDDEN otherwise). An override that was not needed is
-        ignored and not recorded. 422: ERR_DOCUMENT_EMPTY, ERR_PART_INACTIVE, ERR_WAYBILL_INVALID (waybill not POSTED
+        unless `creditOverride` is sent by an admin. 403 ERR_FORBIDDEN only when a non-admin's override would be
+        needed; an override that is not needed is ignored and not recorded, for every user. 400 ERR_INVALID_REQUEST
+        `field` `creditOverride.reason` (3–500 characters after trimming), checked before the credit check. 422: ERR_DOCUMENT_EMPTY, ERR_PART_INACTIVE, ERR_WAYBILL_INVALID (waybill not POSTED
         or lines do not bill it line for line), ERR_LINKED_DOCUMENT_INVALID, ERR_RETURN_QTY_EXCEEDED
         (`lines[i].qty`), ERR_PRICE_DIFFERENCE_EXCEEDED (a DECREASE above the original's net minus its posted
         decreases and goods-moving returns; `field` = `lines`),
@@ -1375,6 +1394,7 @@ paths:
                     reason: { type: string, minLength: 3, maxLength: 500 }
       responses:
         '200': { $ref: '#/components/responses/DocumentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1391,11 +1411,13 @@ paths:
       operationId: cancelDocument
       summary: POSTED → CANCELLED by reversal; the document itself is never edited
       description: |
-        Emits `DocumentCancelled`; the ledger consumer writes the reversal entry of the document's entry and the stock
-        consumer one opposite movement per line that moved stock, both dated the cancel date (today, Europe/Istanbul).
+        One transaction (v1.5): the reversal entry of the document's entry and one opposite movement per line that
+        moved stock, both dated the cancel date, and `DocumentCancelled` in the outbox. Cancel date = the later of
+        today (Europe/Istanbul) and the document date. `reversalEntryId` is set in the response.
         Opposite movements may take stock negative: `warnings` NEGATIVE_STOCK. 409: ERR_INVALID_STATE_TRANSITION
         (not POSTED; a draft is deleted instead), ERR_WAYBILL_BILLED (a waybill with a non-cancelled bill),
-        ERR_DOCUMENT_HAS_DEPENDENTS (posted returns or price differences link it), ERR_YEAR_CLOSED.
+        ERR_DOCUMENT_HAS_DEPENDENTS (posted returns or price differences link it; `details` = `DocumentDependents`),
+        ERR_YEAR_CLOSED.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
@@ -3096,16 +3118,36 @@ components:
         field: { type: string, description: Offending field for validation errors }
         traceId: { type: string, description: Request ID (X-Request-Id) }
         owner: { $ref: '#/components/schemas/EntryOwner' }
-        details: { $ref: '#/components/schemas/CreditLimitExceeded', description: Set only with ERR_CREDIT_LIMIT_EXCEEDED }
+        details:
+          description: '`CreditLimitExceeded` with ERR_CREDIT_LIMIT_EXCEEDED, `DocumentDependents` with ERR_DOCUMENT_HAS_DEPENDENTS'
+          oneOf:
+            - $ref: '#/components/schemas/CreditLimitExceeded'
+            - $ref: '#/components/schemas/DocumentDependents'
     CreditLimitExceeded:
       type: object
-      description: 'excess = balance + documentTotal − limit (> 0). balance: ADR-0013 §9.'
+      description: 'excess = balance + documentTotal − limit (> 0). balance = the current account over all depots and dates (ADR-0014).'
       required: [limit, balance, documentTotal, excess]
       properties:
         limit: { $ref: '#/components/schemas/Money' }
         balance: { $ref: '#/components/schemas/Money' }
         documentTotal: { $ref: '#/components/schemas/Money' }
         excess: { $ref: '#/components/schemas/Money' }
+    DocumentDependents:
+      type: object
+      description: |
+        ERR_DOCUMENT_HAS_DEPENDENTS. Cancel: the posted returns and price differences that link the document. Draft
+        update or delete: the drafts that bill or link its lines (documentNo null).
+      required: [dependents]
+      properties:
+        dependents:
+          type: array
+          items:
+            type: object
+            required: [id, documentNo, type]
+            properties:
+              id: { type: integer }
+              documentNo: { type: [string, 'null'] }
+              type: { $ref: '#/components/schemas/DocumentType' }
     EntryOwner:
       type: object
       description: Set only with ERR_ENTRY_OWNED_BY_SOURCE; the document, receipt, instrument or voucher that owns the entry.
@@ -3365,7 +3407,8 @@ components:
         contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
         emails: { type: array, items: { type: string, format: email } }
         iskonto2: { type: number, description: Second cascaded discount percent (planned) }
-        sales_rep_user_id: { type: [integer, 'null'], description: Planned }
+        sales_rep_user_id: { type: [integer, 'null'], description: "The card's salesperson, a company member (v1.5); default of a document's salesRepUserId" }
+        sales_rep_name: { type: [string, 'null'], readOnly: true, description: Name of sales_rep_user_id }
         account_id: { type: [integer, 'null'], description: 'Current account (120 / 320 / 102), planned' }
         version: { type: integer, description: Also sent as ETag; updates need If-Match }
         created_at: { type: string, format: date-time }
@@ -3398,6 +3441,7 @@ components:
         credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
         contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
         emails: { type: array, items: { type: string, format: email } }
+        sales_rep_user_id: { type: [integer, 'null'], description: 'A company member or null; 422 ERR_USER_NOT_FOUND otherwise (v1.5)' }
     SicilUpdate:
       type: object
       description: Partial update; unknown fields are ignored, organization_id cannot change.
@@ -3417,6 +3461,7 @@ components:
         credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
         contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
         emails: { type: array, items: { type: string, format: email } }
+        sales_rep_user_id: { type: [integer, 'null'], description: 'A company member or null; 422 ERR_USER_NOT_FOUND otherwise (v1.5)' }
     SicilSummary:
       type: object
       required: [sicilId, accountId, balance, overdue, chequesInPortfolio]
@@ -3431,12 +3476,15 @@ components:
         paymentTermDays: { type: [integer, 'null'] }
         discount1Pct: { $ref: '#/components/schemas/Percent' }
         discount2Pct: { $ref: '#/components/schemas/Percent' }
+        salesRepUserId: { type: [integer, 'null'], description: "The card's salesperson (v1.5); a document's default" }
+        salesRepName: { type: [string, 'null'] }
         chequesInPortfolio: { $ref: '#/components/schemas/Money', description: Open receivable instruments of this card }
         lastMoveDate: { type: [string, 'null'], format: date }
 
     Dashboard:
       type: object
-      required: [date, receivables, payables, cash, instrumentsDue30, latest, dueThisWeek, belowMin, belowMinCount, negativeCount, ledgerCheck]
+      description: 'Latest documents come from gridDocuments (v1.5: `latest` removed)'
+      required: [date, receivables, payables, cash, instrumentsDue30, dueThisWeek, belowMin, belowMinCount, negativeCount, ledgerCheck]
       properties:
         date: { type: string, format: date }
         receivables:
@@ -3470,10 +3518,6 @@ components:
           properties:
             total: { $ref: '#/components/schemas/Money' }
             overdueCount: { type: integer }
-        latest:
-          type: array
-          description: Documents, receipts and instruments, newest first
-          items: { $ref: '#/components/schemas/ActivityItem' }
         dueThisWeek:
           type: array
           items:
@@ -3717,7 +3761,7 @@ components:
       properties:
         role:
           type: string
-          enum: [CASH, SALES, SALES_RETURNS, PURCHASES, PURCHASE_RETURNS, PRICE_DIFFERENCE, OUTPUT_VAT, INPUT_VAT,
+          enum: [CASH, SALES, SALES_RETURNS, SALES_DISCOUNTS, PURCHASES, PURCHASE_RETURNS, PRICE_DIFFERENCE, OUTPUT_VAT, INPUT_VAT,
                  RECEIVABLE_CHEQUES, RECEIVABLE_NOTES, CHEQUES_AT_BANK, PAYABLE_CHEQUES, PAYABLE_NOTES, OPENING, CASH_OVER_SHORT]
         depotId: { type: [integer, 'null'], description: Null = company default }
         accountId: { type: integer }
@@ -4009,7 +4053,13 @@ components:
             depotId: { type: [integer, 'null'] }
             dateFrom: { type: [string, 'null'], format: date, description: 'documentDate ≥ dateFrom, inclusive' }
             dateTo: { type: [string, 'null'], format: date, description: 'documentDate ≤ dateTo, inclusive' }
-            documentNo: { type: [string, 'null'], description: 'Substring of the number, literal' }
+            documentNo: { type: [string, 'null'], description: 'Substring of the number, literal, case-insensitive' }
+            billed:
+              type: [boolean, 'null']
+              description: 'v1.5. Set: waybills only (SIR, AIR, SIRI, AIRI); true = billed by a non-cancelled document, false = not billed'
+            billsWaybill:
+              type: [boolean, 'null']
+              description: 'v1.5. true = invoices and returns that bill a waybill; false = every other document (return originals)'
     DocumentSummary:
       type: object
       required: [id, type, status, depotId, depotCode, sicilId, hesapNo, sicilName, documentDate, grossTotal, discountTotal, netTotal, vatTotal, grandTotal, version]
@@ -4042,7 +4092,7 @@ components:
         version: { type: integer }
     Document:
       type: object
-      required: [id, orgId, type, status, depotId, sicilId, documentDate, currency, grossTotal, discountTotal, netTotal, vatTotal, grandTotal, vatBreakdown, lines, warnings, version]
+      required: [id, orgId, type, status, depotId, sicilId, hesapNo, documentDate, currency, grossTotal, discountTotal, netTotal, vatTotal, grandTotal, vatBreakdown, lines, warnings, version]
       properties:
         id: { type: integer }
         orgId: { type: integer }
@@ -4051,6 +4101,7 @@ components:
         status: { $ref: '#/components/schemas/DocumentStatus' }
         depotId: { type: integer }
         sicilId: { type: integer }
+        hesapNo: { type: string, description: "The card's account no. (v1.5)" }
         sicilName: { type: string }
         documentDate: { type: string, format: date }
         shipDate: { type: [string, 'null'], format: date }
@@ -4097,7 +4148,10 @@ components:
               properties:
                 expiresAt: { type: string, format: date-time, description: Last save + 48 h }
         effects:
-          description: What posting will do (DRAFT) or did (POSTED); ADR-0013 posting table
+          description: |
+            What posting will do (DRAFT) or did (POSTED); ADR-0013 posting table. A posting whose role has no account is
+            left out (the post answers 422 ERR_ACCOUNT_ROLE_MISSING). `creditUsedPctAfter` on a POSTED document = the
+            current balance / limit (the document is in the balance already), rounded half-up.
           type: object
           properties:
             ledger:
@@ -4123,10 +4177,13 @@ components:
         warnings:
           type: array
           description: |
-            Non-blocking. DRAFT (every read): STOCK_SHORT per line that holds less than its qty (`requested` = qty,
-            `available` = available without this draft), CREDIT_LIMIT when posting would exceed the limit,
-            PRICE_BELOW_LIST when unitPrice < the list price on documentDate (sales types). Post and cancel responses:
-            NEGATIVE_STOCK, computed in that transaction from the stock levels and the document's movements.
+            Non-blocking. DRAFT (every read): STOCK_SHORT per line whose qty exceeds what is available to it (v1.5):
+            `available` = onHand − reserved by other documents in the document depot (what this draft holds, expired
+            or not, does not count against it); short when `available` < qty (`requested` = qty); lines of one part
+            report the same `available`. CREDIT_LIMIT when posting would exceed the limit. PRICE_BELOW_LIST when
+            unitPrice < `price_on(documentDate)` on SF, SF with waybill and SIR (not returns, not price differences).
+            Post and cancel responses: NEGATIVE_STOCK, computed in that transaction from the stock levels and the
+            document's movements, with the part's `stockNo` (v1.5). `stockNo` is set on every warning with a part.
           items:
             type: object
             required: [code]
@@ -4134,6 +4191,7 @@ components:
               code: { type: string, enum: [STOCK_SHORT, NEGATIVE_STOCK, CREDIT_LIMIT, PRICE_BELOW_LIST] }
               lineNo: { type: [integer, 'null'] }
               partId: { type: [integer, 'null'] }
+              stockNo: { type: [string, 'null'], description: 'Set with partId (v1.5)' }
               depotId: { type: [integer, 'null'] }
               requested: { $ref: '#/components/schemas/Quantity' }
               available: { $ref: '#/components/schemas/SignedQuantity' }
@@ -4150,8 +4208,8 @@ components:
                 userName: { type: string }
                 at: { type: string, format: date-time }
                 excess: { $ref: '#/components/schemas/Money' }
-        journalEntryId: { type: [integer, 'null'], description: 'Null until the ledger consumer ran; always null for waybills' }
-        reversalEntryId: { type: [integer, 'null'] }
+        journalEntryId: { type: [integer, 'null'], description: 'Set on post (v1.5: same transaction); null for drafts, waybills and zero totals' }
+        reversalEntryId: { type: [integer, 'null'], description: 'Set on cancel when the document had an entry' }
         postedAt: { type: [string, 'null'], format: date-time }
         cancelledAt: { type: [string, 'null'], format: date-time }
         cancelDate: { type: [string, 'null'], format: date }
@@ -4442,7 +4500,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/PartWrite'
         - type: object
-          required: [id, orgId, catalogCode, isActive, equivalents, version]
+          required: [id, orgId, catalogCode, isActive, equivalents, lastPurchaseCost, version]
           properties:
             id: { type: integer }
             orgId: { type: integer }
@@ -4460,6 +4518,7 @@ components:
                     price: { $ref: '#/components/schemas/Money4' }
                     validFrom: { type: string, format: date }
             onHand: { $ref: '#/components/schemas/SignedQuantity', description: Sum over depots }
+            lastPurchaseCost: { $ref: '#/components/schemas/LastPurchaseCost' }
             equivalents:
               type: array
               readOnly: true
@@ -4468,6 +4527,19 @@ components:
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
             version: { type: integer }
+    LastPurchaseCost:
+      description: |
+        v1.5. The LAST_PURCHASE branch of `last_purchase_cost()` as of today: unit net (net / qty, 4 decimals) of the
+        part's line on the latest POSTED purchase invoice (with or without waybill, bills of a purchase waybill
+        included; returns, waybills, price differences and cancelled invoices ignored). Null when none.
+      oneOf:
+        - type: 'null'
+        - type: object
+          required: [amount, date, documentNo]
+          properties:
+            amount: { $ref: '#/components/schemas/Money4' }
+            date: { type: string, format: date, description: documentDate of the invoice }
+            documentNo: { type: string }
     PartEquivalent:
       type: object
       required: [partId, stockNo, name, catalogId, catalogName]
@@ -4506,7 +4578,7 @@ components:
             priceDate: { type: string, format: date, description: listPrice date; defaults to today }
     PartRow:
       type: object
-      required: [id, catalogId, catalogCode, stockNo, name, unit, vatPct, packageQty, isActive, onHand, reserved, available, belowMin, negative, version]
+      required: [id, catalogId, catalogCode, stockNo, name, unit, vatPct, packageQty, isActive, onHand, reserved, available, lastPurchaseCost, belowMin, negative, version]
       properties:
         id: { type: integer }
         catalogId: { type: integer }
@@ -4527,6 +4599,7 @@ components:
         minQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
         maxQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
         shelf: { type: [string, 'null'] }
+        lastPurchaseCost: { $ref: '#/components/schemas/LastPurchaseCost' }
         belowMin: { type: boolean, description: 'With depotId: minQty > 0 and onHand < minQty; without: in any depot' }
         negative: { type: boolean, description: 'With depotId: onHand < 0; without: in any depot' }
         stockByDepot:
@@ -4876,7 +4949,7 @@ components:
         delta: { $ref: '#/components/schemas/SignedQuantity', description: '+qty for IN kinds, −qty for OUT kinds' }
         qtyIn: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }], description: 'qty for IN, ADJUST_IN, TRANSFER_IN; null otherwise' }
         qtyOut: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }], description: 'qty for OUT, ADJUST_OUT, TRANSFER_OUT; null otherwise' }
-        unitCost: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }] }
+        unitCost: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }], description: 'Document lines: net / qty, 4 decimals half-up (v1.5)' }
         sourceType: { type: string, enum: [document, stock_count, transfer, legacy_import] }
         sourceId: { type: [string, 'null'] }
         sourceNo: { type: [string, 'null'], description: 'Document, count or transfer number' }

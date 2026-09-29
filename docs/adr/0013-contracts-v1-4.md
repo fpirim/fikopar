@@ -1,6 +1,6 @@
 # 13. Contracts v1.4: documents (F3)
 
-Status: Accepted · 2026-09-29
+Status: Accepted · 2026-09-29; §9 balance and the consumers of §1 and §12 amended by [ADR-0014](0014-contracts-v1-5.md)
 
 ## Context
 F3 builds the trade documents: invoices, waybills, returns, price differences. v1.3 has their tables as a draft,

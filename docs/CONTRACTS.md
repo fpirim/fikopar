@@ -1,6 +1,6 @@
-# Contracts v1.4
+# Contracts v1.5
 
-Frozen 2026-09-29, git tag `contracts-v1.4` (earlier: `contracts-v1.3`, `contracts-v1.2`, `contracts-v1.1`, `contracts-v1`). Code is written against these; a change needs
+Frozen 2026-09-29, git tag `contracts-v1.5` (earlier: `contracts-v1.4`, `contracts-v1.3`, `contracts-v1.2`, `contracts-v1.1`, `contracts-v1`). Code is written against these; a change needs
 an ADR in [`adr/`](adr/) and a new version here.
 
 | Artifact | Path |
@@ -11,9 +11,20 @@ an ADR in [`adr/`](adr/) and a new version here.
 | Schema and DB invariants | Promoted [`backend/migrations/0001`–`0011`](../backend/migrations) plus documents draft [`draft/0004_documents.sql`](../backend/migrations/draft/0004_documents.sql) (`check/run.sh`, `check/mutations.sh`) |
 | Screens → operations | [`docs/screens.md`](screens.md) |
 | Design tokens | [`frontend/src/styles/tokens.css`](../frontend/src/styles/tokens.css), [`docs/brand.md`](brand.md) |
-| Decisions | [`docs/adr/0001`–`0013`](adr/) |
+| Decisions | [`docs/adr/0001`–`0014`](adr/) |
 
 ## Changelog
+
+**v1.5** (2026-09-29, [ADR-0014](adr/0014-contracts-v1-5.md)) — resolves
+[phase 3 contract issues](review/phase-3-contract-issues.md).
+- Post and cancel write the entry and the movements in their own transaction; document events stay in the outbox
+  for external consumers; the credit balance loses the undelivered-event term.
+- F3 backend behaviour documented: override 403 and reason, cancel date, link and bill-line rules, draft dependents,
+  `creditUsedPctAfter`, `PRICE_BELOW_LIST` types, relay order, level locks, movement `unitCost`, literal number
+  filter, `StockReserved`, sweeper batch.
+- `SALES_DISCOUNTS` role; `Document.hesapNo`; card salesperson (`Sicil.sales_rep_user_id`, `SicilSummary.salesRepUserId`);
+  `gridDocuments billed` / `billsWaybill`; `DocumentDependents` details; `stockNo` on document warnings;
+  `STOCK_SHORT` by on hand − reserved by others; `lastPurchaseCost` on parts; `Dashboard.latest` removed.
 
 **v1.4** (2026-09-29, [ADR-0013](adr/0013-contracts-v1-4.md)) — F3 documents.
 - Lifecycle DRAFT → POSTED → CANCELLED; drafts are deleted (`deleteDocument`), posted ones cancelled by reversal.
