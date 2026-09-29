@@ -49,6 +49,8 @@ type StockMovement struct {
 	Label         string    `json:"label" gorm:"column:label"`
 	Qty           Dec4      `json:"qty" gorm:"column:qty"`
 	Delta         Dec4      `json:"delta" gorm:"column:delta"`
+	QtyIn         *Dec4     `json:"qtyIn" gorm:"column:qty_in"`
+	QtyOut        *Dec4     `json:"qtyOut" gorm:"column:qty_out"`
 	UnitCost      *Dec4     `json:"unitCost" gorm:"column:unit_cost"`
 	SourceType    string    `json:"sourceType" gorm:"column:source_type"`
 	SourceID      *string   `json:"sourceId" gorm:"column:source_id"`

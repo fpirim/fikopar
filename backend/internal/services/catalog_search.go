@@ -31,9 +31,13 @@ type SearchResult struct {
 
 var turkishFold = strings.NewReplacer("I", "i", "İ", "i", "ı", "i", "Ş", "ş", "Ğ", "ğ", "Ü", "ü", "Ö", "ö", "Ç", "ç")
 
-// foldWords splits a name query into case- and dotless-i-insensitive words (parts.name_fold).
-func foldWords(q string) []string {
-	return strings.Fields(strings.ToLower(turkishFold.Replace(q)))
+// foldWords splits a query into case- and dotless-i-insensitive words (parts.name_fold) and their code forms.
+func foldWords(q string) (words, norms []string) {
+	for _, w := range strings.Fields(q) {
+		words = append(words, strings.ToLower(turkishFold.Replace(w)))
+		norms = append(norms, NormalizeCode(w))
+	}
+	return words, norms
 }
 
 // Search ranks parts by code and name; inactive parts are left out.
@@ -52,8 +56,9 @@ func searchCatalog(rd *repository.Q, orgID uint, in SearchRequest) (*SearchResul
 	case in.Limit < 1 || in.Limit > 50:
 		return nil, apierror.WithField(apierror.InvalidRequest, "limit")
 	}
-	sq := repository.SearchQuery{Norm: NormalizeCode(q), Words: foldWords(q), CatalogID: in.CatalogID, InStock: in.InStock,
-		Date: today(), Limit: in.Limit + 1}
+	words, norms := foldWords(q)
+	sq := repository.SearchQuery{Norm: NormalizeCode(q), Words: words, WordNorms: norms, CatalogID: in.CatalogID,
+		InStock: in.InStock, Date: today(), Limit: in.Limit + 1}
 	if in.Date != nil {
 		sq.Date = *in.Date
 	}
@@ -254,6 +259,24 @@ func (s *CatalogService) GridParts(ctx context.Context, orgID uint, in PartGridR
 		for _, c := range codes {
 			out.Rows[at[c.PartID]].Codes = append(out.Rows[at[c.PartID]].Codes, c)
 		}
+		if in.DepotID == nil && !all {
+			if err := addStockByDepot(q, orgID, ids, out.Rows, at); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return out, nil
+}
+
+// addStockByDepot gives every row the stock of each depot of the company (all-depots scope).
+func addStockByDepot(q *repository.Q, orgID uint, ids []uint, rows []models.PartRow, at map[uint]int) error {
+	stock, err := q.StockByDepot(orgID, ids)
+	if err != nil {
+		return err
+	}
+	for _, st := range stock {
+		r := &rows[at[st.PartID]]
+		r.StockByDepot = append(r.StockByDepot, models.DepotStock{DepotID: st.DepotID, DepotCode: st.DepotCode, OnHand: st.OnHand, Available: st.Available})
+	}
+	return nil
 }

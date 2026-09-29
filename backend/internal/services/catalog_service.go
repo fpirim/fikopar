@@ -204,7 +204,7 @@ func (w *PartWrite) validate() (repository.PartWrite, error) {
 		if !codeKinds[c.Kind] {
 			return r, apierror.WithField(apierror.InvalidRequest, field+".kind")
 		}
-		if c.Code == "" || utf8.RuneCountInString(c.Code) > 40 || NormalizeCode(c.Code) == "" {
+		if c.Kind != models.CodeEquivalent && (c.Code == "" || utf8.RuneCountInString(c.Code) > 40 || NormalizeCode(c.Code) == "") {
 			return r, apierror.WithField(apierror.InvalidRequest, field+".code")
 		}
 		if (c.Kind == models.CodeEquivalent) != (c.EquivalentPartID != nil) {
@@ -214,7 +214,7 @@ func (w *PartWrite) validate() (repository.PartWrite, error) {
 	return r, nil
 }
 
-// checkCodes resolves EQUIVALENT links inside the company.
+// checkCodes resolves EQUIVALENT links inside the company; their code becomes the linked stock no.
 func checkCodes(q *repository.Q, orgID, self uint, codes []models.PartCode) error {
 	for i, c := range codes {
 		if c.EquivalentPartID == nil {
@@ -224,11 +224,13 @@ func checkCodes(q *repository.Q, orgID, self uint, codes []models.PartCode) erro
 		if *c.EquivalentPartID == self {
 			return apierror.WithField(apierror.InvalidRequest, field)
 		}
-		if _, err := q.GetPartRef(orgID, *c.EquivalentPartID); repository.IsNotFound(err) {
+		ref, err := q.GetPartRef(orgID, *c.EquivalentPartID)
+		if repository.IsNotFound(err) {
 			return apierror.UnknownRef(apierror.PartNotFound, field)
 		} else if err != nil {
 			return err
 		}
+		codes[i].Code = ref.StockNo
 	}
 	return nil
 }
@@ -340,7 +342,7 @@ func withCodes(q *repository.Q, parts []*models.Part) error {
 	byID := make(map[uint]*models.Part, len(parts))
 	for i, p := range parts {
 		ids[i] = p.ID
-		p.Codes = []models.PartCode{}
+		p.Codes, p.Equivalents = []models.PartCode{}, []models.PartEquivalent{}
 		byID[p.ID] = p
 	}
 	codes, err := q.PartCodes(ids)
@@ -349,6 +351,13 @@ func withCodes(q *repository.Q, parts []*models.Part) error {
 	}
 	for _, c := range codes {
 		byID[c.PartID].Codes = append(byID[c.PartID].Codes, c)
+	}
+	eq, err := q.PartEquivalents(parts[0].OrgID, ids)
+	if err != nil {
+		return err
+	}
+	for _, e := range eq {
+		byID[e.OwnerID].Equivalents = append(byID[e.OwnerID].Equivalents, e.PartEquivalent)
 	}
 	return nil
 }

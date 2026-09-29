@@ -169,6 +169,23 @@ func (h *StockCountHandler) AddLine(c echo.Context) error {
 	})
 }
 
+func (h *StockCountHandler) GetLine(c echo.Context) error {
+	id, err := pathID(c, "countId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	line, err := pathID(c, "lineId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	out, err := h.svc.GetLine(reqCtx(c), orgID(c), id, line)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	setETag(c, out.Version)
+	return c.JSON(http.StatusOK, out)
+}
+
 func (h *StockCountHandler) SetLine(c echo.Context) error {
 	id, err := pathID(c, "countId")
 	if err != nil {

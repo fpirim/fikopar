@@ -31,33 +31,43 @@ type PartCode struct {
 	EquivalentPartID *uint  `json:"equivalentPartId" gorm:"column:equivalent_part_id"`
 }
 
+// PartEquivalent is a part linked by an EQUIVALENT code, either direction.
+type PartEquivalent struct {
+	PartID      uint   `json:"partId" gorm:"column:part_id"`
+	StockNo     string `json:"stockNo" gorm:"column:stock_no"`
+	Name        string `json:"name" gorm:"column:name"`
+	CatalogID   uint   `json:"catalogId" gorm:"column:catalog_id"`
+	CatalogName string `json:"catalogName" gorm:"column:catalog_name"`
+}
+
 type PriceRef struct {
 	Price     Dec4 `json:"price" gorm:"column:price"`
 	ValidFrom Date `json:"validFrom" gorm:"column:valid_from"`
 }
 
 type Part struct {
-	ID                 uint       `json:"id" gorm:"column:id"`
-	OrgID              uint       `json:"orgId" gorm:"column:org_id"`
-	CatalogID          uint       `json:"catalogId" gorm:"column:catalog_id"`
-	CatalogCode        int        `json:"catalogCode" gorm:"column:catalog_code"`
-	CatalogName        string     `json:"catalogName" gorm:"column:catalog_name"`
-	StockNo            string     `json:"stockNo" gorm:"column:stock_no"`
-	Name               string     `json:"name" gorm:"column:name"`
-	Type               *string    `json:"type" gorm:"column:type"`
-	Brand              *string    `json:"brand" gorm:"column:brand"`
-	Unit               string     `json:"unit" gorm:"column:unit"`
-	PackageQty         int        `json:"packageQty" gorm:"column:package_qty"`
-	VatPct             string     `json:"vatPct" gorm:"column:vat_pct"`
-	IsActive           bool       `json:"isActive" gorm:"column:is_active"`
-	Codes              []PartCode `json:"codes" gorm:"-"`
-	ListPrice          *Dec4      `json:"listPrice" gorm:"column:list_price"`
-	ListPriceValidFrom *Date      `json:"listPriceValidFrom" gorm:"column:list_price_valid_from"`
-	NextPrice          *PriceRef  `json:"nextPrice" gorm:"-"`
-	OnHand             Dec4       `json:"onHand" gorm:"column:on_hand"`
-	CreatedAt          time.Time  `json:"createdAt" gorm:"column:created_at"`
-	UpdatedAt          time.Time  `json:"updatedAt" gorm:"column:updated_at"`
-	Version            int        `json:"version" gorm:"column:version"`
+	ID                 uint             `json:"id" gorm:"column:id"`
+	OrgID              uint             `json:"orgId" gorm:"column:org_id"`
+	CatalogID          uint             `json:"catalogId" gorm:"column:catalog_id"`
+	CatalogCode        int              `json:"catalogCode" gorm:"column:catalog_code"`
+	CatalogName        string           `json:"catalogName" gorm:"column:catalog_name"`
+	StockNo            string           `json:"stockNo" gorm:"column:stock_no"`
+	Name               string           `json:"name" gorm:"column:name"`
+	Type               *string          `json:"type" gorm:"column:type"`
+	Brand              *string          `json:"brand" gorm:"column:brand"`
+	Unit               string           `json:"unit" gorm:"column:unit"`
+	PackageQty         int              `json:"packageQty" gorm:"column:package_qty"`
+	VatPct             string           `json:"vatPct" gorm:"column:vat_pct"`
+	IsActive           bool             `json:"isActive" gorm:"column:is_active"`
+	Codes              []PartCode       `json:"codes" gorm:"-"`
+	ListPrice          *Dec4            `json:"listPrice" gorm:"column:list_price"`
+	ListPriceValidFrom *Date            `json:"listPriceValidFrom" gorm:"column:list_price_valid_from"`
+	NextPrice          *PriceRef        `json:"nextPrice" gorm:"-"`
+	Equivalents        []PartEquivalent `json:"equivalents" gorm:"-"`
+	OnHand             Dec4             `json:"onHand" gorm:"column:on_hand"`
+	CreatedAt          time.Time        `json:"createdAt" gorm:"column:created_at"`
+	UpdatedAt          time.Time        `json:"updatedAt" gorm:"column:updated_at"`
+	Version            int              `json:"version" gorm:"column:version"`
 }
 
 type Price struct {
@@ -80,30 +90,39 @@ type Price struct {
 
 // PartRow is one row of the parts grid.
 type PartRow struct {
-	ID                 uint       `json:"id" gorm:"column:id"`
-	CatalogID          uint       `json:"catalogId" gorm:"column:catalog_id"`
-	CatalogCode        int        `json:"catalogCode" gorm:"column:catalog_code"`
-	StockNo            string     `json:"stockNo" gorm:"column:stock_no"`
-	Name               string     `json:"name" gorm:"column:name"`
-	Type               *string    `json:"type" gorm:"column:type"`
-	Brand              *string    `json:"brand" gorm:"column:brand"`
-	Codes              []PartCode `json:"codes" gorm:"-"`
-	Unit               string     `json:"unit" gorm:"column:unit"`
-	VatPct             string     `json:"vatPct" gorm:"column:vat_pct"`
-	PackageQty         int        `json:"packageQty" gorm:"column:package_qty"`
-	ListPrice          *Dec4      `json:"listPrice" gorm:"column:list_price"`
-	ListPriceValidFrom *Date      `json:"listPriceValidFrom" gorm:"column:list_price_valid_from"`
-	OnHand             Dec4       `json:"onHand" gorm:"column:on_hand"`
-	Reserved           Dec4       `json:"reserved" gorm:"column:reserved"`
-	Available          Dec4       `json:"available" gorm:"column:available"`
-	MinQty             *Dec4      `json:"minQty" gorm:"column:min_qty"`
-	MaxQty             *Dec4      `json:"maxQty" gorm:"column:max_qty"`
-	Shelf              *string    `json:"shelf" gorm:"column:shelf"`
-	BelowMin           bool       `json:"belowMin" gorm:"column:below_min"`
-	Negative           bool       `json:"negative" gorm:"column:negative"`
-	IsActive           bool       `json:"isActive" gorm:"column:is_active"`
-	UpdatedAt          time.Time  `json:"updatedAt" gorm:"column:updated_at"`
-	Version            int        `json:"version" gorm:"column:version"`
+	ID                 uint         `json:"id" gorm:"column:id"`
+	CatalogID          uint         `json:"catalogId" gorm:"column:catalog_id"`
+	CatalogCode        int          `json:"catalogCode" gorm:"column:catalog_code"`
+	StockNo            string       `json:"stockNo" gorm:"column:stock_no"`
+	Name               string       `json:"name" gorm:"column:name"`
+	Type               *string      `json:"type" gorm:"column:type"`
+	Brand              *string      `json:"brand" gorm:"column:brand"`
+	Codes              []PartCode   `json:"codes" gorm:"-"`
+	Unit               string       `json:"unit" gorm:"column:unit"`
+	VatPct             string       `json:"vatPct" gorm:"column:vat_pct"`
+	PackageQty         int          `json:"packageQty" gorm:"column:package_qty"`
+	ListPrice          *Dec4        `json:"listPrice" gorm:"column:list_price"`
+	ListPriceValidFrom *Date        `json:"listPriceValidFrom" gorm:"column:list_price_valid_from"`
+	OnHand             Dec4         `json:"onHand" gorm:"column:on_hand"`
+	Reserved           Dec4         `json:"reserved" gorm:"column:reserved"`
+	Available          Dec4         `json:"available" gorm:"column:available"`
+	MinQty             *Dec4        `json:"minQty" gorm:"column:min_qty"`
+	MaxQty             *Dec4        `json:"maxQty" gorm:"column:max_qty"`
+	Shelf              *string      `json:"shelf" gorm:"column:shelf"`
+	BelowMin           bool         `json:"belowMin" gorm:"column:below_min"`
+	Negative           bool         `json:"negative" gorm:"column:negative"`
+	StockByDepot       []DepotStock `json:"stockByDepot,omitempty" gorm:"-"`
+	IsActive           bool         `json:"isActive" gorm:"column:is_active"`
+	UpdatedAt          time.Time    `json:"updatedAt" gorm:"column:updated_at"`
+	Version            int          `json:"version" gorm:"column:version"`
+}
+
+// DepotStock is the stock of a parts grid row in one depot (all-depots scope).
+type DepotStock struct {
+	DepotID   uint   `json:"depotId"`
+	DepotCode string `json:"depotCode"`
+	OnHand    Dec4   `json:"onHand"`
+	Available Dec4   `json:"available"`
 }
 
 type HitStock struct {

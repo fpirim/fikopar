@@ -37,7 +37,7 @@ type Mapping struct {
 	Sheet            string            `json:"sheet,omitempty"`
 	HeaderRow        *int              `json:"headerRow,omitempty"`
 	ListSeparator    string            `json:"listSeparator,omitempty"`
-	Columns          map[string]Column `json:"columns,omitempty"`
+	Columns          map[string]Column `json:"columns"`
 }
 
 // Targets a column can be mapped to.

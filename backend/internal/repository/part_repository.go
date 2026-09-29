@@ -85,7 +85,7 @@ func (q *Q) ReplaceCodes(orgID, partID uint, codes []models.PartCode, kinds []st
 	}
 	for _, c := range codes {
 		if err := q.db.Exec(`INSERT INTO part_codes (org_id, part_id, kind, code, equivalent_part_id) VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT (part_id, kind, normalized_code) DO NOTHING`, orgID, partID, c.Kind, c.Code, c.EquivalentPartID).Error; err != nil {
+			ON CONFLICT DO NOTHING`, orgID, partID, c.Kind, c.Code, c.EquivalentPartID).Error; err != nil {
 			return err
 		}
 	}
@@ -128,6 +128,23 @@ func (q *Q) EquivalentsOf(orgID uint, partIDs []uint) ([]EquivalentLink, error) 
 		       coalesce((SELECT sum(s.on_hand) FROM stock_levels s WHERE s.part_id = p.id), 0) AS on_hand_total
 		FROM links l JOIN parts p ON p.id = l.b JOIN catalogs c ON c.id = p.catalog_id
 		ORDER BY l.a, p.stock_no`, orgID, uintArray(partIDs), orgID, uintArray(partIDs))
+}
+
+// PartEquivalent is an equivalent of OwnerID for the part card.
+type PartEquivalent struct {
+	OwnerID uint `gorm:"column:owner_id"`
+	models.PartEquivalent
+}
+
+func (q *Q) PartEquivalents(orgID uint, partIDs []uint) ([]PartEquivalent, error) {
+	return list[PartEquivalent](q.db, `
+		WITH links AS (
+			SELECT part_id AS a, equivalent_part_id AS b FROM part_codes WHERE org_id = ? AND kind = 'EQUIVALENT' AND part_id = ANY(?::bigint[])
+			UNION
+			SELECT equivalent_part_id, part_id FROM part_codes WHERE org_id = ? AND kind = 'EQUIVALENT' AND equivalent_part_id = ANY(?::bigint[]))
+		SELECT l.a AS owner_id, p.id AS part_id, p.stock_no, p.name, p.catalog_id, c.name AS catalog_name
+		FROM links l JOIN parts p ON p.id = l.b JOIN catalogs c ON c.id = p.catalog_id
+		ORDER BY l.a, p.stock_no, c.code, p.id`, orgID, uintArray(partIDs), orgID, uintArray(partIDs))
 }
 
 func (q *Q) PartByStockNo(orgID, catalogID uint, stockNo string) (*PartRef, error) {

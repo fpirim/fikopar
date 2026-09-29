@@ -9,7 +9,8 @@ import (
 
 type SearchQuery struct {
 	Norm      string   // normalized code: upper case, 0-9 A-Z
-	Words     []string // folded name words, each must occur
+	Words     []string // folded name words; each must occur in the name or, as WordNorms, in a code
+	WordNorms []string // normalized form of each word ("" = name only)
 	CatalogID uint
 	InStock   uint // depot with available > 0
 	Date      models.Date
@@ -26,7 +27,8 @@ type SearchCursor struct {
 }
 
 // searchCandidates ranks every match per part: 1 exact code or stock no, 2 prefix, 3 substring (3+ characters),
-// 4 name. Prefixes use the text_pattern_ops indexes, substrings and names the trigram indexes.
+// 4 every word in the name or a code. Prefixes use the text_pattern_ops indexes, substrings and words the trigram
+// indexes; the word sets are intersected.
 func searchCandidates(orgID uint, sq SearchQuery) (string, []any) {
 	var parts []string
 	var args []any
@@ -46,15 +48,38 @@ func searchCandidates(orgID uint, sq SearchQuery) (string, []any) {
 		args = append(args, sq.Norm, sq.Norm+"%", orgID, pattern, sq.Norm, sq.Norm+"%", orgID, pattern)
 	}
 	if len(sq.Words) > 0 {
-		cond := make([]string, len(sq.Words))
-		args = append(args, orgID)
+		sets := make([]string, len(sq.Words))
 		for i, w := range sq.Words {
-			cond[i] = `p.name_fold LIKE ?`
-			args = append(args, "%"+escapeLike(w)+"%")
+			sets[i] = `SELECT p.id FROM parts p WHERE p.org_id = ? AND p.name_fold LIKE ?`
+			args = append(args, orgID, "%"+escapeLike(w)+"%")
+			if n := wordNorm(sq, i); n != "" {
+				sets[i] += ` UNION SELECT p.id FROM parts p WHERE p.org_id = ? AND p.stock_no_norm LIKE ?
+					UNION SELECT pc.part_id FROM part_codes pc WHERE pc.org_id = ? AND pc.normalized_code LIKE ?`
+				args = append(args, orgID, "%"+n+"%", orgID, "%"+n+"%")
+			}
+			sets[i] = `(` + sets[i] + `)`
 		}
-		parts = append(parts, `SELECT p.id, 4, 9, 'NAME', NULL FROM parts p WHERE p.org_id = ? AND `+strings.Join(cond, " AND "))
+		parts = append(parts, `SELECT w.id, 4, 9, 'NAME', NULL FROM (`+strings.Join(sets, " INTERSECT ")+`) w`)
 	}
 	return strings.Join(parts, " UNION ALL "), args
+}
+
+func wordNorm(sq SearchQuery, i int) string {
+	if i < len(sq.WordNorms) {
+		return sq.WordNorms[i]
+	}
+	return ""
+}
+
+// wordPatterns are the LIKE patterns of the normalized words, for the matched code of a word hit.
+func wordPatterns(sq SearchQuery) []string {
+	out := []string{}
+	for i := range sq.Words {
+		if n := wordNorm(sq, i); n != "" {
+			out = append(out, "%"+n+"%")
+		}
+	}
+	return out
 }
 
 func escapeLike(s string) string {
@@ -91,10 +116,21 @@ func (q *Q) SearchPage(orgID uint, sq SearchQuery) ([]models.CatalogHit, error) 
 		where = ` WHERE (h.rank, h.stock_no, h.catalog_code, h.part_id) > (?, ?, ?, ?)`
 		args = append(args, sq.After.Rank, sq.After.StockNo, sq.After.CatalogCode, sq.After.PartID)
 	}
-	args = append(args, sq.Limit, orgID, sq.Date)
+	pats := textArray(wordPatterns(sq))
+	args = append(args, sq.Limit, pats, pats, orgID, sq.Date)
 	return list[models.CatalogHit](q.db, base+`,
 		page AS (SELECT * FROM hits h`+where+` ORDER BY h.rank, h.stock_no, h.catalog_code, h.part_id LIMIT ?)
-		SELECT page.*, lp.price AS list_price, lp.valid_from AS list_price_valid_from
+		SELECT page.part_id, page.rank, page.match_kind, page.catalog_id, page.catalog_code, page.stock_no, page.name,
+		       page.brand, page.type, page.vat_pct, page.unit, page.package_qty,
+		       CASE WHEN page.match_kind = 'NAME' THEN (
+		         SELECT x.code FROM (
+		           SELECT page.stock_no AS code, 0 AS ord, 0::bigint AS id WHERE upper(regexp_replace(page.stock_no, '[^0-9A-Za-z]', '', 'g')) LIKE ANY(?::text[])
+		           UNION ALL
+		           SELECT pc.code, CASE pc.kind WHEN 'MANUFACTURER' THEN 1 WHEN 'OEM' THEN 2 WHEN 'ALT' THEN 3 ELSE 4 END, pc.id
+		           FROM part_codes pc WHERE pc.part_id = page.part_id AND pc.normalized_code LIKE ANY(?::text[])) x
+		         ORDER BY x.ord, x.id LIMIT 1)
+		       ELSE page.matched_code END AS matched_code,
+		       lp.price AS list_price, lp.valid_from AS list_price_valid_from
 		FROM page LEFT JOIN LATERAL price_on(?, page.part_id, ?::date) lp ON true
 		ORDER BY page.rank, page.stock_no, page.catalog_code, page.part_id`, args...)
 }
@@ -111,13 +147,14 @@ func (q *Q) HitsByIDs(orgID uint, ids []uint, on models.Date) ([]models.CatalogH
 type DepotStock struct {
 	PartID    uint        `gorm:"column:part_id"`
 	DepotID   uint        `gorm:"column:depot_id"`
+	DepotCode string      `gorm:"column:depot_code"`
 	OnHand    models.Dec4 `gorm:"column:on_hand"`
 	Available models.Dec4 `gorm:"column:available"`
 }
 
 // StockByDepot has a row for every (part, depot of the company), zeros included.
 func (q *Q) StockByDepot(orgID uint, partIDs []uint) ([]DepotStock, error) {
-	return list[DepotStock](q.db, `SELECT p.id AS part_id, d.id AS depot_id, coalesce(l.on_hand, 0) AS on_hand,
+	return list[DepotStock](q.db, `SELECT p.id AS part_id, d.id AS depot_id, d.code AS depot_code, coalesce(l.on_hand, 0) AS on_hand,
 		coalesce(l.on_hand, 0) - coalesce(l.reserved, 0) AS available
 		FROM unnest(?::bigint[]) AS p(id) JOIN depots d ON d.org_id = ?
 		LEFT JOIN stock_levels l ON l.part_id = p.id AND l.depot_id = d.id

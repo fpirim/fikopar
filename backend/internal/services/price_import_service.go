@@ -58,7 +58,7 @@ type PriceImport struct {
 	FileSha256          string            `json:"fileSha256"`
 	FileSize            int               `json:"fileSize"`
 	Format              string            `json:"format"`
-	Mapping             pricefile.Mapping `json:"mapping"`
+	Mapping             *pricefile.Mapping `json:"mapping"`
 	ValidFrom           models.Date       `json:"validFrom"`
 	Status              string            `json:"status"`
 	FailureCode         *string           `json:"failureCode"`
@@ -121,6 +121,9 @@ func toJob(r *repository.ImportRecord) *PriceImport {
 		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, ExpiresAt: r.ExpiresAt, AppliedBy: r.AppliedBy, AppliedAt: r.AppliedAt,
 		Version: r.Version, Headers: []string{}, Sample: [][]string{}, UnmappedTargets: []string{}}
 	decodeJSON(r.Mapping, &j.Mapping)
+	if j.Mapping != nil && j.Mapping.Columns == nil {
+		j.Mapping.Columns = map[string]pricefile.Column{}
+	}
 	decodeJSON(r.Headers, &j.Headers)
 	decodeJSON(r.Sample, &j.Sample)
 	decodeJSON(r.Unmapped, &j.UnmappedTargets)
@@ -224,16 +227,24 @@ func preview(q *repository.Q, orgID uint, cat catalogKey, content []byte, fileNa
 	requested pricefile.Mapping, validFrom models.Date) (repository.ImportPreview, []repository.ImportRowInsert, error) {
 	m, err := pricefile.Resolve(requested, fileName)
 	if err != nil {
-		return failed(apierror.ImportFormat.Code, "mapping"), nil, nil
+		p := failed(apierror.ImportFormat.Code, "mapping")
+		p.Mapping = "null"
+		return p, nil, nil
 	}
 	f, err := pricefile.Read(content, m)
+	var p repository.ImportPreview
 	switch {
 	case errors.Is(err, pricefile.ErrTooManyRows):
-		return failed(apierror.ImportTooManyRows.Code, "more than 100000 rows"), nil, nil
+		p = failed(apierror.ImportTooManyRows.Code, "more than 100000 rows")
 	case errors.Is(err, pricefile.ErrFormat):
-		return failed(apierror.ImportFormat.Code, err.Error()), nil, nil
+		p = failed(apierror.ImportFormat.Code, err.Error())
 	case err != nil:
 		return repository.ImportPreview{}, nil, err
+	}
+	if p.Status != "" {
+		mj, _ := json.Marshal(m)
+		p.Mapping = string(mj)
+		return p, nil, nil
 	}
 	m = pricefile.AutoMap(m, f.Headers)
 	mj, _ := json.Marshal(m)
@@ -243,7 +254,7 @@ func preview(q *repository.Q, orgID uint, cat catalogKey, content []byte, fileNa
 	}
 	hj, _ := json.Marshal(headers)
 	sj, _ := json.Marshal(f.Sample(5))
-	p := repository.ImportPreview{Mapping: string(mj), Headers: string(hj), Sample: string(sj), Counts: "{}"}
+	p = repository.ImportPreview{Mapping: string(mj), Headers: string(hj), Sample: string(sj), Counts: "{}"}
 	if p.Unmapped = pricefile.Unmapped(m, f.Headers); len(p.Unmapped) > 0 {
 		p.Status = "NEEDS_MAPPING"
 		cj, _ := json.Marshal(ImportCounts{Rows: len(f.Rows)})
@@ -353,7 +364,10 @@ func (s *PriceImportService) Update(ctx context.Context, orgID, id uint, version
 		if err != nil {
 			return err
 		}
-		m := j.Mapping
+		var m pricefile.Mapping
+		if j.Mapping != nil {
+			m = *j.Mapping
+		}
 		if in.Mapping != nil {
 			m = *in.Mapping
 		}

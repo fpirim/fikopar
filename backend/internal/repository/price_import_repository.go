@@ -445,7 +445,7 @@ func (q *Q) InsertImportCodes(orgID uint, codes []NewCode) error {
 		if err := q.db.Exec(`INSERT INTO part_codes (org_id, part_id, kind, code, equivalent_part_id)
 			SELECT ?, x.part_id, x.kind, x.code, x.equivalent_part_id
 			FROM jsonb_to_recordset(?::jsonb) AS x(part_id bigint, kind text, code text, equivalent_part_id bigint)
-			ON CONFLICT (part_id, kind, normalized_code) DO NOTHING`, orgID, string(b)).Error; err != nil {
+			ON CONFLICT DO NOTHING`, orgID, string(b)).Error; err != nil {
 			return err
 		}
 	}

@@ -200,6 +200,21 @@ type StockCountLineSet struct {
 }
 
 // SetLine autosaves one line; the line version is the lock, the header does not move.
+// GetLine reads one line of a count in any status.
+func (s *StockCountService) GetLine(ctx context.Context, orgID, countID, lineID uint) (*models.StockCountLine, error) {
+	q := s.store.Read(ctx)
+	if _, err := q.GetStockCount(orgID, countID); repository.IsNotFound(err) {
+		return nil, apierror.StockCountNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	out, err := q.GetCountLine(orgID, countID, lineID)
+	if repository.IsNotFound(err) {
+		return nil, apierror.StockCountLineNotFound
+	}
+	return out, err
+}
+
 func (s *StockCountService) SetLine(ctx context.Context, orgID, countID, lineID uint, version int, in StockCountLineSet) (*models.StockCountLine, error) {
 	qty, err := countedQty(in.CountedQty)
 	if err != nil {

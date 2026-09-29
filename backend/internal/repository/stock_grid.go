@@ -11,7 +11,9 @@ import (
 const movementSelect = `SELECT m.id, m.part_id, p.stock_no, p.name, m.depot_id, m.kind,
 	CASE m.source_type WHEN 'transfer' THEN 'TRANSFER' WHEN 'stock_count' THEN 'COUNT' WHEN 'legacy_import' THEN 'OPENING'
 	     ELSE CASE WHEN m.kind = 'IN' THEN 'PURCHASE' ELSE 'SALE' END END AS label,
-	m.qty, movement_sign(m.kind) * m.qty AS delta, m.unit_cost, m.source_type, m.source_id,
+	m.qty, movement_sign(m.kind) * m.qty AS delta,
+	CASE WHEN movement_sign(m.kind) > 0 THEN m.qty END AS qty_in, CASE WHEN movement_sign(m.kind) < 0 THEN m.qty END AS qty_out,
+	m.unit_cost, m.source_type, m.source_id,
 	coalesce(t.transfer_no, sc.count_no) AS source_no, NULL::bigint AS document_id, NULL::text AS document_type,
 	m.transfer_id, sc.id AS count_id, NULL::text AS sicil_name,
 	CASE WHEN t.id IS NULL THEN NULL WHEN m.kind = 'TRANSFER_OUT' THEN t.to_depot_id ELSE t.from_depot_id END AS other_depot_id,
@@ -27,7 +29,8 @@ var movementCols = map[string]GridCol{
 	"date": {"movement_date", ColDate}, "kind": {"kind", ColText}, "label": {"label", ColText},
 	"sourceNo": {"source_no", ColText}, "sicilName": {"sicil_name", ColText}, "stockNo": {"stock_no", ColText},
 	"name": {"name", ColText}, "depotId": {"depot_id", ColNumber}, "qty": {"qty", ColNumber},
-	"delta": {"delta", ColNumber}, "unitCost": {"unit_cost", ColNumber},
+	"qtyIn": {"qty_in", ColNumber}, "qtyOut": {"qty_out", ColNumber}, "delta": {"delta", ColNumber},
+	"unitCost": {"unit_cost", ColNumber},
 }
 
 type MovementGrid struct {

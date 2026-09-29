@@ -181,6 +181,7 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.GET(countPath, h.Count.Get)
 	org.POST(countPath+"/lines/grid", h.Count.GridLines)
 	org.POST(countPath+"/lines", h.Count.AddLine)
+	org.GET(countPath+"/lines/:lineId", h.Count.GetLine)
 	org.PATCH(countPath+"/lines/:lineId", h.Count.SetLine)
 	org.POST(countPath+"/finalize", h.Count.Finalize)
 	org.POST(countPath+"/cancel", h.Count.Cancel)
