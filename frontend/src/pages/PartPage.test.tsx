@@ -65,6 +65,11 @@ describe('PartPage', () => {
     const calls = capture('post', '/api/orgs/:orgId/stock/movements/grid')
     renderApp(HP)
     await screen.findByText('SF-2026-1-000418')
+    expect(screen.getByRole('link', { name: 'SF-2026-1-000418' })).toHaveAttribute(
+      'href',
+      '/invoices/418',
+    )
+    expect(screen.getAllByText('8.900,00').length).toBeGreaterThan(0)
     const header = document.querySelector('.ag-header-cell[col-id="qtyOut"]')
     expect(header).not.toBeNull()
     const input = screen.getByLabelText(/Çıkış filtresi/)
