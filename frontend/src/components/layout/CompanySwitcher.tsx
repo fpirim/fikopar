@@ -30,7 +30,10 @@ export default function CompanySwitcher() {
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-fk-nav-muted" aria-hidden="true" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[212px] p-1">
+      <PopoverContent
+        align="start"
+        className="max-h-[var(--radix-popover-content-available-height)] w-[212px] overflow-y-auto p-1"
+      >
         {organizations.map((o) => (
           <button
             key={o.id}
