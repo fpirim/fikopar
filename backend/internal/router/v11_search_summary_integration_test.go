@@ -161,3 +161,23 @@ func TestV11_GlobalSearchFindsCardsWithAccountsAndDocuments(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, f.do(t, http.MethodGet, f.path("/search?"+bad), f.token, "").Code, bad)
 	}
 }
+
+func TestV11_GlobalSearchKeepsDocumentsInTheirOrg(t *testing.T) {
+	f := newReport(t)
+	f.seedMarch(t)
+	rec := f.post(t, f.path("/cash-vouchers"), f.token, fmt.Sprintf(`{"kind":"EXPENSE","depotId":%d,"date":"2026-03-21","accountId":%d,"amount":"10.00","description":"x"}`, f.depot, f.exp))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	docs := func(org uint) []string {
+		rec := f.do(t, http.MethodGet, orgPath(org, "/search?q=2026-1-"), f.token, "")
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var kinds []string
+		for _, d := range decode[searchJSON](t, rec).Documents {
+			kinds = append(kinds, d.Kind)
+		}
+		return kinds
+	}
+	assert.ElementsMatch(t, []string{"RECEIPT", "CASH_VOUCHER"}, docs(f.org))
+
+	other := f.seedOrg(t, "search-docs-other", f.userID)
+	assert.Empty(t, docs(other), "receipt and voucher numbers of another org")
+}
