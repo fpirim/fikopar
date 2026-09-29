@@ -11,6 +11,13 @@ const go = (page: Page, path: string) =>
     history.pushState({}, '', p)
     dispatchEvent(new PopStateEvent('popstate'))
   }, path)
+// Grids whose columns run past their width (a horizontal scrollbar hides the right-hand amounts).
+const overflowing = (page: Page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.fk-grid .ag-center-cols-viewport')]
+      .filter((v) => v.scrollWidth > v.clientWidth + 1)
+      .map((v) => v.closest('.fk-grid')?.className ?? ''),
+  )
 const totals = (page: Page) => page.getByRole('region', { name: 'Totals' })
 
 async function pickAccount(page: Page, text: string) {
@@ -270,13 +277,16 @@ for (const lang of ['en', 'tr'] as const) {
         await expect(cell(page, 3, 'part')).toHaveText('BR-2210')
         expect(await clipped(page, ['part', 'name'])).toEqual([])
         expect(await cutControls(page)).toEqual([])
+        expect(await overflowing(page)).toEqual([])
         await page.goto('/invoices/8')
         await expect(cell(page, 0, 'description')).toContainText('Volume rebate')
         expect(await clipped(page)).toEqual([])
+        expect(await overflowing(page)).toEqual([])
         await page.goto('/invoices')
         await expect(page.locator('.fk-grid .ag-row').first()).toBeVisible()
         expect(await clipped(page, ['documentNo', 'type', 'status'])).toEqual([])
         expect(await cutControls(page)).toEqual([])
+        expect(await overflowing(page)).toEqual([])
       })
     })
   }

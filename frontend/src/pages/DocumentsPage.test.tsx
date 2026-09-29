@@ -50,8 +50,7 @@ describe('DocumentsPage', () => {
 
   it('opens a document from its row and a new one by type', async () => {
     renderApp('/invoices')
-    await waitFor(() => expect(rows().length).toBeGreaterThan(0))
-    await userEvent.click(screen.getByText('SF-2026-1-000418'))
+    await userEvent.click(await screen.findByRole('link', { name: 'SF-2026-1-000418' }))
     await waitFor(() => expect(location()).toBe('/invoices/418'))
   })
 
