@@ -14,65 +14,9 @@ EXCEPTION WHEN check_violation THEN NULL; END $$;
 -- no purchase yet: list price fallback
 SELECT * FROM last_purchase_cost(1, 1, '2026-09-29');
 
--- two purchase invoices, depots 1 and 2; latest wins
-INSERT INTO documents (org_id, depot_id, type, sicil_id, document_date) VALUES
-  (1, 1, 'PURCHASE_INVOICE', 2, '2026-03-01'),
-  (1, 2, 'PURCHASE_INVOICE', 2, '2026-05-01');
-INSERT INTO document_lines (org_id, document_id, line_no, part_id, qty, unit_price, discount1_pct, net_amount, vat_amount)
-VALUES (1, 1, 1, 1, 10, 40, 0, 400, 80), (1, 2, 1, 1, 4, 30, 10, 108, 21.6);
-UPDATE documents SET status = 'POSTED', document_no = 'AF-2026-1-000001', posted_at = now(), version = version + 1 WHERE id = 1;
-UPDATE documents SET status = 'POSTED', document_no = 'AF-2026-2-000001', posted_at = now(), version = version + 1 WHERE id = 2;
-SELECT * FROM last_purchase_cost(1, 1, '2026-09-29');   -- 27.0000 LAST_PURCHASE
-SELECT * FROM last_purchase_cost(1, 1, '2026-04-01');   -- 40.0000
-SELECT * FROM last_purchase_cost(1, 1, '2025-01-01');   -- NONE
-
--- sales return waybill (3), return invoice billing it (4)
-INSERT INTO documents (org_id, depot_id, type, sicil_id, document_date) VALUES (1, 1, 'SALES_RETURN_WAYBILL', 1, '2026-06-01');
-INSERT INTO document_lines (org_id, document_id, line_no, part_id, qty, unit_price, net_amount, vat_amount) VALUES (1, 3, 1, 1, 2, 60, 120, 24);
-INSERT INTO documents (org_id, depot_id, type, sicil_id, document_date, waybill_id) VALUES (1, 1, 'SALES_RETURN', 1, '2026-06-02', 3);
-INSERT INTO document_lines (org_id, document_id, line_no, part_id, qty, unit_price, net_amount, vat_amount) VALUES (1, 4, 1, 1, 2, 60, 120, 24);
-
-DO $$ BEGIN  -- bill cannot post before the waybill
-  UPDATE documents SET status = 'POSTED', document_no = 'SI-2026-1-000001', posted_at = now(), version = version + 1 WHERE id = 4;
-  RAISE EXCEPTION 'unposted waybill missed';
-EXCEPTION WHEN check_violation THEN NULL; END $$;
-
-UPDATE documents SET status = 'POSTED', document_no = 'SIRI-2026-1-000001', posted_at = now(), version = version + 1 WHERE id = 3;
+-- Documents (v1.4) are checked in documents.sql. Two units on hand in depot 1 for the count below.
 INSERT INTO stock_movements (org_id, part_id, depot_id, kind, qty, source_type, source_id, movement_date)
-VALUES (1, 1, 1, 'IN', 2, 'document', '3', '2026-06-01');   -- line 3 = waybill line
-
-DO $$ BEGIN  -- return waybill never posts to the ledger
-  INSERT INTO journal_entries (org_id, depot_id, entry_no, entry_date, description, source_type, source_id)
-  VALUES (1, 1, 'J-X', '2026-06-01', 'x', 'document', '3');
-  RAISE EXCEPTION 'waybill ledger post missed';
-EXCEPTION WHEN check_violation THEN NULL; END $$;
-
-UPDATE documents SET status = 'POSTED', document_no = 'SI-2026-1-000001', posted_at = now(), version = version + 1 WHERE id = 4;
-
-DO $$ BEGIN  -- billed return must not move stock again
-  INSERT INTO stock_movements (org_id, part_id, depot_id, kind, qty, source_type, source_id, movement_date)
-  VALUES (1, 1, 1, 'IN', 2, 'document', '4', '2026-06-02');
-  RAISE EXCEPTION 'double stock move missed';
-EXCEPTION WHEN check_violation THEN NULL; END $$;
-
-DO $$ BEGIN  -- waybill billed once
-  INSERT INTO documents (org_id, depot_id, type, sicil_id, document_date, waybill_id) VALUES (1, 1, 'SALES_RETURN', 1, '2026-06-03', 3);
-  RAISE EXCEPTION 'second bill missed';
-EXCEPTION WHEN unique_violation THEN NULL; END $$;
-
-DO $$ BEGIN  -- wrong pair
-  INSERT INTO documents (org_id, depot_id, type, sicil_id, document_date, waybill_id) VALUES (1, 1, 'SALES_INVOICE', 1, '2026-06-03', 3);
-  RAISE EXCEPTION 'wrong pair missed';
-EXCEPTION WHEN check_violation THEN NULL; END $$;
-
-DO $$ BEGIN  -- billed waybill cannot be cancelled
-  UPDATE documents SET status = 'CANCELLED', cancelled_at = now(), version = version + 1 WHERE id = 3;
-  RAISE EXCEPTION 'billed cancel missed';
-EXCEPTION WHEN check_violation THEN NULL; END $$;
-
--- cancel the bill first, then the waybill
-UPDATE documents SET status = 'CANCELLED', cancelled_at = now(), version = version + 1 WHERE id = 4;
-UPDATE documents SET status = 'CANCELLED', cancelled_at = now(), version = version + 1 WHERE id = 3;
+VALUES (1, 1, 1, 'IN', 2, 'legacy_import', 'x0', '2026-06-01');
 
 -- count line cost snapshot
 INSERT INTO stock_counts (org_id, depot_id, count_date, year, count_no) VALUES (1, 1, '2026-09-29', 2026, 'SAY-2026-1-000001');
@@ -175,7 +119,6 @@ DO $$ BEGIN
   IF (SELECT valid_to FROM price_periods WHERE part_id = 1 AND valid_from = '2026-01-01') <> '2026-06-30' THEN
     RAISE EXCEPTION 'valid_to wrong';
   END IF;
-  IF (SELECT content_version FROM catalogs WHERE id = 1) < 4 THEN RAISE EXCEPTION 'catalog content_version not moved'; END IF;
 END $$;
 DO $$ BEGIN  -- same part, same valid_from
   INSERT INTO prices (org_id, part_id, price, valid_from) VALUES (1, 1, 51, '2026-07-01');

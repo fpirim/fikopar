@@ -67,10 +67,19 @@ Each sicil gets a current account (`120.<hesapNo>` customer, `320.<hesapNo>` sup
 - `AccountBalance {account_id, depot_id, debit_total, credit_total}` — projection.
 - `AccountRole {role, depot_id?, account_id}` — accounts used by posting rules (CASH, SALES, OUTPUT_VAT, RECEIVABLE_CHEQUES, OPENING, …); a depot row overrides the company default.
 
-**Documents**
-- `Document {depot_id, document_no, type, status: DRAFT|POSTED|CANCELLED, sicil_id, document_date, ship_date, due_date, sales_rep, linked_document_id, waybill_id, gross/discount/net/vat/grand totals, sicil_snapshot, version}`.
+**Documents** (v1.4, [ADR-0013](adr/0013-contracts-v1-4.md))
+- `Document {depot_id, document_no, type, status: DRAFT|POSTED|CANCELLED, origin: APP|LEGACY, sicil_id, document_date, ship_date, due_date, sales_rep_user_id, linked_document_id, waybill_id, gross/discount/net/vat/grand totals, sicil_snapshot, credit_override_{reason,by,at,excess}, posted_at, cancel_date, cancel_reason, version}`.
   `linked_document_id` points to the original of a return, return waybill or price difference; `waybill_id` to the waybill an invoice or return bills.
-- `DocumentLine {part_id, qty, unit_price, discount1_pct, discount2_pct, vat_pct, net_amount, vat_amount}` — always a Part, never free text.
+  A DRAFT is edited or deleted; POSTED is fixed and only cancelled (reversal entry + opposite movements on `cancel_date`).
+- `DocumentLine {part_id, qty, unit_price, discount1_pct, discount2_pct, vat_pct, gross_amount, discount_amount, net_amount, vat_amount, origin_line_id, billed_line_id}` — always a Part, never free text.
+  `origin_line_id`: the original line a return takes back or a price difference re-prices; `billed_line_id`: the waybill line billed.
+- **Amounts** per line, half-up to 2 decimals: gross = round(qty × price); net = round(qty × price × (1 − d1/100) ×
+  (1 − d2/100)) from the unrounded product; discount = gross − net; VAT = round(net × VAT%/100). Document totals = Σ
+  lines; the VAT breakdown sums lines per rate. Defaults: VAT % of the part, discounts of the card (`iskonto`,
+  `iskonto2`), due date = document date + the card's `gun` days, salesperson = the card's (a company member).
+- `StockReservation {document_id, line_id, part_id, depot_id, qty, reserved_at, expires_at}` — held by a DRAFT that
+  will move stock OUT: `min(qty, available)` per line at save, until save + 48 h. A row exists only while held;
+  post, delete, a new save and the sweeper delete it.
 - `NumberSeries {depot_id, prefix, year, width, next_value}` → `PREFIX-YEAR-DEPOT-COUNTER`, e.g. `SF-2026-1-000418`, `TAH-2026-2-000007`.
 
 | Type | Prefix | Ledger | Stock | May bill (`waybill_id`) |
@@ -89,6 +98,30 @@ Each sicil gets a current account (`120.<hesapNo>` customer, `320.<hesapNo>` sup
 
 A return waybill moves the goods back when they arrive; the return invoice issued later bills it and only
 posts to the ledger.
+
+**Posting rules** (Tek Düzen Hesap Planı, periodic inventory: no cost-of-sales entry). G gross, D discount, N net,
+V VAT, T total; C = the card's current account. Accounts by role (`account_roles`), suggested codes in brackets:
+
+| Type | Debit | Credit |
+|---|---|---|
+| SF, SF with waybill | C T; SALES_DISCOUNTS (611) D | SALES (600) G; OUTPUT_VAT (391) V |
+| SI | SALES_RETURNS (610) N; OUTPUT_VAT V | C T |
+| AF, AF with waybill | PURCHASES (153) N; INPUT_VAT (191) V | C T |
+| AI | C T | PURCHASE_RETURNS (153) N; INPUT_VAT V |
+| FF on a sale | C T | PRICE_DIFFERENCE (600) N; OUTPUT_VAT V |
+| FF on a purchase | PURCHASES N; INPUT_VAT V | C T |
+
+One entry per document on its date and depot; the C posting carries the due date; zero amounts are left out.
+Cancel = the reversal of that entry, dated the cancel date.
+
+**Returns and price differences.** A return links the document that moved the goods (SF, SF with waybill, SIR; AF,
+AF with waybill, AIR; not a bill) and each line an original line. A price difference links a posted invoice of the
+same card and depot and adds qty × unit price to its lines; increase only, no stock.
+
+**Credit limit.** Posting SF, SF with waybill or FF on a sale with balance + total > the card's limit is refused
+(`ERR_CREDIT_LIMIT_EXCEEDED`: limit, balance, document total, excess). balance = current account over all depots and
+dates plus the card's posted or cancelled documents whose ledger event is not delivered yet. An admin posts with a
+reason; it is stored on the document and in the audit trail.
 
 **Number prefixes** (the only list; the API enum and the `number_series` CHECK follow it):
 
@@ -143,8 +176,10 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
 - `StockMovement {part_id, depot_id, kind: IN|OUT|ADJUST_IN|ADJUST_OUT|TRANSFER_IN|TRANSFER_OUT, qty > 0, movement_date, occurred_at, unit_cost?, source}`
   — append-only. Ledger order is (movement_date, id); running on-hand follows it. ADJUST only from counts, TRANSFER only from transfers.
   `occurred_at` is `clock_timestamp()` (wall clock at insert), as is a count's `started_at`.
-- `StockLevel {part_id, depot_id, on_hand, reserved}` — projection written by the movement insert in the same transaction.
-  **on_hand may be negative.** available = on_hand − reserved. belowMin = min_qty > 0 and on_hand < min_qty.
+- `StockLevel {part_id, depot_id, on_hand, reserved}` — projection: `on_hand` written by the movement insert,
+  `reserved` = Σ reservations written by the reservation insert / delete, each in the same transaction.
+  **on_hand may be negative.** available = on_hand − reserved (negative when a later OUT took reserved stock).
+  belowMin = min_qty > 0 and on_hand < min_qty.
 - `StockTransfer {transfer_no (TRF of the source depot), from_depot, to_depot, date}` — one transaction: per line a
   TRANSFER_OUT and a TRANSFER_IN, all lines or none.
 - `StockCount {depot_id, count_no (SAY), count_date, started_at, shelf range, status: OPEN|FINALIZED|CANCELLED, uncounted: SKIP|ZERO}`,
@@ -162,8 +197,9 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
   for the part in the company, from any depot, dated on or before the count date (ties: later `posted_at`,
   then higher line id). Returns, waybills and price differences are ignored. Without a purchase the list price of
   the part's catalog on the count date is used and flagged `LIST_PRICE`; without either the line
-  is `NONE` and has no value. Cost and source are snapshotted at finalize (`last_purchase_cost()`). Until documents
-  exist (F3) the function has the LIST_PRICE and NONE branches only; F3 replaces it with the `0004_documents` version.
+  is `NONE` and has no value. Cost and source are snapshotted at finalize (`last_purchase_cost()`). A bill of a purchase
+  waybill counts; cancelled invoices do not. v1.4 (`0004_documents`) adds the LAST_PURCHASE branch; lines finalized
+  before keep their LIST_PRICE / NONE snapshot.
 - **Closed years** apply to stock too: no movement dated in a closed year (`ERR_YEAR_CLOSED`).
 - **Carry-forward stock checks.** `STOCK_COUNTS_POSTED` (blocking): no OPEN count dated on or before 31 December of
   Y − 1. `YEAR_END_COUNTS` (warning): every depot has a FINALIZED count dated in Y − 1.
@@ -204,10 +240,15 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
 | L7 | No journal entry is dated in a closed year (before the latest active run's year); `ERR_YEAR_CLOSED`. Reopening a year reverses its opening entries on 1 January; a later carried year must be reopened first | `journal_entries_year_open` trigger; one active run per year; run and opening guards |
 | L8 | A statement crossing 1 January of a carried year restarts the running balance at the opening entry (`resetsBalance`); `closingBalance` = balance as of `to` (L6) | Query contract |
 | L9 | The cash book does the same: the CASH opening of a carried year is an OPENING line with `resetsBalance`; totals leave it out; `closingBalance` = balance as of `to` | Query contract |
-| D1 | Document status DRAFT → POSTED → CANCELLED only; POSTED documents are not edited | Trigger |
-| D2 | Waybills (incl. return waybills) never post to the ledger; price-difference invoices never move stock | Triggers on `journal_entries` and `stock_movements` |
-| D3 | A document posts at most once to the ledger and once per line to stock | `UNIQUE(org, source_type, source_id)` on entries; unique source on movements |
-| D4 | Goods move once: a document that bills a waybill never moves stock. The waybill has the matching type, sicil and depot, is POSTED before the bill posts, is billed at most once and cannot be cancelled while billed | `documents_waybill_rules`, `stock_movements_document_rules` triggers; `UNIQUE(org_id, waybill_id)` |
+| D1 | Document status DRAFT → POSTED → CANCELLED only; a DRAFT is deleted, never cancelled; POSTED documents and their lines are not edited (cancel sets the cancel fields only) | `documents_state_machine`, `document_lines_draft_only` |
+| D2 | Waybills (incl. return waybills) never post to the ledger; price-difference invoices never move stock. A document entry is on the document date and depot; a movement has the line's part, qty and the document depot, in the type's direction on the document date | Triggers on `journal_entries` and `stock_movements` |
+| D3 | A document posts at most once to the ledger and once per line to stock; cancel reverses the entry once and writes one opposite movement per moved line, on the cancel date, only after the cancel | `UNIQUE(org, source_type, source_id)` and `UNIQUE(reverses_entry_id)` on entries; `UNIQUE(org, source_type, source_id, kind)` on movements; `stock_movements_document_rules` |
+| D4 | Goods move once: a document that bills a waybill never moves stock. The waybill has the matching type, sicil and depot, is POSTED before the bill posts, is billed line for line (same part and qty, every line once) by one non-cancelled document and cannot be cancelled while billed | `documents_waybill_rules`, `stock_movements_document_rules`; partial unique index `documents_waybill_once` |
+| D5 | Line amounts follow the rounding rule; on post a document has ≥ 1 line and totals = Σ lines, in an open year | CHECKs on `document_lines`; `documents_post_rules` |
+| D6 | A return links the document that moved the goods, same card; per original line Σ qty of posted goods-moving returns ≤ original qty; a return that bills a return waybill is not counted again; a document with posted returns or price differences cannot be cancelled | `documents_post_rules` (locks the original) |
+| D7 | A price difference links a posted invoice of the same card and depot, line by line (same part) | `documents_post_rules` |
+| D8 | Reservations only on DRAFTs that will move stock OUT, one per line, ≤ line qty, never more than available when taken; `reserved` = Σ reservations; none left when a document posts | `stock_reservations_rules`, `apply_stock_reservation()` (definer), `stock_levels_guard`, `stock_reservation_drift` view |
+| D9 | A credit override is all of reason, user, time and excess, on a posted document, and an audit event | CHECKs on `documents`; service |
 | N1 | Numbers are unique and gap-free per (company, depot, prefix, year); the counter only moves forward | Counter row upsert `… RETURNING`; forward-only trigger |
 | R1 | Receipts are immutable except for voiding once; instrument receipts change only through the instrument | `receipts_guard` trigger |
 | I1 | Instruments move only along the state machine; each money-moving step issues a receipt/entry in the same TX | Trigger + service |
@@ -230,11 +271,14 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> DRAFT
-  DRAFT --> POSTED: post (number, DocumentPosted)
-  DRAFT --> CANCELLED
-  POSTED --> CANCELLED: cancel (reversal entry + opposite movements)
+  [*] --> DRAFT: create (StockReserved)
+  DRAFT --> DRAFT: update (StockReleased UPDATED, StockReserved)
+  DRAFT --> [*]: delete (StockReleased DELETED)
+  DRAFT --> POSTED: post (number, StockReleased POSTED, DocumentPosted)
+  POSTED --> CANCELLED: cancel (DocumentCancelled → reversal entry + opposite movements)
 ```
+
+A draft's reservations also end 48 h after its last save (sweeper, `StockReleased EXPIRED`); the draft stays.
 
 Receivable instruments (legacy `CSNLOG.SONUC` code in brackets):
 
@@ -288,11 +332,13 @@ deposit `DR 101.bank / CR 101`; collect `DR 100|102 / CR 101` for the collected 
 
 ## 6. Outbox and events
 
-Posting a document writes the status change, the number and a `DocumentPosted` row to `outbox` in
-one transaction. An in-process relay delivers at least once; the ledger consumer writes the entry
-(skipped for waybills) and the stock consumer writes movements (skipped for price differences and
-for documents that bill a waybill). Both are idempotent on the source key and emit
-`LedgerEntryPosted` / `StockMoved`. Receipts and instrument operations post synchronously and emit
+Posting a document writes the status change, the number, the release of its reservations and a `DocumentPosted` row
+to `outbox` in one transaction. An in-process relay delivers at least once, per aggregate in outbox order; the ledger
+consumer writes the entry (skipped for waybills) and the stock consumer writes movements (skipped for price
+differences and for documents that bill a waybill). Both are idempotent on the source key and emit
+`LedgerEntryPosted` / `StockMoved`. `DocumentCancelled` drives the reversal entry and the opposite movements the same
+way. Draft saves emit `StockReserved` / `StockReleased`; the sweeper emits `StockReleased EXPIRED`. A
+`DocumentExporter` consumer (e-Fatura port, no-op) sees posted and cancelled documents. Receipts and instrument operations post synchronously and emit
 `ReceiptPosted` / `InstrumentStatusChanged`. Transfers and count finalize emit `StockMoved` per movement. A manual
 price emits `PriceChanged`; an applied import emits one `PriceListImported` (company-wide events, `depotId` null). Envelope: [`api/events/envelope.schema.json`](../api/events/envelope.schema.json).
 
@@ -380,7 +426,9 @@ status and total; stock `GIR − CIK` vs `stock_levels.on_hand` per depot. The r
 | **kasa** | Cash box / cash account |
 | **mizan** | Trial balance |
 | **ekstre** | Account statement |
-| **plasiyer** | Sales representative |
+| **plasiyer** | Sales representative (a company user) |
+| **rezervasyon** | Stock held by a draft sale for 48 h |
+| **kredi limiti** | Credit limit of a card; posting over it needs an admin and a reason |
 | **depo** | Depot: one of the company's physical warehouses; documents, numbering and statements are per depot |
 | **evrak (no)** | Document (number) |
 | **iskonto** | Discount (legacy supports two cascaded discounts) |

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fikopar.fpirim.me/schemas/events/DocumentCancelled.schema.json",
+  "title": "DocumentCancelled",
+  "description": "A posted document was cancelled (contracts v1.4). The ledger consumer reverses the document's entry (reversal entry dated cancelDate, once per entry); the stock consumer writes one opposite movement per line that moved stock, dated cancelDate. Delivered after the document's DocumentPosted (per-aggregate order).",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "DocumentCancelled"
+    },
+    "version": {
+      "const": 1
+    },
+    "aggregateType": {
+      "const": "document"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "documentId",
+        "documentNo",
+        "documentType",
+        "direction",
+        "sicilId",
+        "cancelDate",
+        "reason",
+        "postsToLedger",
+        "movesStock",
+        "lines"
+      ],
+      "properties": {
+        "documentId": {
+          "type": "integer"
+        },
+        "documentNo": {
+          "type": "string"
+        },
+        "documentType": {
+          "enum": [
+            "SALES_INVOICE_WITH_WAYBILL",
+            "SALES_INVOICE",
+            "SALES_WAYBILL",
+            "SALES_RETURN",
+            "SALES_RETURN_WAYBILL",
+            "PURCHASE_INVOICE_WITH_WAYBILL",
+            "PURCHASE_INVOICE",
+            "PURCHASE_WAYBILL",
+            "PURCHASE_RETURN",
+            "PURCHASE_RETURN_WAYBILL",
+            "PRICE_DIFFERENCE"
+          ]
+        },
+        "direction": {
+          "enum": [
+            "SALES",
+            "PURCHASE"
+          ]
+        },
+        "sicilId": {
+          "type": "integer"
+        },
+        "cancelDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 3
+        },
+        "postsToLedger": {
+          "type": "boolean"
+        },
+        "movesStock": {
+          "type": "boolean"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "lineId",
+              "partId",
+              "qty"
+            ],
+            "properties": {
+              "lineId": {
+                "type": "integer"
+              },
+              "partId": {
+                "type": "integer"
+              },
+              "qty": {
+                "type": "string",
+                "pattern": "^\\d{1,14}(\\.\\d{1,4})?$"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
