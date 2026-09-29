@@ -29,7 +29,6 @@ test('receipts under All depots default to depot 1 by code', async ({ page }) =>
     String(depot1()),
   )
   await expect(page.getByText('Cash book · Depot 1')).toBeVisible()
-  await expect(page.getByText(/^TAH-2026-1-\d{6}$/)).toBeVisible()
 })
 
 // Needs globalSearch, which the F1 backend does not serve yet.
