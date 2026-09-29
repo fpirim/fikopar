@@ -82,3 +82,14 @@ func TestV13_GlobalSearchAccountsTakeWildcardsLiterally(t *testing.T) {
 	assert.Equal(t, []uint{pct}, accounts("y%"))
 	assert.Equal(t, []uint{pct}, accounts("%1"))
 }
+
+// Two codes of one kind that fold to the same form are one code: 422, not a silent collapse.
+func TestV13_CodesThatFoldAlikeAreRejected(t *testing.T) {
+	f := newStock(t)
+	rec := f.post(t, f.path("/catalog/parts"), f.token,
+		`{"catalogId":`+idStr(f.catalog)+`,"stockNo":"C-1","name":"C","codes":[{"kind":"OEM","code":"ŞALTER-1"},`+
+			`{"kind":"MANUFACTURER","code":"SALTER-1"},{"kind":"OEM","code":"salter 1"}]}`)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	assert.JSONEq(t, `{"code":"ERR_DUPLICATE_LINE","field":"codes[2].code"}`, rec.Body.String())
+	f.part(t, "C-2", "C", `,"codes":[{"kind":"OEM","code":"ŞALTER-1"},{"kind":"MANUFACTURER","code":"SALTER-1"}]`)
+}
