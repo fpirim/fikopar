@@ -46,7 +46,12 @@ describe('StatementPage', () => {
     expect(within(card).getByText('Mehmet Yılmaz · purchasing')).toBeInTheDocument()
     expect(within(card).getByText('+90 332 000 00 00')).toBeInTheDocument()
     expect(within(card).getByText('Selçuklu / Konya')).toBeInTheDocument()
-    expect(within(card).getByText('Vergi dairesi Selçuk · [TAX NO]')).toBeInTheDocument()
+    expect(
+      within(card).getByText((_, el) => el?.textContent === 'Vergi dairesi Selçuk · [TAX NO]', {
+        selector: 'div',
+      }),
+    ).toBeInTheDocument()
+    expect(within(card).getByText('Selçuk · [TAX NO]')).toHaveClass('whitespace-nowrap')
     expect(within(card).getByText('muhasebe@120-10482.example.com')).toBeInTheDocument()
   })
 

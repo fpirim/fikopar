@@ -49,7 +49,6 @@
     "discountValue": "{{a}}% + {{b}}%",
     "cheques": "Cheques in portfolio",
     "card": "Account card",
-    "taxOffice": "Tax office {{office}} · {{no}}",
     "editCard": "Edit card",
     "editTitle": "Edit account card",
     "save": "Save",

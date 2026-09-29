@@ -415,8 +415,11 @@ function CardPanel({
       {sicil.emails?.[0] && <div className="break-all text-13">{sicil.emails[0]}</div>}
       {place && <div className="text-fk-muted">{place}</div>}
       {(sicil.v_dairesi || sicil.v_no) && (
-        <div className="font-mono text-13 text-fk-muted">
-          {t('statement.taxOffice', { office: sicil.v_dairesi ?? '', no: sicil.v_no ?? '' })}
+        <div className="text-13 text-fk-muted">
+          {t('statement.field.taxOffice')}{' '}
+          <span className="whitespace-nowrap font-mono">
+            {[sicil.v_dairesi, sicil.v_no].filter(Boolean).join(' · ')}
+          </span>
         </div>
       )}
       <Button variant="outline" className="mt-1 self-start" onClick={() => setEditing(true)}>
