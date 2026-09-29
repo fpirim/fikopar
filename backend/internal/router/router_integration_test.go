@@ -30,7 +30,7 @@ type testApp struct {
 
 func newTestApp(t *testing.T) *testApp {
 	t.Helper()
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 
 	cfg := &config.Config{
 		JWTSecret:          "test-secret",

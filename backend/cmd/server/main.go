@@ -28,7 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	database, err := db.Connect(cfg.DatabaseURL)
+	database, err := db.Setup(cfg.DatabaseURL, cfg.MigrateDatabaseURL, cfg.AppDBPassword)
 	if err != nil {
 		slog.Error("failed to connect to database", slog.Any("error", err))
 		os.Exit(1)

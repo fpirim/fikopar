@@ -15,26 +15,62 @@ import (
 	"gorm.io/gorm"
 )
 
+// Connect opens dsn and migrates through it.
 func Connect(dsn string) (*gorm.DB, error) {
-	var db *gorm.DB
-	var err error
-
-	for i := 0; i < 30; i++ {
-		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err == nil {
-			break
-		}
-		log.Printf("waiting for database... (%d/30)", i+1)
-		time.Sleep(2 * time.Second)
-	}
+	db, err := Open(dsn)
 	if err != nil {
 		return nil, err
 	}
-
 	if err := Migrate(db); err != nil {
 		return nil, err
 	}
 	return db, nil
+}
+
+// Open connects without migrating, retrying while the server starts.
+func Open(dsn string) (*gorm.DB, error) {
+	var db *gorm.DB
+	var err error
+	for i := 0; i < 30; i++ {
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err == nil {
+			return db, nil
+		}
+		log.Printf("waiting for database... (%d/30)", i+1)
+		time.Sleep(2 * time.Second)
+	}
+	return nil, err
+}
+
+// Setup migrates as the owner (ownerDSN), lets fikopar_app log in with appPassword when given,
+// and returns the app connection. Without ownerDSN the app DSN migrates itself.
+func Setup(appDSN, ownerDSN, appPassword string) (*gorm.DB, error) {
+	if ownerDSN == "" {
+		return Connect(appDSN)
+	}
+	owner, err := Connect(ownerDSN)
+	if err != nil {
+		return nil, err
+	}
+	if appPassword != "" {
+		err = ProvisionAppRole(owner, appPassword)
+	}
+	if sqlDB, e := owner.DB(); e == nil {
+		_ = sqlDB.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	return Open(appDSN)
+}
+
+// ProvisionAppRole gives fikopar_app a login with password.
+func ProvisionAppRole(owner *gorm.DB, password string) error {
+	var stmt string
+	if err := owner.Raw(`SELECT format('ALTER ROLE fikopar_app LOGIN PASSWORD %L', ?::text)`, password).Scan(&stmt).Error; err != nil {
+		return err
+	}
+	return owner.Exec(stmt).Error
 }
 
 // Migrate brings the identity tables up with AutoMigrate, then applies the SQL files in

@@ -18,6 +18,8 @@ type Config struct {
 	Port                 string
 	Env                  string
 	DatabaseURL          string
+	MigrateDatabaseURL   string
+	AppDBPassword        string
 	JWTSecret            string
 	JWTExpiryHours       int
 	UploadDir            string
@@ -40,6 +42,8 @@ func Load() *Config {
 		Port:                 getEnv("PORT", "8080"),
 		Env:                  getEnv("APP_ENV", "development"),
 		DatabaseURL:          getEnv("DATABASE_URL", defaultDatabaseURL()),
+		MigrateDatabaseURL:   os.Getenv("MIGRATE_DATABASE_URL"),
+		AppDBPassword:        os.Getenv("APP_DB_PASSWORD"),
 		JWTSecret:            getEnv("JWT_SECRET", defaultJWTSecret),
 		JWTExpiryHours:       jwtExpiry,
 		UploadDir:            getEnv("UPLOAD_DIR", "uploads/avatars"),

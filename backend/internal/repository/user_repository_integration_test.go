@@ -15,7 +15,7 @@ import (
 )
 
 func TestUserRepository_CRUD(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	repo := repository.NewUserRepository(testDB)
 
 	u := &models.User{Email: "a@b.com", Password: "h", Name: "Alice", Role: models.RoleUser}
@@ -42,7 +42,7 @@ func TestUserRepository_CRUD(t *testing.T) {
 }
 
 func TestUserRepository_CountAdmins(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	repo := repository.NewUserRepository(testDB)
 
 	require.NoError(t, repo.Create(&models.User{Email: "admin1@x.com", Password: "h", Role: models.RoleAdmin}))
@@ -55,7 +55,7 @@ func TestUserRepository_CountAdmins(t *testing.T) {
 }
 
 func TestUserRepository_SetOrganizations(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	userRepo := repository.NewUserRepository(testDB)
 	orgRepo := repository.NewOrganizationRepository(testDB)
 
@@ -76,7 +76,7 @@ func TestUserRepository_SetOrganizations(t *testing.T) {
 // TestUserRepository_GridTotalCountWithFilter guards the fix where TotalCount
 // was computed before filters were applied.
 func TestUserRepository_GridTotalCountWithFilter(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	repo := repository.NewUserRepository(testDB)
 
 	// 3 users match "acme", 7 do not.
@@ -109,7 +109,7 @@ func TestUserRepository_GridTotalCountWithFilter(t *testing.T) {
 // TestUserRepository_GridFilterVariants exercises the startsWith/endsWith/equals
 // filter branches in addition to the contains branch covered above.
 func TestUserRepository_GridFilterVariants(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	repo := repository.NewUserRepository(testDB)
 	for _, e := range []string{"alice@acme.com", "bob@acme.com", "carol@other.com"} {
 		require.NoError(t, repo.Create(&models.User{Email: e, Password: "h", Role: models.RoleUser}))
@@ -137,7 +137,7 @@ func TestUserRepository_GridFilterVariants(t *testing.T) {
 // TestUserRepository_GridSearch covers the free-text Search term which matches
 // across name, email and role (OR ILIKE), case-insensitively.
 func TestUserRepository_GridSearch(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	repo := repository.NewUserRepository(testDB)
 	require.NoError(t, repo.Create(&models.User{Email: "alice@acme.com", Name: "Alice", Password: "h", Role: models.RoleUser}))
 	require.NoError(t, repo.Create(&models.User{Email: "bob@other.com", Name: "Bob", Password: "h", Role: models.RoleAdmin}))

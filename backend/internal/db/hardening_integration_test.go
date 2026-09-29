@@ -50,6 +50,7 @@ func TestAppRoleWritesRowsButNotTheSchema(t *testing.T) {
 		`TRUNCATE sicils`,
 		`SET session_replication_role = replica`,
 		`UPDATE postings SET amount = amount`,
+		`UPDATE journal_entries SET description = description`,
 		`DELETE FROM journal_entries`,
 		`DELETE FROM receipts`,
 		`DELETE FROM cash_vouchers`,

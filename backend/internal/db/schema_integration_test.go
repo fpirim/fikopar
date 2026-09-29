@@ -26,7 +26,7 @@ type fixture struct {
 
 func seed(t *testing.T) fixture {
 	t.Helper()
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	var f fixture
 	require.NoError(t, testDB.Raw(`INSERT INTO organizations (name, slug, created_at, updated_at) VALUES ('A','a',now(),now()) RETURNING id`).Scan(&f.org).Error)
 	require.NoError(t, testDB.Raw(`INSERT INTO depots (org_id, code, name) VALUES (?, '1', 'Main') RETURNING id`, f.org).Scan(&f.depot).Error)

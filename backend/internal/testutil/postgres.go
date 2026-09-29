@@ -17,8 +17,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// NewPostgres spins up a throwaway PostgreSQL container, migrates the schema,
-// and returns a connected *gorm.DB plus a cleanup function. It takes no
+// NewPostgres spins up a throwaway PostgreSQL container, migrates the schema as the owner,
+// and returns a *gorm.DB connected as AppRole plus a cleanup function. It takes no
 // *testing.T so it can be used from TestMain to share one container per package.
 func NewPostgres(ctx context.Context) (*gorm.DB, func(), error) {
 	container, err := tcpostgres.Run(ctx,
@@ -40,8 +40,15 @@ func NewPostgres(ctx context.Context) (*gorm.DB, func(), error) {
 	}
 	ownerDSN = dsn
 
-	// db.Connect connects (the container is already healthy) and runs Migrate.
-	gdb, err := db.Connect(dsn)
+	owner, err = db.Connect(dsn)
+	if err == nil {
+		err = db.ProvisionAppRole(owner, appPassword)
+	}
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	gdb, err := db.Open(appDSN())
 	if err != nil {
 		cleanup()
 		return nil, nil, err
@@ -49,7 +56,19 @@ func NewPostgres(ctx context.Context) (*gorm.DB, func(), error) {
 	return gdb, cleanup, nil
 }
 
-var ownerDSN string
+// Owner is the migrating superuser of the package's container.
+func Owner() *gorm.DB { return owner }
+
+func appDSN() string {
+	u, _ := url.Parse(ownerDSN)
+	u.User = url.UserPassword(AppRole, appPassword)
+	return u.String()
+}
+
+var (
+	ownerDSN string
+	owner    *gorm.DB
+)
 
 // AppRole is the login the server runs as; migrations run as the owner.
 const AppRole = "fikopar_app"
@@ -59,10 +78,7 @@ const appPassword = "app"
 // App connects to the package's container as AppRole.
 func App(t *testing.T) *gorm.DB {
 	t.Helper()
-	u, err := url.Parse(ownerDSN)
-	require.NoError(t, err)
-	u.User = url.UserPassword(AppRole, appPassword)
-	gdb, err := gorm.Open(postgres.Open(u.String()), &gorm.Config{})
+	gdb, err := gorm.Open(postgres.Open(appDSN()), &gorm.Config{})
 	require.NoError(t, err)
 	sqlDB, err := gdb.DB()
 	require.NoError(t, err)
@@ -80,8 +96,14 @@ func SetupTestDB(t *testing.T) *gorm.DB {
 	return gdb
 }
 
-// TruncateAll clears all rows between tests that share a container.
-func TruncateAll(t *testing.T, gdb *gorm.DB) {
+// TruncateAll clears all rows between tests that share a container, as the owner in replica
+// mode so the append-only TRUNCATE guards stay out of the way.
+func TruncateAll(t *testing.T) {
 	t.Helper()
-	require.NoError(t, gdb.Exec("TRUNCATE sicils, user_organizations, users, organizations RESTART IDENTITY CASCADE").Error)
+	require.NoError(t, owner.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`SET LOCAL session_replication_role = replica`).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`TRUNCATE sicils, user_organizations, users, organizations RESTART IDENTITY CASCADE`).Error
+	}))
 }

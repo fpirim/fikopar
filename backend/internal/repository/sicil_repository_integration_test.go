@@ -24,7 +24,7 @@ func seedOrgs(t *testing.T) (uint, uint) {
 }
 
 func TestSicilRepository_CRUD(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	orgA, orgB := seedOrgs(t)
 	repo := repository.NewSicilRepository(testDB)
 
@@ -65,7 +65,7 @@ func TestSicilRepository_CRUD(t *testing.T) {
 }
 
 func TestSicilRepository_UniqueHesapNoPerOrg(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	orgA, orgB := seedOrgs(t)
 	repo := repository.NewSicilRepository(testDB)
 
@@ -81,7 +81,7 @@ func TestSicilRepository_UniqueHesapNoPerOrg(t *testing.T) {
 }
 
 func TestSicilRepository_GridScopedByOrg(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	orgA, orgB := seedOrgs(t)
 	repo := repository.NewSicilRepository(testDB)
 
@@ -100,7 +100,7 @@ func TestSicilRepository_GridScopedByOrg(t *testing.T) {
 }
 
 func TestSicilRepository_GridSearch(t *testing.T) {
-	testutil.TruncateAll(t, testDB)
+	testutil.TruncateAll(t)
 	orgA, _ := seedOrgs(t)
 	repo := repository.NewSicilRepository(testDB)
 
