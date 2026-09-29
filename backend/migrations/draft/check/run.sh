@@ -1,6 +1,6 @@
 #!/bin/sh
 # Applies the promoted migrations (../../0*.sql), then the drafts still to be promoted (0004_documents,
-# 0006_migration), to a throwaway postgres:16 and runs the invariant checks. MUTATE=M1|M2|M3 applies one mutation
+# 0006_migration), to a throwaway postgres:16 and runs the invariant checks. MUTATE=M1..M4 applies one mutation
 # of 0004_documents first (check/mutations.sh).
 set -e
 cd "$(dirname "$0")/.."
@@ -14,6 +14,7 @@ case "${MUTATE:-}" in
   M1) docs=$(grep -v -- '-- M1$' 0004_documents.sql) ;;
   M2) docs=$(sed 's/AND ol.qty < (SELECT/AND false AND ol.qty < (SELECT/' 0004_documents.sql) ;;
   M3) docs=$(sed 's/AND l.reserved + NEW.qty <= l.on_hand;/;/' 0004_documents.sql) ;;
+  M4) docs=$(sed 's/IF o.net_total < (SELECT/IF false AND o.net_total < (SELECT/' 0004_documents.sql) ;;
   *) echo "unknown mutation $MUTATE" >&2; exit 2 ;;
 esac
 { cat check/prelude.sql ../0*.sql; printf '%s\n' "$docs"; cat 0006_migration.sql check/invariants.sql check/documents.sql; } |

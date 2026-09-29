@@ -1,5 +1,5 @@
 -- Contracts v1.4 documents (0004_documents): line arithmetic, reservations (D8), billing once (D4), return cap (D6),
--- price differences, cancellation, last purchase cost, closed years. Runs after invariants.sql (2025 is closed).
+-- price differences with the decrease cap (D7), cancellation, last purchase cost, closed years. Runs after invariants.sql (2025 is closed).
 
 INSERT INTO users (email, name, role) VALUES ('admin@example.test', 'Admin', 'admin');
 INSERT INTO parts (org_id, catalog_id, stock_no, name) VALUES (1, 1, 'P3', 'Pump');                        -- part 3
@@ -7,10 +7,13 @@ INSERT INTO stock_movements (org_id, part_id, depot_id, kind, qty, source_type, 
 VALUES (1, 3, 1, 'IN', 10, 'legacy_import', 'x10', '2026-01-05');
 
 CREATE FUNCTION pg_temp.doc(p_type text, p_date date, p_linked bigint DEFAULT NULL, p_waybill bigint DEFAULT NULL,
-                            p_sicil bigint DEFAULT 1, p_depot bigint DEFAULT 1) RETURNS bigint
+                            p_sicil bigint DEFAULT 1, p_depot bigint DEFAULT 1, p_direction text DEFAULT NULL)
+RETURNS bigint
 LANGUAGE sql AS $$
-  INSERT INTO documents (org_id, depot_id, type, sicil_id, document_date, linked_document_id, waybill_id)
-  VALUES (1, p_depot, p_type, p_sicil, p_date, p_linked, p_waybill) RETURNING id
+  INSERT INTO documents (org_id, depot_id, type, sicil_id, document_date, linked_document_id, waybill_id,
+                         price_direction)
+  VALUES (1, p_depot, p_type, p_sicil, p_date, p_linked, p_waybill,
+          CASE WHEN p_type = 'PRICE_DIFFERENCE' THEN coalesce(p_direction, 'INCREASE') ELSE p_direction END) RETURNING id
 $$;
 
 -- Adds a line with the contract arithmetic and keeps the draft's totals = Σ lines.
@@ -26,6 +29,22 @@ BEGIN
                               vat_pct, gross_amount, discount_amount, net_amount, vat_amount, origin_line_id, billed_line_id)
   VALUES (1, p_doc, (SELECT coalesce(max(line_no), 0) + 1 FROM document_lines WHERE document_id = p_doc), p_part,
           p_qty, p_price, p_d1, p_d2, p_vat, g, g - n, n, round(n * p_vat * 0.01, 2), p_origin, p_billed)
+  RETURNING id INTO v_id;
+  PERFORM pg_temp.totals(p_doc);
+  RETURN v_id;
+END $$;
+
+-- Price-difference line: amount only (qty 1, no discounts), part of the origin line or none.
+CREATE FUNCTION pg_temp.fline(p_doc bigint, p_amount numeric, p_origin bigint DEFAULT NULL, p_vat numeric DEFAULT 20)
+RETURNS bigint
+LANGUAGE plpgsql AS $$
+DECLARE v_id bigint; n numeric := round(p_amount, 2);
+BEGIN
+  INSERT INTO document_lines (org_id, document_id, line_no, part_id, qty, unit_price, vat_pct, gross_amount,
+                              discount_amount, net_amount, vat_amount, origin_line_id, description)
+  VALUES (1, p_doc, (SELECT coalesce(max(line_no), 0) + 1 FROM document_lines WHERE document_id = p_doc),
+          (SELECT part_id FROM document_lines WHERE id = p_origin), 1, p_amount, p_vat, n, 0, n,
+          round(n * p_vat * 0.01, 2), p_origin, 'Fiyat farkı')
   RETURNING id INTO v_id;
   PERFORM pg_temp.totals(p_doc);
   RETURN v_id;
@@ -228,7 +247,7 @@ BEGIN
   ol := pg_temp.line(o, 3, 5, 100);
   PERFORM pg_temp.post(o);
   f := pg_temp.doc('PRICE_DIFFERENCE', '2026-04-02', o);
-  PERFORM pg_temp.line(f, 3, 5, 2, p_origin => ol);
+  PERFORM pg_temp.fline(f, 10, ol);
   PERFORM pg_temp.post(f);
   PERFORM pg_temp.refuses(format($q$SELECT pg_temp.move(%s, 'OUT', '2026-04-02')$q$,
     (SELECT id FROM document_lines WHERE document_id = f)), '%cannot move stock%', 'price difference stock move');
@@ -264,11 +283,79 @@ BEGIN
   PERFORM pg_temp.refuses(format('SELECT pg_temp.post(%s)', x), 'ERR_LINKED_DOCUMENT_INVALID%', 'return of another part');
   DELETE FROM documents WHERE id = x;
   x := pg_temp.doc('PRICE_DIFFERENCE', '2026-04-07', o);
-  PERFORM pg_temp.line(x, 3, 1, 1);
-  PERFORM pg_temp.refuses(format('SELECT pg_temp.post(%s)', x), 'ERR_LINKED_DOCUMENT_INVALID%', 'price difference without line');
+  PERFORM pg_temp.fline(x, 1, r1l);                                     -- a line of another document
+  PERFORM pg_temp.refuses(format('SELECT pg_temp.post(%s)', x), 'ERR_LINKED_DOCUMENT_INVALID%',
+    'price difference on a line of another document');
   DELETE FROM documents WHERE id = x;
   PERFORM pg_temp.refuses($q$SELECT pg_temp.doc('SALES_RETURN_WAYBILL', '2026-04-07')$q$, '%documents_check%',
     'unlinked return');
+END $$;
+
+-- D7 price differences: amount-only lines, direction required, a DECREASE capped by the original's net minus
+-- earlier decreases and goods-moving returns (M4), of its own lines or of the waybill it bills.
+DO $$
+DECLARE o bigint; ol bigint; r bigint; f bigint; d1 bigint; d2 bigint; w bigint; wl bigint; b bigint; a bigint;
+BEGIN
+  o := pg_temp.doc('SALES_INVOICE_WITH_WAYBILL', '2026-04-10');
+  ol := pg_temp.line(o, 3, 2, 100);                                      -- net 200
+  PERFORM pg_temp.post(o);
+  PERFORM pg_temp.refuses(format($q$INSERT INTO documents (org_id, depot_id, type, sicil_id, document_date, linked_document_id)
+    VALUES (1, 1, 'PRICE_DIFFERENCE', 1, '2026-04-10', %s)$q$, o), '%documents_check%', 'price difference without direction');
+  PERFORM pg_temp.refuses($q$SELECT pg_temp.doc('SALES_INVOICE', '2026-04-10', p_direction => 'DECREASE')$q$,
+    '%documents_check%', 'direction on an invoice');
+  f := pg_temp.doc('PRICE_DIFFERENCE', '2026-04-11', o);
+  PERFORM pg_temp.refuses(format('SELECT pg_temp.line(%s, 3, 2, 5, p_origin => %s)', f, ol), '%amount only%',
+    'price difference line with qty');
+  PERFORM pg_temp.refuses(format('SELECT pg_temp.line(%s, 3, 1, 5)', f), '%amount only%',
+    'price difference line with a part and no origin');
+  PERFORM pg_temp.refuses(format($q$INSERT INTO document_lines (org_id, document_id, line_no, qty, unit_price,
+    gross_amount, discount_amount, net_amount, vat_amount) VALUES (1, %s, 9, 1, 1, 1, 0, 1, 0)$q$,
+    pg_temp.doc('SALES_INVOICE', '2026-04-10')), '%needs a part%', 'invoice line without part');
+  PERFORM pg_temp.fline(f, 50);                                          -- increase, no origin line
+  PERFORM pg_temp.post(f);
+
+  r := pg_temp.doc('SALES_RETURN', '2026-04-12', o);
+  PERFORM pg_temp.line(r, 3, 1, 100, p_origin => ol);                    -- returns net 100
+  PERFORM pg_temp.post(r);
+  d1 := pg_temp.doc('PRICE_DIFFERENCE', '2026-04-13', o, p_direction => 'DECREASE');
+  PERFORM pg_temp.fline(d1, 80, ol);
+  PERFORM pg_temp.post(d1);                                              -- 100 + 80 ≤ 200
+  d2 := pg_temp.doc('PRICE_DIFFERENCE', '2026-04-14', o, p_direction => 'DECREASE');
+  PERFORM pg_temp.fline(d2, 20.01);
+  PERFORM pg_temp.refuses(format('SELECT pg_temp.post(%s)', d2), 'ERR_PRICE_DIFFERENCE_EXCEEDED%', 'decrease cap');
+  DELETE FROM document_lines WHERE document_id = d2;
+  PERFORM pg_temp.fline(d2, 20);
+  PERFORM pg_temp.post(d2);                                              -- exactly 200
+  PERFORM pg_temp.refuses(format($q$SELECT pg_temp.cancel(%s, '2026-04-15')$q$, o), 'ERR_DOCUMENT_HAS_DEPENDENTS%',
+    'original cancel with price differences');
+  PERFORM pg_temp.cancel(d1, '2026-04-15');                              -- frees 80
+  d1 := pg_temp.doc('PRICE_DIFFERENCE', '2026-04-15', o, p_direction => 'DECREASE');
+  PERFORM pg_temp.fline(d1, 80);
+  PERFORM pg_temp.post(d1);
+
+  w := pg_temp.doc('SALES_WAYBILL', '2026-04-16');                       -- a bill: returns link its waybill
+  wl := pg_temp.line(w, 3, 2, 100);
+  PERFORM pg_temp.post(w);
+  b := pg_temp.doc('SALES_INVOICE', '2026-04-16', p_waybill => w);
+  PERFORM pg_temp.line(b, 3, 2, 100, p_billed => wl);
+  PERFORM pg_temp.post(b);
+  r := pg_temp.doc('SALES_RETURN_WAYBILL', '2026-04-17', w);
+  PERFORM pg_temp.line(r, 3, 1, 100, p_origin => wl);
+  PERFORM pg_temp.post(r);
+  f := pg_temp.doc('PRICE_DIFFERENCE', '2026-04-18', b, p_direction => 'DECREASE');
+  PERFORM pg_temp.fline(f, 100.01);
+  PERFORM pg_temp.refuses(format('SELECT pg_temp.post(%s)', f), 'ERR_PRICE_DIFFERENCE_EXCEEDED%',
+    'decrease cap counts returns of the billed waybill');
+  DELETE FROM documents WHERE id = f;
+
+  INSERT INTO parts (org_id, catalog_id, stock_no, name) VALUES (1, 1, 'P4', 'Valve') RETURNING id INTO wl;
+  a := pg_temp.doc('PURCHASE_INVOICE', '2026-04-19', p_sicil => 2);
+  PERFORM pg_temp.line(a, wl, 1, 100);
+  PERFORM pg_temp.post(a);
+  f := pg_temp.doc('PRICE_DIFFERENCE', '2026-04-19', a, p_sicil => 2, p_direction => 'DECREASE');
+  PERFORM pg_temp.fline(f, 100.01);
+  PERFORM pg_temp.refuses(format('SELECT pg_temp.post(%s)', f), 'ERR_PRICE_DIFFERENCE_EXCEEDED%', 'purchase decrease cap');
+  DELETE FROM documents WHERE id = f;
 END $$;
 
 -- D1 cancellation: POSTED → CANCELLED only; opposite movement once, on the cancel date, after the cancel.

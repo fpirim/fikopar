@@ -1,6 +1,6 @@
 -- Contracts v1.4 (docs/adr/0013-contracts-v1-4.md): trade documents, lines, reservations, last purchase cost.
 -- Applies after the promoted migrations 0001–0011; F3 promotes it as 0012. Type → prefix, ledger and stock effect:
--- docs/domain-model.md, "Documents". Lines marked M1, M2, M3 are mutated by check/mutations.sh.
+-- docs/domain-model.md, "Documents". Lines marked M1–M4 are mutated by check/mutations.sh.
 
 ALTER TABLE account_roles
   DROP CONSTRAINT account_roles_role_check,
@@ -77,6 +77,7 @@ CREATE TABLE documents (
   due_date               date,
   sales_rep_user_id      bigint        REFERENCES users(id),
   linked_document_id     bigint,                        -- original of a return or price difference
+  price_direction        text          CHECK (price_direction IN ('INCREASE','DECREASE')), -- price differences only
   waybill_id             bigint,                        -- waybill billed by this invoice or return
   currency               char(3)       NOT NULL DEFAULT 'TRY' CHECK (currency = 'TRY'),
   gross_total            numeric(18,2) NOT NULL DEFAULT 0 CHECK (gross_total >= 0),
@@ -118,6 +119,7 @@ CREATE TABLE documents (
   CHECK (credit_override_reason IS NULL OR length(btrim(credit_override_reason)) >= 3),
   CHECK (credit_override_at IS NULL OR status <> 'DRAFT'),
   CHECK (type <> 'PRICE_DIFFERENCE' OR linked_document_id IS NOT NULL),
+  CHECK ((type = 'PRICE_DIFFERENCE') = (price_direction IS NOT NULL)),
   CHECK (linked_document_id IS NULL OR is_return(type) OR type = 'PRICE_DIFFERENCE'),
   CHECK (origin = 'LEGACY' OR NOT is_return(type) OR linked_document_id IS NOT NULL),
   CHECK (waybill_id IS NULL OR type IN ('SALES_INVOICE','PURCHASE_INVOICE','SALES_RETURN','PURCHASE_RETURN')),
@@ -141,7 +143,7 @@ CREATE TABLE document_lines (
   org_id          bigint        NOT NULL,
   document_id     bigint        NOT NULL,
   line_no         int           NOT NULL CHECK (line_no > 0),
-  part_id         bigint        NOT NULL,
+  part_id         bigint,                               -- NULL only on a price-difference line without origin
   qty             numeric(18,4) NOT NULL CHECK (qty > 0),
   unit_price      numeric(18,4) NOT NULL CHECK (unit_price >= 0),
   discount1_pct   numeric(7,4)  NOT NULL DEFAULT 0 CHECK (discount1_pct BETWEEN 0 AND 100),
@@ -153,6 +155,7 @@ CREATE TABLE document_lines (
   vat_amount      numeric(18,2) NOT NULL,
   origin_line_id  bigint,                               -- line returned (returns) or re-priced (price difference)
   billed_line_id  bigint,                               -- waybill line billed by this line
+  description     text,                                 -- printed text of a price-difference line
   UNIQUE (document_id, line_no),
   UNIQUE (org_id, id),
   FOREIGN KEY (org_id, document_id)    REFERENCES documents (org_id, id) ON DELETE CASCADE,
@@ -188,11 +191,11 @@ BEGIN
       USING ERRCODE = 'check_violation';
   END IF;
   IF OLD.status = 'POSTED' AND (NEW.document_no, NEW.type, NEW.origin, NEW.sicil_id, NEW.depot_id, NEW.document_date,
-       NEW.due_date, NEW.linked_document_id, NEW.waybill_id, NEW.gross_total, NEW.discount_total, NEW.vat_total,
-       NEW.posted_at, NEW.credit_override_at)
+       NEW.due_date, NEW.linked_document_id, NEW.price_direction, NEW.waybill_id, NEW.gross_total,
+       NEW.discount_total, NEW.vat_total, NEW.posted_at, NEW.credit_override_at)
      IS DISTINCT FROM (OLD.document_no, OLD.type, OLD.origin, OLD.sicil_id, OLD.depot_id, OLD.document_date,
-       OLD.due_date, OLD.linked_document_id, OLD.waybill_id, OLD.gross_total, OLD.discount_total, OLD.vat_total,
-       OLD.posted_at, OLD.credit_override_at) THEN
+       OLD.due_date, OLD.linked_document_id, OLD.price_direction, OLD.waybill_id, OLD.gross_total,
+       OLD.discount_total, OLD.vat_total, OLD.posted_at, OLD.credit_override_at) THEN
     RAISE EXCEPTION 'document % is POSTED; cancelling changes the cancel fields only', OLD.id
       USING ERRCODE = 'check_violation';
   END IF;
@@ -206,15 +209,30 @@ BEGIN
 END $$;
 
 -- Lines change only while their document is a DRAFT (a cascade from a deleted draft finds no parent).
+-- A price-difference line is amount only: qty 1, unit price = the difference (net), no discounts, part = the
+-- origin line's part or NULL without origin. Every other line has a part.
 CREATE OR REPLACE FUNCTION check_document_line_change() RETURNS trigger
 LANGUAGE plpgsql AS $$
-DECLARE v_status text;
+DECLARE v_status text; v_type text;
 BEGIN
-  SELECT status INTO v_status FROM documents
+  SELECT status, type INTO v_status, v_type FROM documents
    WHERE org_id = coalesce(NEW.org_id, OLD.org_id) AND id = coalesce(NEW.document_id, OLD.document_id);
   IF v_status IS NOT NULL AND v_status <> 'DRAFT' THEN
     RAISE EXCEPTION 'ERR_DOCUMENT_NOT_DRAFT: lines of document % are fixed', coalesce(NEW.document_id, OLD.document_id)
       USING ERRCODE = 'check_violation';
+  END IF;
+  IF TG_OP <> 'DELETE' AND v_type IS NOT NULL THEN
+    IF v_type = 'PRICE_DIFFERENCE' THEN
+      IF NEW.qty <> 1 OR NEW.discount1_pct <> 0 OR NEW.discount2_pct <> 0 OR NEW.billed_line_id IS NOT NULL
+         OR NEW.part_id IS DISTINCT FROM (SELECT part_id FROM document_lines
+                                           WHERE org_id = NEW.org_id AND id = NEW.origin_line_id) THEN
+        RAISE EXCEPTION 'price-difference line % is amount only (qty 1, no discounts, part of its origin line)', NEW.id
+          USING ERRCODE = 'check_violation';
+      END IF;
+    ELSIF NEW.part_id IS NULL OR NEW.description IS NOT NULL THEN
+      RAISE EXCEPTION 'line % of document % needs a part and no free text', NEW.id, NEW.document_id
+        USING ERRCODE = 'check_violation';
+    END IF;
   END IF;
   RETURN coalesce(NEW, OLD);
 END $$;
@@ -271,7 +289,7 @@ BEGIN
 END $$;
 
 -- On post: lines, totals = Σ lines, no reservation left, open year; links of returns and price differences;
--- D6 return cap. On cancel: nothing posted may still point at it.
+-- D6 return cap; D7 decrease cap. On cancel: nothing posted may still point at it.
 CREATE OR REPLACE FUNCTION check_document_post() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -332,14 +350,35 @@ BEGIN
     RAISE EXCEPTION 'ERR_LINKED_DOCUMENT_INVALID: % cannot link %', NEW.id, NEW.linked_document_id
       USING ERRCODE = 'check_violation';
   END IF;
+  -- Return lines each take back an original line of the same part; price-difference lines may name one.
   SELECT l.id INTO v_bad FROM document_lines l
     LEFT JOIN document_lines ol ON ol.org_id = l.org_id AND ol.id = l.origin_line_id
    WHERE l.org_id = NEW.org_id AND l.document_id = NEW.id
-     AND (ol.id IS NULL OR ol.document_id <> o.id OR ol.part_id <> l.part_id)
+     AND NOT (NEW.type = 'PRICE_DIFFERENCE' AND l.origin_line_id IS NULL)
+     AND (ol.id IS NULL OR ol.document_id <> o.id OR ol.part_id IS DISTINCT FROM l.part_id)
    LIMIT 1;
   IF v_bad IS NOT NULL THEN
     RAISE EXCEPTION 'ERR_LINKED_DOCUMENT_INVALID: line % has no original line in %', v_bad, o.id
       USING ERRCODE = 'check_violation';
+  END IF;
+
+  IF NEW.price_direction = 'DECREASE' THEN
+    -- D7: original net − Σ net of posted decreases (this one included) − Σ net of posted goods-moving returns of
+    -- its lines (or of the lines of the waybill it bills) ≥ 0. Increases do not raise the cap.
+    IF o.net_total < (SELECT coalesce(sum(f.net_total), 0) FROM documents f                         -- M4
+                       WHERE f.org_id = NEW.org_id AND f.linked_document_id = o.id
+                         AND f.price_direction = 'DECREASE' AND (f.id = NEW.id OR f.status = 'POSTED'))
+                   + (SELECT coalesce(sum(rl.net_amount), 0)
+                        FROM document_lines rl JOIN documents r ON r.org_id = rl.org_id AND r.id = rl.document_id
+                       WHERE rl.org_id = NEW.org_id AND is_return(r.type) AND r.waybill_id IS NULL
+                         AND r.status = 'POSTED'
+                         AND rl.origin_line_id IN (SELECT x FROM document_lines ol,
+                                                          LATERAL (VALUES (ol.id), (ol.billed_line_id)) v(x)
+                                                    WHERE ol.org_id = NEW.org_id AND ol.document_id = o.id
+                                                      AND x IS NOT NULL)) THEN
+      RAISE EXCEPTION 'ERR_PRICE_DIFFERENCE_EXCEEDED: decreases and returns of % exceed its net %', o.id, o.net_total
+        USING ERRCODE = 'check_violation';
+    END IF;
   END IF;
 
   IF is_return(NEW.type) AND NEW.waybill_id IS NOT NULL THEN

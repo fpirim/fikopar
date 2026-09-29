@@ -94,6 +94,22 @@
             "properties": {
               "movesStock": {
                 "const": false
+              },
+              "priceDirection": {
+                "enum": [
+                  "INCREASE",
+                  "DECREASE"
+                ]
+              }
+            },
+            "required": [
+              "priceDirection"
+            ]
+          },
+          "else": {
+            "properties": {
+              "priceDirection": {
+                "const": null
               }
             }
           }
@@ -127,6 +143,18 @@
             "PURCHASE"
           ],
           "description": "For PRICE_DIFFERENCE, taken from the linked document"
+        },
+        "priceDirection": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "INCREASE",
+            "DECREASE",
+            null
+          ],
+          "description": "PRICE_DIFFERENCE only (null otherwise): INCREASE debits a customer / credits a supplier, DECREASE the opposite (posting table in ADR-0013)"
         },
         "sicilId": {
           "type": "integer"
@@ -194,7 +222,6 @@
             "required": [
               "lineId",
               "lineNo",
-              "partId",
               "qty",
               "unitPrice",
               "discount1Pct",
@@ -214,7 +241,11 @@
                 "type": "integer"
               },
               "partId": {
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Null only on a price-difference line without origin"
               },
               "qty": {
                 "type": "string",
@@ -260,8 +291,16 @@
                   "integer",
                   "null"
                 ]
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Price-difference lines: printed text"
               }
-            }
+            },
+            "description": "PRICE_DIFFERENCE lines are amount only: qty 1, unitPrice = netAmount, no discounts"
           }
         },
         "salesRepUserId": {

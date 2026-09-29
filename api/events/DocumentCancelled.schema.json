@@ -61,6 +61,18 @@
             "PURCHASE"
           ]
         },
+        "priceDirection": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "INCREASE",
+            "DECREASE",
+            null
+          ],
+          "description": "PRICE_DIFFERENCE only (null otherwise): INCREASE debits a customer / credits a supplier, DECREASE the opposite (posting table in ADR-0013)"
+        },
         "sicilId": {
           "type": "integer"
         },
@@ -102,7 +114,38 @@
             }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "documentType": {
+                "const": "PRICE_DIFFERENCE"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "priceDirection"
+            ],
+            "properties": {
+              "priceDirection": {
+                "enum": [
+                  "INCREASE",
+                  "DECREASE"
+                ]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "priceDirection": {
+                "const": null
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

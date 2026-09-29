@@ -68,10 +68,11 @@ Each sicil gets a current account (`120.<hesapNo>` customer, `320.<hesapNo>` sup
 - `AccountRole {role, depot_id?, account_id}` — accounts used by posting rules (CASH, SALES, OUTPUT_VAT, RECEIVABLE_CHEQUES, OPENING, …); a depot row overrides the company default.
 
 **Documents** (v1.4, [ADR-0013](adr/0013-contracts-v1-4.md))
-- `Document {depot_id, document_no, type, status: DRAFT|POSTED|CANCELLED, origin: APP|LEGACY, sicil_id, document_date, ship_date, due_date, sales_rep_user_id, linked_document_id, waybill_id, gross/discount/net/vat/grand totals, sicil_snapshot, credit_override_{reason,by,at,excess}, posted_at, cancel_date, cancel_reason, version}`.
+- `Document {depot_id, document_no, type, status: DRAFT|POSTED|CANCELLED, origin: APP|LEGACY, sicil_id, document_date, ship_date, due_date, sales_rep_user_id, linked_document_id, price_direction, waybill_id, gross/discount/net/vat/grand totals, sicil_snapshot, credit_override_{reason,by,at,excess}, posted_at, cancel_date, cancel_reason, version}`.
   `linked_document_id` points to the original of a return, return waybill or price difference; `waybill_id` to the waybill an invoice or return bills.
+  `price_direction`: `INCREASE | DECREASE`, set on price differences only.
   A DRAFT is edited or deleted; POSTED is fixed and only cancelled (reversal entry + opposite movements on `cancel_date`).
-- `DocumentLine {part_id, qty, unit_price, discount1_pct, discount2_pct, vat_pct, gross_amount, discount_amount, net_amount, vat_amount, origin_line_id, billed_line_id}` — always a Part, never free text.
+- `DocumentLine {part_id, qty, unit_price, discount1_pct, discount2_pct, vat_pct, gross_amount, discount_amount, net_amount, vat_amount, origin_line_id, billed_line_id, description}` — always a Part, never free text, except on a price difference: amount only (qty 1, unit price = the difference, no discounts), the part of its origin line or, without one, no part and a `description`.
   `origin_line_id`: the original line a return takes back or a price difference re-prices; `billed_line_id`: the waybill line billed.
 - **Amounts** per line, half-up to 2 decimals: gross = round(qty × price); net = round(qty × price × (1 − d1/100) ×
   (1 − d2/100)) from the unrounded product; discount = gross − net; VAT = round(net × VAT%/100). Document totals = Σ
@@ -94,7 +95,7 @@ Each sicil gets a current account (`120.<hesapNo>` customer, `320.<hesapNo>` sup
 | PURCHASE_WAYBILL | AIR | — | IN | — |
 | PURCHASE_RETURN | AI | reverse of purchase | OUT; none when it bills a waybill | PURCHASE_RETURN_WAYBILL |
 | PURCHASE_RETURN_WAYBILL | AIRI | — | OUT | — |
-| PRICE_DIFFERENCE | FF | difference only; direction from the linked document | — | — |
+| PRICE_DIFFERENCE | FF | difference only; sales / purchase from the linked invoice, INCREASE / DECREASE from `price_direction` (one prefix for both) | — | — |
 
 A return waybill moves the goods back when they arrive; the return invoice issued later bills it and only
 posts to the ledger.
@@ -108,17 +109,21 @@ V VAT, T total; C = the card's current account. Accounts by role (`account_roles
 | SI | SALES_RETURNS (610) N; OUTPUT_VAT V | C T |
 | AF, AF with waybill | PURCHASES (153) N; INPUT_VAT (191) V | C T |
 | AI | C T | PURCHASE_RETURNS (153) N; INPUT_VAT V |
-| FF on a sale | C T | PRICE_DIFFERENCE (600) N; OUTPUT_VAT V |
-| FF on a purchase | PURCHASES N; INPUT_VAT V | C T |
+| FF INCREASE on a sale | C T | PRICE_DIFFERENCE (600) N; OUTPUT_VAT V |
+| FF DECREASE on a sale | SALES_DISCOUNTS (611) N; OUTPUT_VAT V | C T |
+| FF INCREASE on a purchase | PURCHASES N; INPUT_VAT V | C T |
+| FF DECREASE on a purchase | C T | PURCHASES N; INPUT_VAT V |
 
 One entry per document on its date and depot; the C posting carries the due date; zero amounts are left out.
 Cancel = the reversal of that entry, dated the cancel date.
 
 **Returns and price differences.** A return links the document that moved the goods (SF, SF with waybill, SIR; AF,
 AF with waybill, AIR; not a bill) and each line an original line. A price difference links a posted invoice of the
-same card and depot and adds qty × unit price to its lines; increase only, no stock.
+same card and depot, raises (INCREASE) or lowers (DECREASE) it by amount-only lines, optionally per original line, with
+VAT and no stock. A DECREASE never takes the invoice below zero: original net − posted decreases − posted returns ≥ 0
+(`ERR_PRICE_DIFFERENCE_EXCEEDED`).
 
-**Credit limit.** Posting SF, SF with waybill or FF on a sale with balance + total > the card's limit is refused
+**Credit limit.** Posting SF, SF with waybill or an FF INCREASE on a sale with balance + total > the card's limit is refused
 (`ERR_CREDIT_LIMIT_EXCEEDED`: limit, balance, document total, excess). balance = current account over all depots and
 dates plus the card's posted or cancelled documents whose ledger event is not delivered yet. An admin posts with a
 reason; it is stored on the document and in the audit trail.
@@ -246,7 +251,7 @@ There is one till per depot and no combined book: `getCashBook` needs a depot.
 | D4 | Goods move once: a document that bills a waybill never moves stock. The waybill has the matching type, sicil and depot, is POSTED before the bill posts, is billed line for line (same part and qty, every line once) by one non-cancelled document and cannot be cancelled while billed | `documents_waybill_rules`, `stock_movements_document_rules`; partial unique index `documents_waybill_once` |
 | D5 | Line amounts follow the rounding rule; on post a document has ≥ 1 line and totals = Σ lines, in an open year | CHECKs on `document_lines`; `documents_post_rules` |
 | D6 | A return links the document that moved the goods, same card; per original line Σ qty of posted goods-moving returns ≤ original qty; a return that bills a return waybill is not counted again; a document with posted returns or price differences cannot be cancelled | `documents_post_rules` (locks the original) |
-| D7 | A price difference links a posted invoice of the same card and depot, line by line (same part) | `documents_post_rules` |
+| D7 | A price difference has a direction (INCREASE / DECREASE, only FF) and links a posted invoice of the same card and depot; its lines are amount only (qty 1, no discounts) and name an original line of that invoice (same part) or none (no part). A DECREASE: original net − Σ net of posted decreases − Σ net of posted goods-moving returns of the original's lines (or its waybill's) ≥ 0 | CHECKs on `documents`; `document_lines_draft_only`; `documents_post_rules` (locks the original) |
 | D8 | Reservations only on DRAFTs that will move stock OUT, one per line, ≤ line qty, never more than available when taken; `reserved` = Σ reservations; none left when a document posts | `stock_reservations_rules`, `apply_stock_reservation()` (definer), `stock_levels_guard`, `stock_reservation_drift` view |
 | D9 | A credit override is all of reason, user, time and excess, on a posted document, and an audit event | CHECKs on `documents`; service |
 | N1 | Numbers are unique and gap-free per (company, depot, prefix, year); the counter only moves forward | Counter row upsert `… RETURNING`; forward-only trigger |
@@ -380,7 +385,7 @@ Sources are CP857 (Turkish DOS) encoded.
 16 collection receipt (tahsilat makbuzu), 17 payment receipt (tediye makbuzu),
 18 receivable cheque, 19 payable cheque, 20 receivable note, 21 payable note.
 Codes 1–6 map one to one; 7/9 → PURCHASE_RETURN, 8 → PURCHASE_RETURN_WAYBILL, 10/12 → SALES_RETURN,
-11 → SALES_RETURN_WAYBILL, 13/14 → PRICE_DIFFERENCE.
+11 → SALES_RETURN_WAYBILL, 13/14 → PRICE_DIFFERENCE (INCREASE; DECREASE with absolute amounts when the total is negative).
 Legacy document numbers are kept as imported; new numbers use the prefix series.
 
 | Legacy file (FD) | Key | Fields (PIC) | New entity / column | Notes |

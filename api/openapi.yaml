@@ -1261,7 +1261,10 @@ paths:
         A draft that will move stock OUT reserves `min(qty, available)` per line for 48 h (`StockReserved`).
         422: ERR_SICIL_NOT_FOUND, ERR_DEPOT_NOT_FOUND, ERR_PART_NOT_FOUND / ERR_PART_INACTIVE (`lines[i].partId`),
         ERR_USER_NOT_FOUND (`salesRepUserId`, not a member), ERR_LINKED_DOCUMENT_INVALID (`linkedDocumentId`,
-        `lines[i].originLineId`), ERR_WAYBILL_INVALID (`waybillDocumentId`, `lines[i].billedLineId`). 409
+        `lines[i].originLineId`), ERR_WAYBILL_INVALID (`waybillDocumentId`, `lines[i].billedLineId`). 400
+        ERR_INVALID_REQUEST (`field`): `priceDirection` missing on PRICE_DIFFERENCE or set on another type; a
+        price-difference line with qty ≠ 1, discounts or a `partId` other than its origin line's; another type's
+        line without `partId` or with `description`. 409
         ERR_WAYBILL_BILLED (the waybill has another non-cancelled bill), ERR_YEAR_CLOSED.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
@@ -1347,11 +1350,13 @@ paths:
         reservations released (`StockReleased POSTED`), `DocumentPosted`. The ledger entry and the stock movements
         follow from the event (ADR-0013 posting table). Negative stock never blocks: `warnings` NEGATIVE_STOCK.
         409: ERR_DOCUMENT_NOT_DRAFT, ERR_YEAR_CLOSED, ERR_WAYBILL_BILLED, ERR_CREDIT_LIMIT_EXCEEDED (SF, SF with
-        waybill, FF on a sale; card limit set and balance + grandTotal > limit; `details` = `CreditLimitExceeded`)
+        waybill, FF INCREASE on a sale; card limit set and balance + grandTotal > limit; `details` = `CreditLimitExceeded`)
         unless `creditOverride` is sent by an admin (403 ERR_FORBIDDEN otherwise). An override that was not needed is
         ignored and not recorded. 422: ERR_DOCUMENT_EMPTY, ERR_PART_INACTIVE, ERR_WAYBILL_INVALID (waybill not POSTED
         or lines do not bill it line for line), ERR_LINKED_DOCUMENT_INVALID, ERR_RETURN_QTY_EXCEEDED
-        (`lines[i].qty`), ERR_ACCOUNT_ROLE_MISSING, ERR_ACCOUNT_NOT_FOUND (the card has no current account).
+        (`lines[i].qty`), ERR_PRICE_DIFFERENCE_EXCEEDED (a DECREASE above the original's net minus its posted
+        decreases and goods-moving returns; `field` = `lines`),
+        ERR_ACCOUNT_ROLE_MISSING, ERR_ACCOUNT_NOT_FOUND (the card has no current account).
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
@@ -3188,6 +3193,7 @@ components:
         - ERR_WAYBILL_BILLED
         - ERR_CREDIT_LIMIT_EXCEEDED
         - ERR_RETURN_QTY_EXCEEDED
+        - ERR_PRICE_DIFFERENCE_EXCEEDED
         - ERR_DOCUMENT_HAS_DEPENDENTS
         - ERR_INSTRUMENT_NOT_FOUND
         - ERR_INSTRUMENT_DUPLICATE
@@ -3844,8 +3850,9 @@ components:
     DocumentType:
       type: string
       description: |
-        Waybills (including return waybills) move stock only. Price-difference invoices post to the ledger only and
-        take their direction (sales or purchase) from the linked document. Returns post to the ledger and move stock
+        Waybills (including return waybills) move stock only. Price-difference invoices post to the ledger only, take
+        sales or purchase from the linked invoice and INCREASE or DECREASE from `priceDirection` (prefix FF for both).
+        Returns post to the ledger and move stock
         back, unless they bill a return waybill. An invoice or return that bills a waybill never moves stock.
       enum:
         - SALES_INVOICE_WITH_WAYBILL
@@ -3859,6 +3866,14 @@ components:
         - PURCHASE_RETURN
         - PURCHASE_RETURN_WAYBILL
         - PRICE_DIFFERENCE
+    PriceDirection:
+      type: string
+      description: |
+        Price differences only. INCREASE: sales, the customer is debited (C / 600 + 391); purchase, the supplier is
+        credited (153 + 191 / C). DECREASE: sales, the customer is credited (611 + 391 / C); purchase, the supplier is
+        debited (C / 153 + 191). A DECREASE is capped by the original's net minus its posted decreases and
+        goods-moving returns (ERR_PRICE_DIFFERENCE_EXCEEDED).
+      enum: [INCREASE, DECREASE]
     DocumentStatus:
       type: string
       description: DRAFT → POSTED → CANCELLED. A DRAFT is deleted, never cancelled.
@@ -3872,9 +3887,14 @@ components:
         email: { type: string, format: email }
     DocumentLineWrite:
       type: object
-      required: [partId, qty, unitPrice]
+      description: |
+        PRICE_DIFFERENCE lines are amount only: qty 1, unitPrice = the difference (net), no discounts, VAT applies
+        (default the origin line's); `partId` is the origin line's (omit it) or null without `originLineId`, and
+        `description` is printed. Every other type needs `partId` and no `description`.
+      required: [qty, unitPrice]
       properties:
-        partId: { type: integer, description: Catalog part; never free text }
+        partId: { type: [integer, 'null'], description: Catalog part; never free text. Null only on a price-difference line without origin }
+        description: { type: [string, 'null'], maxLength: 200, description: Price-difference lines only }
         qty: { $ref: '#/components/schemas/Quantity' }
         unitPrice: { $ref: '#/components/schemas/Money4' }
         discount1Pct: { $ref: '#/components/schemas/Percent', description: "Default: the card's iskonto" }
@@ -3882,7 +3902,7 @@ components:
         vatPct: { $ref: '#/components/schemas/Percent', description: "Default: the part's VAT rate" }
         originLineId:
           type: [integer, 'null']
-          description: Returns and price differences; a line of `linkedDocumentId` with the same part
+          description: Returns (required) and price differences (optional); a line of `linkedDocumentId` with the same part
         billedLineId:
           type: [integer, 'null']
           description: Bills; a line of `waybillDocumentId` with the same part and qty, each waybill line once
@@ -3946,7 +3966,12 @@ components:
           description: |
             Required for returns and price differences, null otherwise. Returns: the SF / SF with waybill / SIR (sales)
             or AF / AF with waybill / AIR (purchases) that moved the goods, same card, not a bill. Price difference: a
-            posted invoice of the same card and depot.
+            posted SF / SF with waybill / AF / AF with waybill of the same card and depot.
+        priceDirection:
+          oneOf:
+            - $ref: '#/components/schemas/PriceDirection'
+            - type: 'null'
+          description: Required on PRICE_DIFFERENCE, null otherwise
         waybillDocumentId:
           type: [integer, 'null']
           description: >-
@@ -4007,6 +4032,10 @@ components:
         vatTotal: { $ref: '#/components/schemas/Money' }
         grandTotal: { $ref: '#/components/schemas/Money' }
         linkedDocumentNo: { type: [string, 'null'] }
+        priceDirection:
+          oneOf:
+            - $ref: '#/components/schemas/PriceDirection'
+            - type: 'null'
         waybillDocumentNo: { type: [string, 'null'] }
         creditOverride: { type: boolean, default: false }
         postedAt: { type: [string, 'null'], format: date-time }
@@ -4030,6 +4059,10 @@ components:
         salesRepName: { type: [string, 'null'] }
         linkedDocumentId: { type: [integer, 'null'] }
         linkedDocumentNo: { type: [string, 'null'] }
+        priceDirection:
+          oneOf:
+            - $ref: '#/components/schemas/PriceDirection'
+            - type: 'null'
         waybillDocumentId: { type: [integer, 'null'] }
         waybillDocumentNo: { type: [string, 'null'] }
         billedByDocumentId: { type: [integer, 'null'], description: 'Waybills: the non-cancelled invoice or return that bills it' }

@@ -22,13 +22,17 @@ blocks the post unless an admin overrides it with a reason; e-Fatura is out of s
    | SI sales return | SALES_RETURNS (610) N; OUTPUT_VAT V | C T |
    | AF, AF with waybill | PURCHASES (153) N; INPUT_VAT (191) V | C T |
    | AI purchase return | C T | PURCHASE_RETURNS (153) N; INPUT_VAT V |
-   | FF on a sale | C T | PRICE_DIFFERENCE (600) N; OUTPUT_VAT V |
-   | FF on a purchase | PURCHASES N; INPUT_VAT V | C T |
+   | FF INCREASE on a sale | C T | PRICE_DIFFERENCE (600) N; OUTPUT_VAT V |
+   | FF DECREASE on a sale | SALES_DISCOUNTS (611) N; OUTPUT_VAT V | C T |
+   | FF INCREASE on a purchase | PURCHASES N; INPUT_VAT V | C T |
+   | FF DECREASE on a purchase | C T | PURCHASES N; INPUT_VAT V |
    | Waybills (SIR, AIR, SIRI, AIRI) | — | — |
 
    One entry per document, dated `documentDate`, in its depot; the C posting carries `dueDate`. Zero amounts are
    left out; a zero total posts no entry. A missing role is `422 ERR_ACCOUNT_ROLE_MISSING`. New role
-   `SALES_DISCOUNTS`. Purchase discounts reduce cost (net to 153).
+   `SALES_DISCOUNTS`. Purchase discounts reduce cost (net to 153). A sales decrease is a discount after the sale,
+   not a return (610 is for goods taken back), so it goes to 611; purchase differences adjust 153 net either way
+   (periodic inventory: no stock revaluation).
 3. **Stock.** OUT: SF, SF with waybill, SIR, AI, AIRI. IN: AF, AF with waybill, AIR, SI, SIRI. None: FF and any
    invoice or return that bills a waybill. One movement per line, `source = document line`, on `documentDate`;
    cancel writes the opposite kind once, on `cancelDate`.
@@ -42,8 +46,17 @@ blocks the post unless an admin overrides it with a reason; e-Fatura is out of s
    (return waybills and unbilled returns) ≤ original qty, else `422 ERR_RETURN_QTY_EXCEEDED`. A return that bills a
    return waybill takes its lines' origins and is not counted again. The original locks during the check.
    An original with posted returns or price differences cannot be cancelled: `409 ERR_DOCUMENT_HAS_DEPENDENTS`.
-6. **Price difference.** Links a posted invoice of the same card and depot; lines re-price its lines
-   (`originLineId`), qty × unit price = the added amount. Increase only; no stock. Direction from the invoice.
+6. **Price difference.** Both directions: `priceDirection` `INCREASE` (sales: customer debited; purchase: supplier
+   credited) or `DECREASE` (sales: customer credited; purchase: supplier debited), required on FF and only there,
+   fixed once posted. Sales or purchase comes from the linked invoice: a posted SF / SF with waybill / AF / AF with
+   waybill (with or without a billed waybill) of the same card and depot; the original locks during the check.
+   Lines are amount only: qty 1, unit price = the difference (net), no discounts, VAT % applies (default the
+   original line's; required without one). A line may name an original line (`originLineId`, its
+   part is copied) or none (then no part, a `description` is printed). No stock. A DECREASE is capped:
+   original net − Σ net of posted decreases (this one included) − Σ net of posted goods-moving returns of its lines
+   (or of the lines of the waybill it bills) ≥ 0, else `422 ERR_PRICE_DIFFERENCE_EXCEEDED`; increases do not raise
+   the cap. Cancel is the reversal like any document; a cancelled FF frees its amount. One prefix `FF` for both
+   directions (one series, one legal document kind; the PDF title and the grid show the direction).
 7. **Lines and rounding.** A line is a catalog part, qty, unit price (4 decimals), two cascaded discounts and VAT %
    (default: the part's; discounts default to the card's `iskonto` / `iskonto2`). Per line, half-up to 2 decimals:
    gross = round(qty × price); net = round(qty × price × (1 − d1) × (1 − d2)) from the unrounded product;
@@ -58,7 +71,7 @@ blocks the post unless an admin overrides it with a reason; e-Fatura is out of s
    can leave available negative. Sweeper: every 5 min, `release_expired_reservations(now, 500)` deletes expired rows
    (`FOR UPDATE SKIP LOCKED`) and emits one `StockReleased EXPIRED` per document in the same transaction; a row is
    deleted once, so reruns and concurrent runs release nothing twice. A post after expiry just moves the stock.
-9. **Credit limit.** Posting SF, SF with waybill or FF on a sale, when the card has a limit and
+9. **Credit limit.** Posting SF, SF with waybill or an FF INCREASE on a sale, when the card has a limit and
    balance + T > limit, is `409 ERR_CREDIT_LIMIT_EXCEEDED` with `details {limit, balance, documentTotal, excess}`.
    balance = the current account's balance over all depots and dates plus the signed totals of the card's documents
    whose ledger event is not delivered yet. An admin posts anyway with `creditOverride {reason}` (non-admin: 403);
@@ -87,4 +100,7 @@ blocks the post unless an admin overrides it with a reason; e-Fatura is out of s
 Draft DDL `0004_documents` (on top of 0001–0011) enforces lines, totals, billing, return caps, reservations and the
 movement / entry rules; `check/mutations.sh` removes the billing-once, return-cap and available checks and the checks
 fail. `DRAFT → CANCELLED` is gone. `ERR_CREDIT_LIMIT_EXCEEDED` moves from 422 to 409. Credit exposure ignores
-cheques in portfolio. A price reduction after the sale is a return, not a negative price difference.
+cheques in portfolio. A price reduction after the sale is an FF DECREASE (amendment, 2026-09-29: it replaces the
+earlier "increase only" decision); amounts stay non-negative and the direction picks the sides. Legacy codes 13 / 14
+import as INCREASE, or DECREASE with absolute amounts when the legacy total is negative. `check/mutations.sh` M4
+removes the decrease cap.

@@ -19,7 +19,8 @@ an ADR in [`adr/`](adr/) and a new version here.
 - Lifecycle DRAFT → POSTED → CANCELLED; drafts are deleted (`deleteDocument`), posted ones cancelled by reversal.
 - Posting table on Tek Düzen accounts (600 / 610 / 611 / 153 / 191 / 391, role `SALES_DISCOUNTS`); stock direction
   per type; waybill billing line for line, once; returns capped per original line (`ERR_RETURN_QTY_EXCEEDED`);
-  price differences re-price invoice lines, no stock; `ERR_DOCUMENT_HAS_DEPENDENTS`.
+  price differences both ways (`priceDirection` INCREASE / DECREASE, amount-only lines, prefix FF, DECREASE capped by
+  `ERR_PRICE_DIFFERENCE_EXCEEDED`), no stock; `ERR_DOCUMENT_HAS_DEPENDENTS`.
 - Line rounding half-up per line, totals = Σ lines, checked in the DB; line `grossAmount`, `discountAmount`,
   `originLineId`, `billedLineId`, `stockByDepot`, `reservedQty`, `returnedQty`.
 - Reservations for drafts that move stock OUT: 48 h, sweeper, `stock_reservations`, definer projection into

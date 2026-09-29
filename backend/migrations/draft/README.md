@@ -20,9 +20,10 @@ and moved the `last_purchase_cost()` fallback in `0004_documents` to the part's 
 covers price history, import states, the stock projection, transfers and count line versions.
 
 v1.4 rewrote `0004_documents` against the promoted chain (it applies after `../0011`; F3 promotes it as `0012`):
-document lines with the rounding checks, bills line for line, return caps, price differences, cancel-only posted
+document lines with the rounding checks, bills line for line, return caps, price differences both ways with the
+decrease cap, cancel-only posted
 documents, `stock_reservations` with a definer projection into `stock_levels.reserved`, the sweeper function and the
 LAST_PURCHASE branch of `last_purchase_cost()`. `check/run.sh` now applies `check/prelude.sql`, the promoted `../0*.sql`,
 `0004_documents`, `0006_migration`, then `check/invariants.sql` and `check/documents.sql`; drafts `0001`–`0003` and
-`0005` are kept for history only. `check/mutations.sh` removes the billing-once, return-cap and available guards
-(M1–M3) one at a time and expects the checks to fail.
+`0005` are kept for history only. `check/mutations.sh` removes the billing-once, return-cap, available and decrease-cap
+guards (M1–M4) one at a time and expects the checks to fail.
