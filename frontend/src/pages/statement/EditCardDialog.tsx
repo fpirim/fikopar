@@ -121,7 +121,12 @@ export default function EditCardDialog({
             />
           ))}
           <Field label={t('statement.field.creditLimit')} htmlFor={limitId}>
-            <MoneyInput id={limitId} value={draft.credit_limit} onChange={set('credit_limit')} />
+            <MoneyInput
+              id={limitId}
+              value={draft.credit_limit}
+              onChange={set('credit_limit')}
+              className="text-sm"
+            />
           </Field>
           <TextField
             label={t('statement.field.contact')}
