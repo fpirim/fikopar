@@ -15,6 +15,18 @@ for (const lang of ['en', 'tr'] as const) {
     expect(await clipped(page, TEXT_COLS)).toEqual([])
   })
 
+  test(`the count number stays on one line (${lang})`, async ({ page }) => {
+    test.skip(!seeded().openCountId, 'no open count seeded')
+    await page.addInitScript((l) => localStorage.setItem('lang', l), lang)
+    await page.goto(`/stock-counts/${seeded().openCountId}`)
+    const h1 = page.getByRole('heading', { level: 1 })
+    await expect(h1).toHaveText(/^SAY-/)
+    const lines = await h1.evaluate(
+      (el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight),
+    )
+    expect(lines).toBeLessThan(1.5)
+  })
+
   test(
     `statement keeps the tax line whole and badges journal lines (${lang})`,
     V11,
