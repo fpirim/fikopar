@@ -10,7 +10,7 @@ import type {
 } from 'ag-grid-community'
 import { AlertCircle, Check, Loader2 } from 'lucide-react'
 import { ApiError } from '../../api/client'
-import { gridStockCountLines, setStockCountLine } from '../../api/endpoints'
+import { getStockCountLine, gridStockCountLines, setStockCountLine } from '../../api/endpoints'
 import { errorText } from '../../api/errorText'
 import type {
   CountLinesOnly,
@@ -147,18 +147,6 @@ export default function CountGrid({
     [saves],
   )
 
-  const reloadLine = useCallback(
-    async (line: StockCountLine) => {
-      const r = await gridStockCountLines(orgId, count.id, {
-        startRow: 0,
-        endRow: 20,
-        filterModel: { stockNo: { filterType: 'text', type: 'equals', filter: line.stockNo } },
-      })
-      return r.rows.find((x) => x.id === line.id) ?? null
-    },
-    [orgId, count.id],
-  )
-
   const save = useCallback(
     async (node: IRowNode<Row>, previous: string | null) => {
       const line = node.data
@@ -174,7 +162,7 @@ export default function CountGrid({
         void refreshTotals()
       } catch (e) {
         if (e instanceof ApiError && e.status === 412) {
-          const fresh = await reloadLine(line)
+          const fresh = await getStockCountLine(orgId, count.id, line.id).catch(() => null)
           if (fresh) {
             node.setData(fresh)
             mark(node, null)
@@ -188,7 +176,7 @@ export default function CountGrid({
         mark(node, { state: 'error', message: errorText(t, e) })
       }
     },
-    [orgId, count.id, mark, onSaved, refreshTotals, reloadLine, t],
+    [orgId, count.id, mark, onSaved, refreshTotals, t],
   )
 
   const labels: Record<string, string> = useMemo(

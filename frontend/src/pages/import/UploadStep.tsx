@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
 import { createPriceImport, listCatalogs, listPriceImportPresets } from '../../api/endpoints'
 import { errorText } from '../../api/errorText'
-import type { MappingWrite } from '../../api/types'
+import type { PriceImportMappingWrite } from '../../api/types'
 import { useApi } from '../../hooks/useApi'
 import { useDepot, withDepot } from '../../hooks/useDepot'
 import { useIdempotencyKey } from '../../hooks/useIdempotencyKey'
@@ -34,9 +34,9 @@ export default function UploadStep({ orgId }: Readonly<{ orgId: number }>) {
   const [error, setError] = useState('')
   const catalog = catalogId ?? catalogs[0]?.id ?? null
 
-  function mapping(): MappingWrite | undefined {
+  function mapping(): PriceImportMappingWrite | undefined {
     if (preset) return { preset }
-    const m: MappingWrite = {}
+    const m: PriceImportMappingWrite = {}
     if (delimiter) m.delimiter = delimiter
     if (decimal !== ',') m.decimalSeparator = decimal
     return Object.keys(m).length ? m : undefined

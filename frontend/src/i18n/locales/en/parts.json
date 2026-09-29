@@ -25,7 +25,8 @@
     "maxQty": "Max",
     "shelf": "Shelf",
     "listPrice": "List price",
-    "status": "Status"
+    "status": "Status",
+    "depot": "Dp {{code}}"
   },
   "chip": {
     "NEGATIVE": "NEGATIVE",

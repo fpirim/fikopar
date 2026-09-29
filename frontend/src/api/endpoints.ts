@@ -33,7 +33,7 @@ import type {
   PartStock,
   Price,
   PriceImport,
-  MappingWrite,
+  PriceImportMappingWrite,
   PriceImportPreset,
   PriceImportRow,
   PriceWrite,
@@ -378,6 +378,9 @@ export const addStockCountLine = (
     }),
   )
 
+export const getStockCountLine = (orgId: number, countId: number, lineId: number) =>
+  data(apiRequest<StockCountLine>('GET', `${stock(orgId)}/counts/${countId}/lines/${lineId}`))
+
 export const setStockCountLine = (
   orgId: number,
   countId: number,
@@ -439,7 +442,7 @@ export interface PriceImportUpload {
   file: File
   catalogId: number
   validFrom: string
-  mapping?: MappingWrite
+  mapping?: PriceImportMappingWrite
 }
 
 export const createPriceImport = (orgId: number, up: PriceImportUpload, idempotencyKey: string) => {
@@ -461,7 +464,7 @@ export const getPriceImport = (orgId: number, importId: number) =>
 export const updatePriceImport = (
   orgId: number,
   job: { id: number; version: number },
-  body: { mapping?: MappingWrite; validFrom?: string },
+  body: { mapping?: PriceImportMappingWrite; validFrom?: string },
 ) =>
   data(
     apiRequest<PriceImport>('PATCH', `${cat(orgId)}/imports/${job.id}`, {

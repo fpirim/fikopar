@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
 import { updatePriceImport } from '../../api/endpoints'
 import { errorText } from '../../api/errorText'
-import type { MappingWrite, PriceImport, PriceImportTarget } from '../../api/types'
+import type { PriceImportMappingWrite, PriceImport, PriceImportTarget } from '../../api/types'
 import ConflictDialog from '../../components/ConflictDialog'
 import { Button } from '../../components/ui/button'
 import { Panel } from '../../components/ui/panel'
@@ -22,7 +22,7 @@ const OPTIONAL: PriceImportTarget[] = [
   'vatPct',
 ]
 
-type Columns = NonNullable<MappingWrite['columns']>
+type Columns = NonNullable<PriceImportMappingWrite['columns']>
 
 function initial(job: PriceImport): Partial<Record<PriceImportTarget, string>> {
   const out: Partial<Record<PriceImportTarget, string>> = {}

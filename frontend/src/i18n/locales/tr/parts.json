@@ -25,7 +25,8 @@
     "maxQty": "Maks",
     "shelf": "Raf",
     "listPrice": "Liste fiyatı",
-    "status": "Durum"
+    "status": "Durum",
+    "depot": "Dp {{code}}"
   },
   "chip": {
     "NEGATIVE": "EKSİ",

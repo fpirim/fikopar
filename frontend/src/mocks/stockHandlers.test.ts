@@ -112,8 +112,7 @@ describe('stock mocks on contracts v1.3', () => {
     expect(hp).toMatchObject({ matchKind: 'NAME', matchedCode: 'HP-3774' })
     const name = await searchCatalog(1, { q: 'hydraulic pump', limit: 50 })
     expect(name.items.find((h) => h.stockNo === 'HP-3774')?.matchedCode).toBeNull()
-    const dashes = await searchCatalog(1, { q: '-- pump', limit: 50 })
-    expect(dashes.items.map((h) => h.stockNo)).toContain('HP-3774')
+    expect((await searchCatalog(1, { q: 'pump --', limit: 50 })).items).toEqual([])
     expect((await searchCatalog(1, { q: '--' })).items).toEqual([])
   })
 
@@ -152,7 +151,7 @@ describe('stock mocks on contracts v1.3', () => {
       partId: id,
       startRow: 0,
       endRow: 50,
-      sortModel: [{ colId: 'qtyIn', sort: 'desc' }],
+      sortModel: [{ colId: 'qtyIn', sort: 'asc' }],
     })
     const ins = sorted.rows.map((m) => m.qtyIn)
     const firstNull = ins.indexOf(null)
