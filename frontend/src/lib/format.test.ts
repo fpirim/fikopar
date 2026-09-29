@@ -9,6 +9,7 @@ import {
   formatTime,
   moneyToNumber,
   numberSeparators,
+  parseAmount,
   parseDay,
   toMoney,
 } from './format'
@@ -91,5 +92,22 @@ describe('money and day formats', () => {
     expect(numberSeparators()).toEqual({ group: ',', decimal: '.' })
     await i18n.changeLanguage('tr')
     expect(numberSeparators()).toEqual({ group: '.', decimal: ',' })
+  })
+})
+
+describe('parseAmount', () => {
+  afterEach(async () => {
+    await i18n.changeLanguage('tr')
+  })
+
+  it('reads typed amounts with the separators of the language', async () => {
+    await i18n.changeLanguage('en')
+    expect(parseAmount('15,000.5')).toBe('15000.50')
+    expect(parseAmount('15000')).toBe('15000.00')
+    expect(parseAmount('')).toBe('')
+    expect(parseAmount('1.2.3')).toBeNull()
+    await i18n.changeLanguage('tr')
+    expect(parseAmount('15.000,5')).toBe('15000.50')
+    expect(parseAmount('abc')).toBeNull()
   })
 })
