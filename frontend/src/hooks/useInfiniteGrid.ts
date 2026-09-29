@@ -53,10 +53,20 @@ export function useInfiniteGrid<T>(
   const [filtered, setFiltered] = useState<string[]>([])
   const [sorted, setSorted] = useState<{ colId: string; sort: 'asc' | 'desc' }[]>([])
   const [range, setRange] = useState<[number, number]>([0, 0])
+  // AG Grid React destroys the grid after unmount; a block load it queued must not fetch then.
+  // Only the cleanup sets it: the grid (a child) may ask for rows before this effect runs.
+  const unmounted = useRef(false)
+  useEffect(() => {
+    unmounted.current = false
+    return () => {
+      unmounted.current = true
+    }
+  }, [])
 
   const datasource = useMemo<IDatasource>(
     () => ({
       getRows(p: IGetRowsParams) {
+        if (unmounted.current) return
         const req = {
           sortModel: p.sortModel as SortModel,
           filterModel: toApiFilter(p.filterModel),

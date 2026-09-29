@@ -345,8 +345,12 @@ const SALES_REPS: Record<string, [number, string]> = {
 }
 
 function buildLedger(): Ledger {
+  // Fresh balance arrays: receipts add to them, and FEATURED outlives resetDb.
   const parties: Party[] = [...FEATURED, ...synthParties()].map((p, i) => ({
     ...p,
+    debit: [...p.debit],
+    credit: [...p.credit],
+    opening: [...p.opening],
     sicilId: 1000 + i,
     accountId: 5000 + i,
   }))
