@@ -300,7 +300,7 @@ func TestStockCount_ShelfRangeAndAddLine(t *testing.T) {
 	page = f.countLines(t, c.ID, `{"sortModel":[{"colId":"stockNo","sort":"desc"}],"startRow":0,"endRow":2}`)
 	assert.Len(t, page.Rows, 2)
 	assert.EqualValues(t, 4, page.TotalCount)
-	assert.Equal(t, "PC-01", page.Rows[0].StockNo)
+	assert.Equal(t, "PB-04-2", page.Rows[0].StockNo)
 	page = f.countLines(t, c.ID, `{"filterModel":{"stockNo":{"filterType":"text","type":"contains","filter":"b-0"}}}`)
 	assert.Len(t, page.Rows, 2)
 	assert.Equal(t, http.StatusBadRequest, f.req(t, http.MethodPost, f.countPath(c.ID, "/lines/grid"), f.token,
