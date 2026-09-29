@@ -15,7 +15,7 @@ Branch `f3/v15` from `f3/integration`; tag `contracts-v1.5` ([ADR-0014](../adr/0
   dialog; last purchase cost on the part card; MSW on v1.5.
 
 ## Real e2e
-All real suites (incl. `@v14`, `@v15`) twice in a row: 47 passed, 6 screenshot tests skipped; `e2e:real:v13` 35.
+All real suites (incl. `@v14`, `@v15`) twice in a row: 47 passed, 14 screenshot tests skipped; `e2e:real:v13` 35.
 Legacy 47, MSW 96. Found and fixed:
 - Seed: the sale on card 10482 was over its 250,000 limit (244,820 + 37,920); the card gets 400,000.
 - Ledger and stock checks assumed no documents: they now count the seeded sale, return and increase and avoid
@@ -33,7 +33,29 @@ Backend: build, vet, golangci-lint 0, go-arch-lint, deadcode (Go 1.25) clean; `-
 green (router 143 s). Frontend: eslint 0 errors (7 older warnings), tsc, prettier, knip, depcruise clean, vitest
 354 / 354 three times, build ok.
 
+## Verification fixes (`f3/nits`)
+- `listAuditEvents` (`GET /audit-events`) was in the contract with no route. Now: admin only (403 for members),
+  scoped to the path company, filters `entityType`, `entityId`, `actorUserId`, `from` / `to` (RFC 3339, inclusive),
+  newest first, keyset cursor over (occurredAt, id); `limit` clamped to 1–200 like the other lists, bad filters 400.
+  The credit override event reads back with its actor and `after`.
+- Reversal description: not a defect. The API writes `Reversal of J-…: <reason>`; the verifier's script appended
+  ` reverses <reversesEntryNo>` when printing. Both paths (manual, document cancel) are now pinned by exact tests.
+- `Sicil.iskonto2`: writable on create / update (0–100, `ERR_INVALID_ISKONTO`), on the card form, and the default of a
+  new line's second discount ([ADR-0014 erratum](../adr/0014-contracts-v1-5.md#erratum-2026-09-30)).
+- e2e dates: MSW specs run on a fixed day (`E2E_TODAY`, default 2026-09-29); the Due date is derived. Green with the
+  default and with `E2E_TODAY=2026-11-17` (113 passed, 40 screenshot tests skipped). Real specs follow the real day.
+- UI: editor discount headers and the FF direction toggle fit at 1440 / 1152 EN / TR; Parts and Balances drop
+  columns below 1300 px (`useNarrow`) and no longer scroll sideways at 1152; the dialog close label is translated;
+  Esc returns the focus to the opener (shared `DialogContent`). e2e cover all of these.
+- vitest `testTimeout` 10 s: 5 coverage runs and 3 plain runs 357 / 357, none skipped.
+
+Gates: backend build, vet, golangci-lint 0, go-arch-lint, deadcode (Go 1.25) clean, `-race -count=3
+-tags=integration` green; frontend eslint 0 errors, tsc, prettier, knip, depcruise, build clean, vitest 357 × 3;
+MSW 113 (40 skipped); real all suites 47 (14 skipped); legacy 47.
+
 ## Open
-- TR editor headers `İsk1…` / `İsk2…` are cut at 1440 px (older, also in the MSW shot).
+- `DialogShell` / `ConfirmDialog` (admin pages, cards) are not Radix dialogs: no Esc, no focus trap, so no focus
+  return either.
+- At 1152 px the top bar "All depots" control overlaps the search box.
 - A reservation cannot be expired in place (the guard admits only deletes), so "expired but not swept" is covered by
   the rule, not a test.
