@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fikopar.example.com/schemas/events/ReceiptPosted.schema.json",
+  "title": "ReceiptPosted",
+  "description": "A collection or payment receipt was issued (cash receipts also hit the cash book).",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "ReceiptPosted"
+    },
+    "version": {
+      "const": 1
+    },
+    "aggregateType": {
+      "const": "receipt"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receiptId",
+        "receiptNo",
+        "kind",
+        "method",
+        "origin",
+        "sicilId",
+        "date",
+        "amount",
+        "currency",
+        "journalEntryId"
+      ],
+      "properties": {
+        "receiptId": {
+          "type": "integer"
+        },
+        "receiptNo": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "COLLECTION",
+            "PAYMENT"
+          ]
+        },
+        "method": {
+          "enum": [
+            "CASH",
+            "BANK_TRANSFER",
+            "INSTRUMENT"
+          ]
+        },
+        "origin": {
+          "enum": [
+            "MANUAL",
+            "INSTRUMENT"
+          ]
+        },
+        "instrumentId": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "sicilId": {
+          "type": "integer"
+        },
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "amount": {
+          "type": "string",
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "journalEntryId": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

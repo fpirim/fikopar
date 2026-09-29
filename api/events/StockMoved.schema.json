@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fikopar.example.com/schemas/events/StockMoved.schema.json",
+  "title": "StockMoved",
+  "description": "Stock on hand changed for one part in one depot.",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "StockMoved"
+    },
+    "version": {
+      "const": 1
+    },
+    "aggregateType": {
+      "const": "stock_movement"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "movementId",
+        "partId",
+        "kind",
+        "qty",
+        "onHandAfter",
+        "sourceType"
+      ],
+      "properties": {
+        "movementId": {
+          "type": "integer"
+        },
+        "partId": {
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "IN",
+            "OUT",
+            "ADJUST_IN",
+            "ADJUST_OUT",
+            "TRANSFER_IN",
+            "TRANSFER_OUT"
+          ]
+        },
+        "qty": {
+          "type": "string",
+          "pattern": "^\\d{1,14}(\\.\\d{1,4})?$"
+        },
+        "onHandAfter": {
+          "type": "string"
+        },
+        "sourceType": {
+          "enum": [
+            "document",
+            "stock_count",
+            "transfer",
+            "legacy_import"
+          ]
+        },
+        "sourceId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

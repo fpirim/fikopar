@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fikopar.example.com/schemas/events/LedgerEntryPosted.schema.json",
+  "title": "LedgerEntryPosted",
+  "description": "A balanced journal entry was posted (Σ debit = Σ credit).",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "LedgerEntryPosted"
+    },
+    "version": {
+      "const": 1
+    },
+    "aggregateType": {
+      "const": "journal_entry"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryId",
+        "entryNo",
+        "entryDate",
+        "sourceType",
+        "currency",
+        "total",
+        "postings"
+      ],
+      "properties": {
+        "entryId": {
+          "type": "integer"
+        },
+        "entryNo": {
+          "type": "string"
+        },
+        "entryDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "sourceType": {
+          "enum": [
+            "manual",
+            "document",
+            "receipt",
+            "instrument",
+            "opening",
+            "reversal",
+            "legacy_import"
+          ]
+        },
+        "sourceId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reversesEntryId": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "total": {
+          "type": "string",
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+        },
+        "postings": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "accountId",
+              "side",
+              "amount"
+            ],
+            "properties": {
+              "accountId": {
+                "type": "integer"
+              },
+              "accountCode": {
+                "type": "string"
+              },
+              "side": {
+                "enum": [
+                  "DEBIT",
+                  "CREDIT"
+                ]
+              },
+              "amount": {
+                "type": "string",
+                "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+              },
+              "dueDate": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

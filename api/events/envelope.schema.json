@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fikopar.example.com/schemas/events/envelope.schema.json",
+  "title": "EventEnvelope",
+  "description": "Outbox event envelope. Delivery is at-least-once; consumers dedupe on id.",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "version",
+    "occurredAt",
+    "orgId",
+    "depotId",
+    "aggregateType",
+    "aggregateId",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "DocumentPosted",
+        "StockMoved",
+        "LedgerEntryPosted",
+        "ReceiptPosted",
+        "InstrumentStatusChanged"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Payload schema version for this type"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "orgId": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "depotId": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "aggregateType": {
+      "type": "string"
+    },
+    "aggregateId": {
+      "type": "string"
+    },
+    "aggregateVersion": {
+      "type": "integer",
+      "description": "Lets consumers drop stale events"
+    },
+    "correlationId": {
+      "type": "string"
+    },
+    "causationId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "actorUserId": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,2445 @@
+openapi: 3.1.0
+info:
+  title: fikopar API
+  version: 0.1.0-draft
+  summary: B2B trade, ledger and instrument management for a spare-parts distributor.
+  description: |
+    **DRAFT / provisional.** Revised against the live JHipster (v2) inventory; see `docs/domain-model.md`.
+    `Identity`, `Users`, `Admin`, `Sicil`, `Uploads` and `Health` exist today. `Ledger`, `Documents`,
+    `Receipts`, `Instruments`, `Catalog`, `Stock` and `Audit` are planned.
+
+    Conventions
+    - **Errors** are language-agnostic: `{"code": "ERR_…"}` plus optional `detail`, `field`, `traceId`.
+      The frontend translates `code`. Success notifications use `{"code": "OK_…"}`.
+    - **Security**: there is no self-registration; users are created by an admin. Every data endpoint
+      requires a token and membership of the organization (company) in the path, otherwise
+      `403 ERR_FORBIDDEN`; the `user` role never sees other companies' data.
+    - **Tenancy**: new endpoints are scoped by path `/api/orgs/{orgId}/…`; most also carry a depot.
+    - **Dates**: date ranges are inclusive on both ends; years are calendar years.
+    - **Exports**: reports and printable documents honour `Accept: application/pdf` or the XLSX media type.
+    - **Money** is a decimal string (`"1250.00"`), never a JSON number.
+    - **Idempotency**: unsafe POSTs in new contexts require `Idempotency-Key`. A replay with the same key
+      and body returns the original response with `Idempotent-Replayed: true`.
+    - **Optimistic locking**: responses carry `ETag: "<version>"`; updates and state transitions
+      require `If-Match` (`428` if missing, `412` if stale).
+    - **Pagination**: grid endpoints use the AG-Grid server-side model (`startRow/endRow`), list
+      endpoints use keyset `limit` + `cursor`.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+  - url: https://fikopar.example.com
+    description: Example deployment
+  - url: http://localhost:8080
+    description: Local development
+security:
+  - bearerAuth: []
+tags:
+  - name: Health
+    description: Liveness, version and metrics
+  - name: Identity
+    description: Authentication
+  - name: Users
+    description: Current user profile
+  - name: Uploads
+    description: Public avatar and logo files
+  - name: Sicil
+    description: Account cards of trading partners (exists)
+  - name: Admin
+    description: User and organization administration (exists)
+  - name: Ledger
+    description: Double-entry ledger (accounts, journal entries, balances)
+  - name: Catalog
+    description: Parts, OEM/equivalent codes, price lists with history
+  - name: Stock
+    description: Depots, movements, transfers, counts, levels
+  - name: Documents
+    description: Invoices, waybills, returns, price-difference invoices; number series
+  - name: Instruments
+    description: Cheques and promissory notes (çek/senet)
+  - name: Receipts
+    description: Collection and payment receipts (makbuz) and the cash book
+  - name: Audit
+    description: Append-only audit trail
+
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Liveness and build version
+      security: []
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version]
+                properties:
+                  status: { type: string, const: ok }
+                  version: { type: string, examples: ['1.4.0'] }
+  /metrics:
+    get:
+      tags: [Health]
+      operationId: getMetrics
+      summary: Prometheus metrics (restricted at the proxy in production)
+      security: []
+      responses:
+        '200':
+          description: Prometheus text exposition format
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /api/auth/login:
+    post:
+      tags: [Identity]
+      operationId: login
+      summary: Exchange email + password for a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, user]
+                properties:
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/uploads/avatars/{filename}:
+    get:
+      tags: [Uploads]
+      operationId: getAvatar
+      summary: Get avatar
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Filename' }]
+      responses:
+        '200': { $ref: '#/components/responses/Image' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/uploads/logos/{filename}:
+    get:
+      tags: [Uploads]
+      operationId: getLogo
+      summary: Get logo
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Filename' }]
+      responses:
+        '200': { $ref: '#/components/responses/Image' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/users/me:
+    get:
+      tags: [Users]
+      operationId: getMe
+      summary: Get me
+      responses:
+        '200': { $ref: '#/components/responses/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [Users]
+      operationId: updateMe
+      summary: Update me
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, format: password, description: Omit to keep the current password }
+      responses:
+        '200': { $ref: '#/components/responses/UserResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/users/me/avatar:
+    post:
+      tags: [Users]
+      operationId: uploadMyAvatar
+      summary: Upload my avatar
+      requestBody: { $ref: '#/components/requestBodies/AvatarUpload' }
+      responses:
+        '200': { $ref: '#/components/responses/UserResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      tags: [Users]
+      operationId: deleteMyAvatar
+      summary: Delete my avatar
+      responses:
+        '200': { $ref: '#/components/responses/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/sicil/grid:
+    post:
+      tags: [Sicil]
+      operationId: gridSicil
+      summary: Server-side grid of account cards for one organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/GridRequest'
+                - type: object
+                  required: [organization_id]
+                  properties:
+                    organization_id: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: One page of rows
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/GridResponse'
+                  - type: object
+                    properties:
+                      rows: { type: array, items: { $ref: '#/components/schemas/Sicil' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/sicil:
+    post:
+      tags: [Sicil]
+      operationId: createSicil
+      summary: Create sicil
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SicilCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sicil' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/sicil/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Sicil]
+      operationId: getSicil
+      summary: Get sicil
+      responses:
+        '200':
+          description: Account card
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sicil' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Sicil]
+      operationId: updateSicil
+      summary: Partial update (whitelisted fields); `telefonlar`, when present, replaces all phones
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SicilUpdate' }
+      responses:
+        '200':
+          description: Updated card
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sicil' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Sicil]
+      operationId: deleteSicil
+      summary: Delete sicil
+      responses:
+        '200': { $ref: '#/components/responses/OkCode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      operationId: adminListUsers
+      summary: List users
+      responses:
+        '200':
+          description: All users
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/User' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin]
+      operationId: adminCreateUser
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminUserWrite' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/admin/users/grid:
+    post:
+      tags: [Admin]
+      operationId: adminGridUsers
+      summary: Grid users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridRequest' }
+      responses:
+        '200':
+          description: One page of users
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GridResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/admin/users/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [Admin]
+      operationId: adminUpdateUser
+      summary: Update user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminUserWrite' }
+      responses:
+        '200': { $ref: '#/components/responses/UserResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Admin]
+      operationId: adminDeleteUser
+      summary: Delete user
+      responses:
+        '200': { $ref: '#/components/responses/OkCode' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/users/{id}/avatar:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Admin]
+      operationId: adminUploadUserAvatar
+      summary: Upload user avatar
+      requestBody: { $ref: '#/components/requestBodies/AvatarUpload' }
+      responses:
+        '200': { $ref: '#/components/responses/UserResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Admin]
+      operationId: adminDeleteUserAvatar
+      summary: Delete user avatar
+      responses:
+        '200': { $ref: '#/components/responses/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/organizations:
+    get:
+      tags: [Admin]
+      operationId: adminListOrganizations
+      summary: List organizations
+      responses:
+        '200':
+          description: All organizations
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Organization' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin]
+      operationId: adminCreateOrganization
+      summary: Create organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrganizationWrite' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Organization' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/admin/organizations/grid:
+    post:
+      tags: [Admin]
+      operationId: adminGridOrganizations
+      summary: Grid organizations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridRequest' }
+      responses:
+        '200':
+          description: One page of organizations
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GridResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/admin/organizations/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [Admin]
+      operationId: adminUpdateOrganization
+      summary: Update organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrganizationWrite' }
+      responses:
+        '200': { $ref: '#/components/responses/OrganizationResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Admin]
+      operationId: adminDeleteOrganization
+      summary: Delete organization
+      responses:
+        '200': { $ref: '#/components/responses/OkCode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/organizations/{id}/logo:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Admin]
+      operationId: adminUploadOrganizationLogo
+      summary: Upload organization logo
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [logo]
+              properties:
+                logo: { type: string, contentMediaType: application/octet-stream }
+      responses:
+        '200': { $ref: '#/components/responses/OrganizationResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Admin]
+      operationId: adminDeleteOrganizationLogo
+      summary: Delete organization logo
+      responses:
+        '200': { $ref: '#/components/responses/OrganizationResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/orgs/{orgId}/depots:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Stock]
+      operationId: listDepots
+      summary: Depots (physical warehouses) of the company
+      responses:
+        '200':
+          description: Depots
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Depot' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Stock]
+      operationId: createDepot
+      summary: Create a depot (admin)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Depot' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Depot' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/orgs/{orgId}/number-series:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Documents]
+      operationId: listNumberSeries
+      summary: Number series per document kind, depot and year
+      parameters:
+        - { name: year, in: query, schema: { type: integer } }
+        - $ref: '#/components/parameters/DepotIdQuery'
+      responses:
+        '200':
+          description: Series with the next value
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/NumberSeries' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orgs/{orgId}/number-series/{seriesId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - { name: seriesId, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [Documents]
+      operationId: updateNumberSeries
+      summary: Change prefix or width (admin); the counter only moves forward
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prefix: { type: string, pattern: '^[A-Z]{1,4}$' }
+                width: { type: integer, minimum: 4, maximum: 10 }
+                nextValue: { type: integer, description: May only increase }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NumberSeries' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/orgs/{orgId}/ledger/accounts:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Ledger]
+      operationId: listAccounts
+      summary: List accounts
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/AccountType' } }
+        - { name: sicilId, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: Accounts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Ledger]
+      operationId: createAccount
+      summary: Create account
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountCreate' }
+      responses:
+        '201': { $ref: '#/components/responses/AccountResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/ledger/accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      tags: [Ledger]
+      operationId: getAccount
+      summary: Get account
+      responses:
+        '200': { $ref: '#/components/responses/AccountResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Ledger]
+      operationId: updateAccount
+      summary: Rename or deactivate an account (code, type and currency are immutable)
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                isActive: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/AccountResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/ledger/accounts/{accountId}/statement:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      tags: [Ledger]
+      operationId: getAccountStatement
+      summary: Statement (ekstre) with brought-forward row, running balance and per-depot totals
+      description: '`from` and `to` are inclusive. Excel or PDF via the Accept header.'
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - $ref: '#/components/parameters/DepotIdQuery'
+      responses:
+        '200':
+          description: Statement
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Statement' }
+            application/pdf:
+              schema: { type: string, contentMediaType: application/pdf }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/ledger/balances:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Ledger]
+      operationId: getBalances
+      summary: Account balances as of a date (cari toplam), end date inclusive
+      parameters:
+        - { name: asOf, in: query, required: true, schema: { type: string, format: date } }
+        - $ref: '#/components/parameters/DepotIdQuery'
+        - { name: sicilTipi, in: query, schema: { $ref: '#/components/schemas/SicilTipi' } }
+        - { name: nonZeroOnly, in: query, schema: { type: boolean, default: true } }
+      responses:
+        '200':
+          description: Balances; Excel or PDF via Accept
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BalancesReport' }
+            application/pdf:
+              schema: { type: string, contentMediaType: application/pdf }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orgs/{orgId}/ledger/trial-balance:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Ledger]
+      operationId: getTrialBalance
+      summary: Trial balance (mizan); Σ debit = Σ credit by construction
+      parameters:
+        - { name: asOf, in: query, required: true, schema: { type: string, format: date } }
+        - $ref: '#/components/parameters/DepotIdQuery'
+      responses:
+        '200':
+          description: Trial balance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BalancesReport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/ledger/opening-balances:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Ledger]
+      operationId: listOpeningBalances
+      summary: Opening balances (cari devir) per account, depot and calendar year
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer, minimum: 2000 } }
+        - $ref: '#/components/parameters/DepotIdQuery'
+      responses:
+        '200':
+          description: Opening balances
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/OpeningBalance' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/ledger/opening-balances/carry-forward:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Ledger]
+      operationId: carryForwardBalances
+      summary: Post opening entries for `year` from closing balances of `year - 1` (admin)
+      description: One opening entry per (account, depot, year); a repeat returns 409 ERR_ALREADY_CARRIED_FORWARD.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [year, depotId]
+              properties:
+                year: { type: integer, minimum: 2000 }
+                depotId: { type: integer }
+      responses:
+        '201':
+          description: Opening entries posted
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/OpeningBalance' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/ledger/entries:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Ledger]
+      operationId: listJournalEntries
+      summary: List journal entries
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/DepotIdQuery'
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: accountId, in: query, schema: { type: integer } }
+        - { name: sourceType, in: query, schema: { $ref: '#/components/schemas/SourceType' } }
+      responses:
+        '200':
+          description: Journal entries, newest first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JournalEntryPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Ledger]
+      operationId: postJournalEntry
+      summary: Post a balanced manual journal entry
+      description: '`422 ERR_ENTRY_UNBALANCED` unless Σ debit = Σ credit with at least two lines.'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JournalEntryCreate' }
+      responses:
+        '201': { $ref: '#/components/responses/JournalEntryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/ledger/entries/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - { name: entryId, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Ledger]
+      operationId: getJournalEntry
+      summary: Get journal entry
+      responses:
+        '200': { $ref: '#/components/responses/JournalEntryResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/ledger/entries/{entryId}/reversal:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - { name: entryId, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [Ledger]
+      operationId: reverseJournalEntry
+      summary: Reverse a manual entry (entries owned by documents, receipts or instruments are reversed through them)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '201': { $ref: '#/components/responses/JournalEntryResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/orgs/{orgId}/documents/grid:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Documents]
+      operationId: gridDocuments
+      summary: Grid of trade documents; column filters are AND-combined
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridRequest' }
+      responses:
+        '200':
+          description: One page of documents
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/GridResponse'
+                  - type: object
+                    properties:
+                      rows: { type: array, items: { $ref: '#/components/schemas/Document' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/documents:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Documents]
+      operationId: createDocument
+      summary: Create a DRAFT invoice, waybill, return or price-difference document
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentWrite' }
+      responses:
+        '201': { $ref: '#/components/responses/DocumentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/documents/{documentId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [Documents]
+      operationId: getDocument
+      summary: Get document; PDF via Accept
+      responses:
+        '200':
+          description: Document
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+            application/pdf:
+              schema: { type: string, contentMediaType: application/pdf }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Documents]
+      operationId: updateDocument
+      summary: Replace header and lines of a DRAFT document
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentWrite' }
+      responses:
+        '200': { $ref: '#/components/responses/DocumentResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/documents/{documentId}/post:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [Documents]
+      operationId: postDocument
+      summary: DRAFT → POSTED; allocates the number, emits DocumentPosted (ledger entry and stock movements follow)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200': { $ref: '#/components/responses/DocumentResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/documents/{documentId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [Documents]
+      operationId: cancelDocument
+      summary: Cancel; a POSTED document is cancelled by reversal entries and opposite stock movements
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/DocumentResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+
+  /api/orgs/{orgId}/receipts:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Receipts]
+      operationId: listReceipts
+      summary: List receipts
+      parameters:
+        - $ref: '#/components/parameters/DepotIdQuery'
+        - { name: sicilId, in: query, schema: { type: integer } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Receipts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Receipt' } }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Receipts]
+      operationId: createReceipt
+      summary: Issue a collection (tahsilat) or payment (tediye) receipt; posts ledger and, for cash, the cash book
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReceiptCreate' }
+      responses:
+        '201': { $ref: '#/components/responses/ReceiptResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/receipts/{receiptId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/ReceiptId'
+    get:
+      tags: [Receipts]
+      operationId: getReceipt
+      summary: Get receipt; PDF via Accept
+      responses:
+        '200':
+          description: Receipt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Receipt' }
+            application/pdf:
+              schema: { type: string, contentMediaType: application/pdf }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/receipts/{receiptId}/void:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/ReceiptId'
+    post:
+      tags: [Receipts]
+      operationId: voidReceipt
+      summary: Void by reversal; receipts owned by an instrument operation return 409 ERR_RECEIPT_OWNED_BY_INSTRUMENT
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/ReceiptResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/cash-book:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Receipts]
+      operationId: getCashBook
+      summary: Cash book (kasa defteri) per depot with brought-forward row; end date inclusive
+      parameters:
+        - { name: depotId, in: query, required: true, schema: { type: integer } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Cash book; Excel or PDF via Accept
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashBook' }
+            application/pdf:
+              schema: { type: string, contentMediaType: application/pdf }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/orgs/{orgId}/instruments/grid:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Instruments]
+      operationId: gridInstruments
+      summary: Portfolio view; filter by type, status, depot, due-date range
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridRequest' }
+      responses:
+        '200':
+          description: One page of instruments
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/GridResponse'
+                  - type: object
+                    properties:
+                      rows: { type: array, items: { $ref: '#/components/schemas/Instrument' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/instruments:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Instruments]
+      operationId: createInstrument
+      summary: Register a cheque/note; issues its receipt and ledger entry in the same transaction
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InstrumentCreate' }
+      responses:
+        '201': { $ref: '#/components/responses/InstrumentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/instruments/{instrumentId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/InstrumentId'
+    get:
+      tags: [Instruments]
+      operationId: getInstrument
+      summary: Get instrument
+      responses:
+        '200': { $ref: '#/components/responses/InstrumentResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/instruments/{instrumentId}/events:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/InstrumentId'
+    get:
+      tags: [Instruments]
+      operationId: listInstrumentEvents
+      summary: Status history including the endorsement chain
+      responses:
+        '200':
+          description: Events in sequence order
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/InstrumentEvent' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/instruments/{instrumentId}/operations:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/InstrumentId'
+    post:
+      tags: [Instruments]
+      operationId: operateInstrument
+      summary: Deposit to bank, collect at bank / by hand, endorse, protest, return, pay
+      description: Illegal transitions return 409 ERR_INVALID_STATE_TRANSITION. Money-moving operations issue a receipt and ledger entry.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InstrumentOperation' }
+      responses:
+        '200': { $ref: '#/components/responses/InstrumentResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+
+  /api/orgs/{orgId}/catalog/parts/grid:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Catalog]
+      operationId: gridParts
+      summary: Grid search; `search` matches stock no, name and any OEM/equivalent code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GridRequest' }
+      responses:
+        '200':
+          description: One page of parts
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/GridResponse'
+                  - type: object
+                    properties:
+                      rows: { type: array, items: { $ref: '#/components/schemas/Part' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/catalog/parts:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Catalog]
+      operationId: createPart
+      summary: Create part
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PartWrite' }
+      responses:
+        '201': { $ref: '#/components/responses/PartResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/catalog/parts/lookup:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Catalog]
+      operationId: lookupPartByCode
+      summary: Resolve a manufacturer / OEM / equivalent code (normalized match)
+      parameters:
+        - { name: code, in: query, required: true, schema: { type: string, minLength: 2 } }
+      responses:
+        '200':
+          description: Matching parts with their equivalents
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Part' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/catalog/parts/{partId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/PartId'
+    get:
+      tags: [Catalog]
+      operationId: getPart
+      summary: Get part
+      responses:
+        '200': { $ref: '#/components/responses/PartResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Catalog]
+      operationId: updatePart
+      summary: Update part
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PartWrite' }
+      responses:
+        '200': { $ref: '#/components/responses/PartResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+  /api/orgs/{orgId}/catalog/parts/{partId}/prices:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/PartId'
+    get:
+      tags: [Catalog]
+      operationId: getPartPriceHistory
+      summary: Price history of a part across price lists
+      parameters:
+        - { name: priceListId, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: Prices, newest first
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Price' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/catalog/price-lists:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Catalog]
+      operationId: listPriceLists
+      summary: Price lists (supplier catalogues and sales lists)
+      responses:
+        '200':
+          description: Price lists
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/PriceList' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Catalog]
+      operationId: createPriceList
+      summary: Create price list
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PriceList' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PriceList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/catalog/price-lists/{priceListId}/prices:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - { name: priceListId, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Catalog]
+      operationId: listPrices
+      summary: Prices valid on a date
+      parameters:
+        - { name: validOn, in: query, schema: { type: string, format: date } }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Prices
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Price' } }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Catalog]
+      operationId: setPrices
+      summary: Set new prices from a date; earlier prices stay in history
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [validFrom, items]
+              properties:
+                validFrom: { type: string, format: date }
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [partId, price]
+                    properties:
+                      partId: { type: integer }
+                      price: { $ref: '#/components/schemas/Money4' }
+      responses:
+        '201':
+          description: Prices recorded
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Price' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/orgs/{orgId}/stock/levels:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Stock]
+      operationId: listStockLevels
+      summary: Quantity on hand per part and depot, derived from movements
+      parameters:
+        - { name: partId, in: query, schema: { type: integer } }
+        - $ref: '#/components/parameters/DepotIdQuery'
+        - { name: belowMin, in: query, schema: { type: boolean } }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stock levels
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/StockLevel' } }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/stock/movements:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Stock]
+      operationId: listStockMovements
+      summary: Append-only movements from documents, counts and transfers
+      parameters:
+        - { name: partId, in: query, schema: { type: integer } }
+        - $ref: '#/components/parameters/DepotIdQuery'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Movements, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/StockMovement' } }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/orgs/{orgId}/stock/transfers:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    post:
+      tags: [Stock]
+      operationId: transferStock
+      summary: Move stock between the company's depots (paired OUT/IN movements)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockTransfer' }
+      responses:
+        '201':
+          description: Paired movements
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/StockMovement' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/orgs/{orgId}/stock/counts:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Stock]
+      operationId: listStockCounts
+      summary: Stock counts (sayım)
+      parameters:
+        - { name: year, in: query, schema: { type: integer } }
+        - $ref: '#/components/parameters/DepotIdQuery'
+      responses:
+        '200':
+          description: Counts
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/StockCount' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Stock]
+      operationId: openStockCount
+      summary: Open a count for a depot, year and optional shelf range
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockCountOpen' }
+      responses:
+        '201': { $ref: '#/components/responses/StockCountResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orgs/{orgId}/stock/counts/{countId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/CountId'
+    get:
+      tags: [Stock]
+      operationId: getStockCount
+      summary: Count with lines and differences
+      responses:
+        '200': { $ref: '#/components/responses/StockCountResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orgs/{orgId}/stock/counts/{countId}/lines:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/CountId'
+    put:
+      tags: [Stock]
+      operationId: upsertStockCountLines
+      summary: Record counted quantities (by part and shelf) while the count is OPEN
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: array, items: { $ref: '#/components/schemas/StockCountLineWrite' } }
+      responses:
+        '200': { $ref: '#/components/responses/StockCountResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+  /api/orgs/{orgId}/stock/counts/{countId}/finalize:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/CountId'
+    post:
+      tags: [Stock]
+      operationId: finalizeStockCount
+      summary: OPEN → FINALIZED; differences become ADJUST movements
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200': { $ref: '#/components/responses/StockCountResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+
+  /api/orgs/{orgId}/audit-events:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Audit]
+      operationId: listAuditEvents
+      summary: Read-only, append-only audit trail (admin)
+      parameters:
+        - { name: entityType, in: query, schema: { type: string } }
+        - { name: entityId, in: query, schema: { type: string } }
+        - { name: actorUserId, in: query, schema: { type: integer } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Audit events, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/AuditEvent' } }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    OrgId:
+      name: orgId
+      in: path
+      required: true
+      description: Tenant. Caller must be a member (or admin).
+      schema: { type: integer, minimum: 1 }
+    DepotIdQuery:
+      name: depotId
+      in: query
+      description: Restrict to one depot; omitted means all depots of the company.
+      schema: { type: integer }
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema: { type: integer }
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema: { type: integer }
+    ReceiptId:
+      name: receiptId
+      in: path
+      required: true
+      schema: { type: integer }
+    PartId:
+      name: partId
+      in: path
+      required: true
+      schema: { type: integer }
+    CountId:
+      name: countId
+      in: path
+      required: true
+      schema: { type: integer }
+    InstrumentId:
+      name: instrumentId
+      in: path
+      required: true
+      schema: { type: integer }
+    Filename:
+      name: filename
+      in: path
+      required: true
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque keyset cursor from a previous `nextCursor`.
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Client-generated UUID. Unique per (org, key) for 24 h. Same key + same body replays the stored
+        response; same key + different body → 422 ERR_IDEMPOTENCY_KEY_REUSED; in-flight → 409 ERR_IDEMPOTENCY_IN_PROGRESS.
+      schema: { type: string, format: uuid }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag (`"<version>"`) from the last read. Missing → 428, stale → 412.
+      schema: { type: string, examples: ['"3"'] }
+
+  headers:
+    ETag:
+      description: Current aggregate version, quoted.
+      schema: { type: string }
+
+  requestBodies:
+    Reason:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reason]
+            properties:
+              reason: { type: string, minLength: 3 }
+    AvatarUpload:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [avatar]
+            properties:
+              avatar: { type: string, contentMediaType: application/octet-stream }
+
+  responses:
+    BadRequest:
+      description: Invalid input (ERR_INVALID_REQUEST, ERR_INVALID_ID, field validation codes)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing/invalid token or credentials
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Not a member of the organization or missing role (ERR_FORBIDDEN)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found (ERR_*_NOT_FOUND)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PreconditionFailed:
+      description: If-Match does not match current version (ERR_VERSION_CONFLICT)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PreconditionRequired:
+      description: If-Match header missing (ERR_PRECONDITION_REQUIRED)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unprocessable:
+      description: Business rule violated (ERR_ENTRY_UNBALANCED, ERR_INSUFFICIENT_STOCK, ERR_IDEMPOTENCY_KEY_REUSED, …)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    OkCode:
+      description: Success notification code (OK_USER_DELETED, OK_ORG_DELETED, OK_SICIL_DELETED)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code]
+            properties:
+              code: { type: string, pattern: '^OK_[A-Z_]+$' }
+    Image:
+      description: Uploaded image file
+      content:
+        image/*:
+          schema: { type: string, contentMediaType: application/octet-stream }
+    UserResponse:
+      description: User
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/User' }
+    OrganizationResponse:
+      description: Organization
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Organization' }
+    AccountResponse:
+      description: Ledger account
+      headers:
+        ETag: { $ref: '#/components/headers/ETag' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Account' }
+    JournalEntryResponse:
+      description: Journal entry with postings
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/JournalEntry' }
+    PartResponse:
+      description: Part
+      headers:
+        ETag: { $ref: '#/components/headers/ETag' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Part' }
+    DocumentResponse:
+      description: Document
+      headers:
+        ETag: { $ref: '#/components/headers/ETag' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Document' }
+    ReceiptResponse:
+      description: Receipt
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Receipt' }
+    StockCountResponse:
+      description: Stock count
+      headers:
+        ETag: { $ref: '#/components/headers/ETag' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/StockCount' }
+    InstrumentResponse:
+      description: Instrument
+      headers:
+        ETag: { $ref: '#/components/headers/ETag' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Instrument' }
+
+  schemas:
+    Error:
+      type: object
+      required: [code]
+      properties:
+        code: { $ref: '#/components/schemas/ErrorCode' }
+        detail: { type: string, description: Developer-facing detail; never shown to end users }
+        field: { type: string, description: Offending field for validation errors }
+        traceId: { type: string, description: Request ID (X-Request-Id) }
+    ErrorCode:
+      type: string
+      description: Language-agnostic code; translated by the client. The first group exists today.
+      enum:
+        - ERR_INVALID_REQUEST
+        - ERR_INVALID_ID
+        - ERR_USER_NOT_FOUND
+        - ERR_ORG_NOT_FOUND
+        - ERR_INVALID_CREDENTIALS
+        - ERR_TOKEN_GENERATION
+        - ERR_NO_FILE_UPLOADED
+        - ERR_FILE_TOO_LARGE
+        - ERR_FILE_OPEN
+        - ERR_MISSING_TOKEN
+        - ERR_INVALID_TOKEN_FORMAT
+        - ERR_INVALID_TOKEN
+        - ERR_UNAUTHORIZED
+        - ERR_FORBIDDEN
+        - ERR_SLUG_INVALID
+        - ERR_SLUG_EXISTS
+        - ERR_EMAIL_EXISTS
+        - ERR_CANNOT_DELETE_SELF
+        - ERR_CANNOT_DELETE_LAST_ADMIN
+        - ERR_HESAP_NO_REQUIRED
+        - ERR_HESAP_ADI_REQUIRED
+        - ERR_HESAP_NO_EXISTS
+        - ERR_SICIL_NOT_FOUND
+        - ERR_INVALID_SICIL_TIPI
+        - ERR_INVALID_TELEFON_TIPI
+        - ERR_TELEFON_NUMARA_REQUIRED
+        - ERR_INVALID_ISKONTO
+        - ERR_INTERNAL
+        - ERR_PRECONDITION_REQUIRED
+        - ERR_VERSION_CONFLICT
+        - ERR_IDEMPOTENCY_KEY_REQUIRED
+        - ERR_IDEMPOTENCY_KEY_REUSED
+        - ERR_IDEMPOTENCY_IN_PROGRESS
+        - ERR_INVALID_STATE_TRANSITION
+        - ERR_DEPOT_NOT_FOUND
+        - ERR_DEPOT_REQUIRED
+        - ERR_NUMBER_SERIES_BACKWARDS
+        - ERR_ACCOUNT_NOT_FOUND
+        - ERR_ACCOUNT_CODE_EXISTS
+        - ERR_ACCOUNT_INACTIVE
+        - ERR_CURRENCY_MISMATCH
+        - ERR_ENTRY_NOT_FOUND
+        - ERR_ENTRY_UNBALANCED
+        - ERR_ENTRY_TOO_FEW_LINES
+        - ERR_ENTRY_ALREADY_REVERSED
+        - ERR_ENTRY_OWNED_BY_SOURCE
+        - ERR_ALREADY_CARRIED_FORWARD
+        - ERR_INVALID_AMOUNT
+        - ERR_PART_NOT_FOUND
+        - ERR_PART_CODE_EXISTS
+        - ERR_PRICE_LIST_NOT_FOUND
+        - ERR_INSUFFICIENT_STOCK
+        - ERR_STOCK_COUNT_NOT_OPEN
+        - ERR_DOCUMENT_NOT_FOUND
+        - ERR_DOCUMENT_EMPTY
+        - ERR_DOCUMENT_NOT_DRAFT
+        - ERR_LINKED_DOCUMENT_INVALID
+        - ERR_CREDIT_LIMIT_EXCEEDED
+        - ERR_INSTRUMENT_NOT_FOUND
+        - ERR_INSTRUMENT_DUPLICATE
+        - ERR_DUE_BEFORE_ISSUE
+        - ERR_RECEIPT_NOT_FOUND
+        - ERR_RECEIPT_ALREADY_VOIDED
+        - ERR_RECEIPT_OWNED_BY_INSTRUMENT
+
+    Money:
+      type: string
+      description: Decimal amount with two fraction digits, never a JSON number.
+      pattern: '^-?\d{1,16}\.\d{2}$'
+      examples: ['1250.00']
+    Money4:
+      type: string
+      description: Unit price with up to four fraction digits.
+      pattern: '^\d{1,14}(\.\d{1,4})?$'
+      examples: ['12.3456']
+    Quantity:
+      type: string
+      pattern: '^\d{1,14}(\.\d{1,4})?$'
+      examples: ['12.5']
+    Percent:
+      type: string
+      pattern: '^\d{1,3}(\.\d{1,4})?$'
+      examples: ['18']
+    Currency:
+      type: string
+      pattern: '^[A-Z]{3}$'
+      default: TRY
+
+    GridRequest:
+      type: object
+      description: AG-Grid server-side row model request (existing).
+      properties:
+        startRow: { type: integer, minimum: 0 }
+        endRow: { type: integer, minimum: 0 }
+        sortModel:
+          type: array
+          items:
+            type: object
+            properties:
+              colId: { type: string }
+              sort: { type: string, enum: [asc, desc] }
+        filterModel:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              filterType: { type: string }
+              type:
+                type: string
+                enum: [contains, notContains, equals, notEqual, startsWith, endsWith, blank, notBlank]
+              filter: { type: string }
+              filterTo: { type: string }
+        search: { type: string, description: Free-text OR ILIKE across searchable columns }
+    GridResponse:
+      type: object
+      required: [rows, totalCount]
+      properties:
+        rows: { type: array, items: {} }
+        totalCount: { type: integer, format: int64 }
+
+    Organization:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        logo_url: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    OrganizationWrite:
+      type: object
+      required: [name, slug]
+      properties:
+        name: { type: string }
+        slug: { type: string, pattern: '^[a-z0-9-]+$' }
+        logo_url: { type: [string, 'null'] }
+    User:
+      type: object
+      required: [id, email, role]
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        name: { type: string }
+        role: { type: string, enum: [admin, user] }
+        avatar_url: { type: [string, 'null'] }
+        organizations: { type: array, items: { $ref: '#/components/schemas/Organization' } }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    AdminUserWrite:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+        name: { type: string }
+        role: { type: string, enum: [admin, user] }
+        avatar_url: { type: [string, 'null'] }
+        organization_ids: { type: array, items: { type: integer } }
+
+    SicilTipi: { type: string, enum: [FIRMA, MUSTERI, BANKA], description: 'Supplier (firma) / customer / bank' }
+    TelefonTipi: { type: string, enum: [CEP, EV, IS, FAKS, DIGER], description: 'Mobile / home / work / fax / other' }
+    SicilTelefon:
+      type: object
+      required: [tipi, numara]
+      properties:
+        id: { type: integer, readOnly: true }
+        sicil_id: { type: integer, readOnly: true }
+        tipi: { $ref: '#/components/schemas/TelefonTipi' }
+        numara: { type: string }
+    Sicil:
+      type: object
+      description: Account card (sicil) of a trading partner.
+      required: [id, organization_id, hesap_no, hesap_adi, sicil_tipi]
+      properties:
+        id: { type: integer }
+        organization_id: { type: integer }
+        hesap_no: { type: string, maxLength: 64 }
+        hesap_adi: { type: string, maxLength: 255 }
+        adres: { type: string }
+        ilce: { type: string }
+        sehir: { type: string }
+        v_dairesi: { type: string }
+        v_no: { type: string }
+        tc_no: { type: string }
+        gun: { type: string, description: Payment term (days) }
+        iskonto: { type: number, description: Default discount percent (legacy field; kept numeric for compatibility) }
+        sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
+        telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
+        credit_limit: { $ref: '#/components/schemas/Money', description: Planned }
+        contacts:
+          description: Planned; contact people with their own phones and emails
+          type: array
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string }
+              role: { type: string }
+              phone: { type: string }
+              email: { type: string, format: email }
+        emails: { type: array, items: { type: string, format: email }, description: Planned }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SicilCreate:
+      type: object
+      required: [organization_id, hesap_no, hesap_adi]
+      properties:
+        organization_id: { type: integer }
+        hesap_no: { type: string }
+        hesap_adi: { type: string }
+        adres: { type: string }
+        ilce: { type: string }
+        sehir: { type: string }
+        v_dairesi: { type: string }
+        v_no: { type: string }
+        tc_no: { type: string }
+        gun: { type: string }
+        iskonto: { type: number, minimum: 0, maximum: 100 }
+        sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
+        telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
+    SicilUpdate:
+      type: object
+      description: Partial update; unknown fields are ignored, organization_id cannot change.
+      properties:
+        hesap_no: { type: string }
+        hesap_adi: { type: string }
+        adres: { type: string }
+        ilce: { type: string }
+        sehir: { type: string }
+        v_dairesi: { type: string }
+        v_no: { type: string }
+        tc_no: { type: string }
+        gun: { type: string }
+        iskonto: { type: number, minimum: 0, maximum: 100 }
+        sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
+        telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
+
+    Depot:
+      type: object
+      description: Physical warehouse. Documents, number series, statements and stock are per depot.
+      required: [code, name]
+      properties:
+        id: { type: integer, readOnly: true }
+        code: { type: string, examples: ['1'] }
+        name: { type: string }
+        vatRate: { $ref: '#/components/schemas/Percent' }
+        allowNegativeStock: { type: boolean, default: false }
+        version: { type: integer, readOnly: true }
+    NumberSeries:
+      type: object
+      description: 'Rendered as prefix + year + depot code + zero-padded counter, e.g. TAH20261000042. Allocated with UPDATE … RETURNING on this row, never max()+1.'
+      required: [id, kind, depotId, year, prefix, width, nextValue, version]
+      properties:
+        id: { type: integer }
+        kind: { $ref: '#/components/schemas/NumberSeriesKind' }
+        depotId: { type: integer }
+        year: { type: integer }
+        prefix: { type: string, examples: [DZ, TAH, TED, AC, AS, BC, BS] }
+        width: { type: integer }
+        nextValue: { type: integer, minimum: 1 }
+        version: { type: integer }
+    NumberSeriesKind:
+      type: string
+      enum: [DOCUMENT, COLLECTION_RECEIPT, PAYMENT_RECEIPT, RECEIVABLE_CHEQUE, RECEIVABLE_NOTE, PAYABLE_CHEQUE, PAYABLE_NOTE, STOCK_COUNT]
+
+    AccountType: { type: string, enum: [ASSET, LIABILITY, EQUITY, INCOME, EXPENSE] }
+    Side: { type: string, enum: [DEBIT, CREDIT] }
+    SourceType: { type: string, enum: [manual, document, receipt, instrument, opening, reversal, legacy_import] }
+    Account:
+      type: object
+      required: [id, orgId, code, name, type, currency, normalSide, isActive, version]
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        code: { type: string, examples: ['120.00042'] }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/AccountType' }
+        normalSide: { $ref: '#/components/schemas/Side' }
+        sicilId: { type: [integer, 'null'], description: 'Set for current (cari) accounts of customers, suppliers and banks' }
+        currency: { $ref: '#/components/schemas/Currency' }
+        isActive: { type: boolean }
+        version: { type: integer }
+    AccountCreate:
+      type: object
+      required: [code, name, type]
+      properties:
+        code: { type: string, pattern: '^[0-9]{3}(\.[0-9A-Za-z-]+)*$' }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/AccountType' }
+        sicilId: { type: [integer, 'null'] }
+        currency: { $ref: '#/components/schemas/Currency' }
+    AccountPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Account' } }
+        nextCursor: { type: [string, 'null'] }
+    BalanceRow:
+      type: object
+      required: [accountId, debitTotal, creditTotal, balance]
+      properties:
+        accountId: { type: integer }
+        accountCode: { type: string }
+        accountName: { type: string }
+        sicilId: { type: [integer, 'null'] }
+        depotId: { type: [integer, 'null'], description: Null when summed over depots }
+        debitTotal: { $ref: '#/components/schemas/Money' }
+        creditTotal: { $ref: '#/components/schemas/Money' }
+        balance: { $ref: '#/components/schemas/Money', description: 'debitTotal − creditTotal' }
+    BalancesReport:
+      type: object
+      required: [asOf, rows, totalDebit, totalCredit]
+      properties:
+        asOf: { type: string, format: date, description: Inclusive }
+        depotId: { type: [integer, 'null'] }
+        rows: { type: array, items: { $ref: '#/components/schemas/BalanceRow' } }
+        totalDebit: { $ref: '#/components/schemas/Money' }
+        totalCredit: { $ref: '#/components/schemas/Money' }
+    OpeningBalance:
+      type: object
+      required: [accountId, depotId, year, debit, credit, journalEntryId]
+      properties:
+        accountId: { type: integer }
+        depotId: { type: integer }
+        year: { type: integer, description: Calendar year of the opening date (1 January) }
+        debit: { $ref: '#/components/schemas/Money' }
+        credit: { $ref: '#/components/schemas/Money' }
+        journalEntryId: { type: integer }
+        source: { type: string, enum: [CARRY_FORWARD, LEGACY_IMPORT] }
+    PostingInput:
+      type: object
+      required: [accountId, side, amount]
+      properties:
+        accountId: { type: integer }
+        side: { $ref: '#/components/schemas/Side' }
+        amount: { $ref: '#/components/schemas/Money' }
+        dueDate: { type: string, format: date }
+        memo: { type: string }
+    Posting:
+      allOf:
+        - $ref: '#/components/schemas/PostingInput'
+        - type: object
+          required: [id, lineNo, currency]
+          properties:
+            id: { type: integer }
+            lineNo: { type: integer }
+            currency: { $ref: '#/components/schemas/Currency' }
+    JournalEntryCreate:
+      type: object
+      required: [depotId, entryDate, description, lines]
+      properties:
+        depotId: { type: integer }
+        entryDate: { type: string, format: date }
+        description: { type: string }
+        lines: { type: array, minItems: 2, items: { $ref: '#/components/schemas/PostingInput' } }
+    JournalEntry:
+      type: object
+      required: [id, orgId, depotId, entryNo, entryDate, description, sourceType, postings, createdAt]
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        depotId: { type: integer }
+        entryNo: { type: string }
+        entryDate: { type: string, format: date }
+        description: { type: string }
+        sourceType: { $ref: '#/components/schemas/SourceType' }
+        sourceId: { type: [string, 'null'] }
+        reversesEntryId: { type: [integer, 'null'] }
+        reversedByEntryId: { type: [integer, 'null'] }
+        postings: { type: array, items: { $ref: '#/components/schemas/Posting' } }
+        createdBy: { type: integer }
+        createdAt: { type: string, format: date-time }
+    JournalEntryPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/JournalEntry' } }
+        nextCursor: { type: [string, 'null'] }
+    StatementLine:
+      type: object
+      required: [entryDate, description, debit, credit, runningBalance]
+      properties:
+        entryId: { type: [integer, 'null'], description: Null on the brought-forward row }
+        entryDate: { type: string, format: date }
+        depotId: { type: [integer, 'null'] }
+        documentNo: { type: [string, 'null'] }
+        sourceType: { $ref: '#/components/schemas/SourceType' }
+        dueDate: { type: [string, 'null'], format: date }
+        description: { type: string }
+        debit: { $ref: '#/components/schemas/Money' }
+        credit: { $ref: '#/components/schemas/Money' }
+        runningBalance: { $ref: '#/components/schemas/Money' }
+    Statement:
+      type: object
+      required: [accountId, from, to, broughtForward, lines, depotTotals, closingBalance]
+      properties:
+        accountId: { type: integer }
+        from: { type: string, format: date }
+        to: { type: string, format: date, description: Inclusive }
+        broughtForward: { $ref: '#/components/schemas/StatementLine' }
+        lines: { type: array, items: { $ref: '#/components/schemas/StatementLine' } }
+        depotTotals:
+          type: array
+          items:
+            type: object
+            required: [depotId, debit, credit, balance]
+            properties:
+              depotId: { type: integer }
+              debit: { $ref: '#/components/schemas/Money' }
+              credit: { $ref: '#/components/schemas/Money' }
+              balance: { $ref: '#/components/schemas/Money' }
+        closingBalance: { $ref: '#/components/schemas/Money' }
+
+    DocumentType:
+      type: string
+      description: 'Waybills move stock only; price-difference invoices post to the ledger only.'
+      enum:
+        - SALES_INVOICE
+        - SALES_INVOICE_WITH_WAYBILL
+        - SALES_WAYBILL
+        - PURCHASE_INVOICE
+        - PURCHASE_INVOICE_WITH_WAYBILL
+        - PURCHASE_WAYBILL
+        - SALES_RETURN_INVOICE
+        - SALES_RETURN_WAYBILL
+        - PURCHASE_RETURN_INVOICE
+        - PURCHASE_RETURN_WAYBILL
+        - SALES_PRICE_DIFFERENCE
+        - PURCHASE_PRICE_DIFFERENCE
+    DocumentStatus: { type: string, enum: [DRAFT, POSTED, CANCELLED] }
+    DocumentLineWrite:
+      type: object
+      required: [partId, qty, unitPrice]
+      properties:
+        partId: { type: integer }
+        qty: { $ref: '#/components/schemas/Quantity' }
+        unitPrice: { $ref: '#/components/schemas/Money4' }
+        discount1Pct: { $ref: '#/components/schemas/Percent' }
+        discount2Pct: { $ref: '#/components/schemas/Percent' }
+        vatPct: { $ref: '#/components/schemas/Percent' }
+    DocumentLine:
+      allOf:
+        - $ref: '#/components/schemas/DocumentLineWrite'
+        - type: object
+          required: [id, lineNo, netAmount, vatAmount, lineTotal]
+          properties:
+            id: { type: integer }
+            lineNo: { type: integer }
+            netAmount: { $ref: '#/components/schemas/Money' }
+            vatAmount: { $ref: '#/components/schemas/Money' }
+            lineTotal: { $ref: '#/components/schemas/Money' }
+    DocumentWrite:
+      type: object
+      required: [type, depotId, sicilId, documentDate, lines]
+      properties:
+        type: { $ref: '#/components/schemas/DocumentType' }
+        depotId: { type: integer }
+        sicilId: { type: integer }
+        documentDate: { type: string, format: date }
+        dueDate: { type: string, format: date }
+        linkedDocumentId: { type: [integer, 'null'], description: 'Invoice for an earlier waybill, or the original of a return' }
+        description: { type: string }
+        lines: { type: array, minItems: 1, items: { $ref: '#/components/schemas/DocumentLineWrite' } }
+    Document:
+      type: object
+      required: [id, orgId, type, status, depotId, sicilId, documentDate, currency, subtotal, discountTotal, vatTotal, grandTotal, lines, version]
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        documentNo: { type: [string, 'null'], description: Allocated on post }
+        type: { $ref: '#/components/schemas/DocumentType' }
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        depotId: { type: integer }
+        sicilId: { type: integer }
+        documentDate: { type: string, format: date }
+        dueDate: { type: [string, 'null'], format: date }
+        linkedDocumentId: { type: [integer, 'null'] }
+        currency: { $ref: '#/components/schemas/Currency' }
+        subtotal: { $ref: '#/components/schemas/Money' }
+        discountTotal: { $ref: '#/components/schemas/Money' }
+        vatTotal: { $ref: '#/components/schemas/Money' }
+        grandTotal: { $ref: '#/components/schemas/Money' }
+        description: { type: string }
+        lines: { type: array, items: { $ref: '#/components/schemas/DocumentLine' } }
+        journalEntryId: { type: [integer, 'null'] }
+        postedAt: { type: [string, 'null'], format: date-time }
+        cancelledAt: { type: [string, 'null'], format: date-time }
+        cancelReason: { type: [string, 'null'] }
+        version: { type: integer }
+
+    PaymentMethod: { type: string, enum: [CASH, BANK_TRANSFER, INSTRUMENT] }
+    ReceiptCreate:
+      type: object
+      required: [kind, depotId, sicilId, date, method, amount]
+      properties:
+        kind: { type: string, enum: [COLLECTION, PAYMENT], description: 'tahsilat / tediye' }
+        depotId: { type: integer }
+        sicilId: { type: integer }
+        date: { type: string, format: date }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        amount: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/Currency' }
+        bankAccountId: { type: integer, description: Required for BANK_TRANSFER }
+        description: { type: string }
+    Receipt:
+      allOf:
+        - $ref: '#/components/schemas/ReceiptCreate'
+        - type: object
+          required: [id, orgId, receiptNo, journalEntryId, origin]
+          properties:
+            id: { type: integer }
+            orgId: { type: integer }
+            receiptNo: { type: string, examples: [TAH20261000042] }
+            origin: { type: string, enum: [MANUAL, INSTRUMENT], description: INSTRUMENT receipts are read-only; change them through the instrument }
+            instrumentId: { type: [integer, 'null'] }
+            journalEntryId: { type: integer }
+            voidedByEntryId: { type: [integer, 'null'] }
+    CashBookLine:
+      type: object
+      required: [date, description, income, expense, runningBalance]
+      properties:
+        date: { type: string, format: date }
+        receiptId: { type: [integer, 'null'] }
+        receiptNo: { type: [string, 'null'] }
+        sicilId: { type: [integer, 'null'] }
+        description: { type: string }
+        income: { $ref: '#/components/schemas/Money' }
+        expense: { $ref: '#/components/schemas/Money' }
+        runningBalance: { $ref: '#/components/schemas/Money' }
+    CashBook:
+      type: object
+      required: [depotId, from, to, broughtForward, lines, closingBalance]
+      properties:
+        depotId: { type: integer }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        broughtForward: { $ref: '#/components/schemas/Money' }
+        lines: { type: array, items: { $ref: '#/components/schemas/CashBookLine' } }
+        closingBalance: { $ref: '#/components/schemas/Money' }
+
+    InstrumentType:
+      type: string
+      enum: [RECEIVABLE_CHEQUE, RECEIVABLE_NOTE, PAYABLE_CHEQUE, PAYABLE_NOTE]
+      description: 'alacak çeki, alacak senedi, borç çeki, borç senedi'
+    InstrumentStatus:
+      type: string
+      enum: [PORTFOLIO, DEPOSITED, COLLECTED, ENDORSED, PROTESTED, RETURNED, ISSUED, PAID]
+    InstrumentCreate:
+      type: object
+      required: [type, depotId, sicilId, serialNo, amount, issueDate, dueDate]
+      properties:
+        type: { $ref: '#/components/schemas/InstrumentType' }
+        depotId: { type: integer }
+        sicilId: { type: integer, description: 'Customer it was received from, or supplier it was issued to' }
+        serialNo: { type: string, maxLength: 20 }
+        amount: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/Currency' }
+        issueDate: { type: string, format: date }
+        dueDate: { type: string, format: date }
+        drawerName: { type: string }
+        drawerTaxNo: { type: string }
+        bankName: { type: string }
+        bankBranch: { type: string }
+        bankCity: { type: string }
+        accountNo: { type: string }
+    Instrument:
+      allOf:
+        - $ref: '#/components/schemas/InstrumentCreate'
+        - type: object
+          required: [id, orgId, instrumentNo, status, receiptId, version]
+          properties:
+            id: { type: integer }
+            orgId: { type: integer }
+            instrumentNo: { type: string, examples: [AC20261000007] }
+            status: { $ref: '#/components/schemas/InstrumentStatus' }
+            receiptId: { type: integer, description: Receipt issued at registration }
+            version: { type: integer }
+    InstrumentOperation:
+      type: object
+      required: [action, date]
+      properties:
+        action: { type: string, enum: [DEPOSIT_TO_BANK, COLLECT_AT_BANK, COLLECT_BY_HAND, ENDORSE, PROTEST, RETURN, PAY] }
+        date: { type: string, format: date }
+        endorseeSicilId: { type: integer, description: Required for ENDORSE }
+        bankAccountId: { type: integer, description: Required for DEPOSIT_TO_BANK and COLLECT_AT_BANK }
+        note: { type: string }
+    InstrumentEvent:
+      type: object
+      required: [seq, action, toStatus, occurredAt]
+      properties:
+        seq: { type: integer }
+        action: { type: string }
+        fromStatus: { oneOf: [{ $ref: '#/components/schemas/InstrumentStatus' }, { type: 'null' }] }
+        toStatus: { $ref: '#/components/schemas/InstrumentStatus' }
+        occurredAt: { type: string, format: date-time }
+        counterpartySicilId: { type: [integer, 'null'] }
+        receiptId: { type: [integer, 'null'] }
+        journalEntryId: { type: [integer, 'null'] }
+        actorUserId: { type: integer }
+        note: { type: [string, 'null'] }
+
+    PartCode:
+      type: object
+      required: [kind, code]
+      properties:
+        kind: { type: string, enum: [MANUFACTURER, OEM, EQUIVALENT] }
+        code: { type: string, maxLength: 40 }
+        equivalentPartId: { type: [integer, 'null'], description: For EQUIVALENT codes (muadil) }
+    PartWrite:
+      type: object
+      required: [catalogNo, stockNo, name]
+      properties:
+        catalogNo: { type: integer, description: Legacy KATNO }
+        stockNo: { type: string, maxLength: 15, description: Legacy STNO }
+        name: { type: string }
+        type: { type: string }
+        brand: { type: string }
+        unit: { type: string, default: PCS }
+        minQty: { $ref: '#/components/schemas/Quantity' }
+        maxQty: { $ref: '#/components/schemas/Quantity' }
+        packageQty: { type: integer, minimum: 1 }
+        vatPct: { $ref: '#/components/schemas/Percent' }
+        codes: { type: array, items: { $ref: '#/components/schemas/PartCode' } }
+    Part:
+      allOf:
+        - $ref: '#/components/schemas/PartWrite'
+        - type: object
+          required: [id, orgId, isActive, version]
+          properties:
+            id: { type: integer }
+            orgId: { type: integer }
+            isActive: { type: boolean }
+            listPrice: { $ref: '#/components/schemas/Money4', description: Current price in the default sales list }
+            onHand: { $ref: '#/components/schemas/Quantity', description: Sum over depots }
+            version: { type: integer }
+    PriceList:
+      type: object
+      required: [code, name, kind]
+      properties:
+        id: { type: integer, readOnly: true }
+        code: { type: string }
+        name: { type: string }
+        kind: { type: string, enum: [SALES, SUPPLIER] }
+        supplierSicilId: { type: [integer, 'null'] }
+        currency: { $ref: '#/components/schemas/Currency' }
+        isDefault: { type: boolean }
+    Price:
+      type: object
+      required: [priceListId, partId, price, validFrom]
+      properties:
+        priceListId: { type: integer }
+        partId: { type: integer }
+        price: { $ref: '#/components/schemas/Money4' }
+        validFrom: { type: string, format: date }
+        validTo: { type: [string, 'null'], format: date, description: Derived from the next price }
+        createdBy: { type: integer }
+    StockLevel:
+      type: object
+      required: [partId, depotId, onHand]
+      properties:
+        partId: { type: integer }
+        depotId: { type: integer }
+        onHand: { $ref: '#/components/schemas/Quantity' }
+        belowMin: { type: boolean }
+    MovementKind: { type: string, enum: [IN, OUT, ADJUST_IN, ADJUST_OUT, TRANSFER_IN, TRANSFER_OUT] }
+    StockMovement:
+      type: object
+      required: [id, partId, depotId, kind, qty, occurredAt, sourceType]
+      properties:
+        id: { type: integer }
+        partId: { type: integer }
+        depotId: { type: integer }
+        kind: { $ref: '#/components/schemas/MovementKind' }
+        qty: { $ref: '#/components/schemas/Quantity' }
+        unitCost: { $ref: '#/components/schemas/Money4' }
+        sourceType: { type: string, enum: [document, stock_count, transfer, legacy_import] }
+        sourceId: { type: [string, 'null'] }
+        occurredAt: { type: string, format: date-time }
+    StockTransfer:
+      type: object
+      required: [partId, fromDepotId, toDepotId, qty]
+      properties:
+        partId: { type: integer }
+        fromDepotId: { type: integer }
+        toDepotId: { type: integer }
+        qty: { $ref: '#/components/schemas/Quantity' }
+        note: { type: string }
+    StockCountOpen:
+      type: object
+      required: [depotId, year]
+      properties:
+        depotId: { type: integer }
+        year: { type: integer }
+        shelfFrom: { type: string }
+        shelfTo: { type: string }
+    StockCountLineWrite:
+      type: object
+      required: [partId, countedQty]
+      properties:
+        partId: { type: integer }
+        shelf: { type: string }
+        countedQty: { $ref: '#/components/schemas/Quantity' }
+    StockCount:
+      allOf:
+        - $ref: '#/components/schemas/StockCountOpen'
+        - type: object
+          required: [id, countNo, status, version]
+          properties:
+            id: { type: integer }
+            countNo: { type: string }
+            status: { type: string, enum: [OPEN, FINALIZED, CANCELLED] }
+            lines:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/StockCountLineWrite'
+                  - type: object
+                    properties:
+                      systemQty: { $ref: '#/components/schemas/Quantity' }
+                      difference: { type: string, pattern: '^-?\d{1,14}(\.\d{1,4})?$' }
+            finalizedAt: { type: [string, 'null'], format: date-time }
+            version: { type: integer }
+
+    AuditEvent:
+      type: object
+      required: [id, orgId, occurredAt, action, entityType, entityId]
+      properties:
+        id: { type: integer }
+        orgId: { type: integer }
+        occurredAt: { type: string, format: date-time }
+        actorUserId: { type: [integer, 'null'] }
+        actorIp: { type: [string, 'null'] }
+        requestId: { type: [string, 'null'] }
+        action: { type: string, examples: [document.posted, sicil.updated] }
+        entityType: { type: string }
+        entityId: { type: string }
+        before: { type: [object, 'null'] }
+        after: { type: [object, 'null'] }

@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fikopar.example.com/schemas/events/InstrumentStatusChanged.schema.json",
+  "title": "InstrumentStatusChanged",
+  "description": "A cheque or note moved along its state machine.",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "InstrumentStatusChanged"
+    },
+    "version": {
+      "const": 1
+    },
+    "aggregateType": {
+      "const": "instrument"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instrumentId",
+        "instrumentNo",
+        "instrumentType",
+        "action",
+        "amount",
+        "currency",
+        "dueDate",
+        "toStatus",
+        "seq"
+      ],
+      "properties": {
+        "instrumentId": {
+          "type": "integer"
+        },
+        "instrumentNo": {
+          "type": "string"
+        },
+        "instrumentType": {
+          "enum": [
+            "RECEIVABLE_CHEQUE",
+            "RECEIVABLE_NOTE",
+            "PAYABLE_CHEQUE",
+            "PAYABLE_NOTE"
+          ]
+        },
+        "action": {
+          "enum": [
+            "REGISTER",
+            "DEPOSIT_TO_BANK",
+            "COLLECT_AT_BANK",
+            "COLLECT_BY_HAND",
+            "ENDORSE",
+            "PROTEST",
+            "RETURN",
+            "PAY"
+          ]
+        },
+        "amount": {
+          "type": "string",
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "dueDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "fromStatus": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toStatus": {
+          "enum": [
+            "PORTFOLIO",
+            "DEPOSITED",
+            "COLLECTED",
+            "ENDORSED",
+            "PROTESTED",
+            "RETURNED",
+            "ISSUED",
+            "PAID"
+          ]
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "counterpartySicilId": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "receiptId": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "journalEntryId": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fikopar.example.com/schemas/events/DocumentPosted.schema.json",
+  "title": "DocumentPosted",
+  "description": "A trade document was posted. Consumers: ledger (skipped for waybills), stock (skipped for price-difference invoices and for invoices whose linked waybill already moved the goods).",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "DocumentPosted"
+    },
+    "version": {
+      "const": 1
+    },
+    "aggregateType": {
+      "const": "document"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "documentId",
+        "documentNo",
+        "documentType",
+        "sicilId",
+        "documentDate",
+        "postsToLedger",
+        "movesStock",
+        "currency",
+        "grandTotal",
+        "lines"
+      ],
+      "properties": {
+        "documentId": {
+          "type": "integer"
+        },
+        "documentNo": {
+          "type": "string"
+        },
+        "documentType": {
+          "enum": [
+            "SALES_INVOICE",
+            "SALES_INVOICE_WITH_WAYBILL",
+            "SALES_WAYBILL",
+            "PURCHASE_INVOICE",
+            "PURCHASE_INVOICE_WITH_WAYBILL",
+            "PURCHASE_WAYBILL",
+            "SALES_RETURN_INVOICE",
+            "SALES_RETURN_WAYBILL",
+            "PURCHASE_RETURN_INVOICE",
+            "PURCHASE_RETURN_WAYBILL",
+            "SALES_PRICE_DIFFERENCE",
+            "PURCHASE_PRICE_DIFFERENCE"
+          ]
+        },
+        "sicilId": {
+          "type": "integer"
+        },
+        "documentDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "dueDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "linkedDocumentId": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "postsToLedger": {
+          "type": "boolean"
+        },
+        "movesStock": {
+          "type": "boolean"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "subtotal": {
+          "type": "string",
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+        },
+        "discountTotal": {
+          "type": "string",
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+        },
+        "vatTotal": {
+          "type": "string",
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+        },
+        "grandTotal": {
+          "type": "string",
+          "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "lineNo",
+              "partId",
+              "qty",
+              "unitPrice",
+              "netAmount",
+              "vatAmount"
+            ],
+            "properties": {
+              "lineNo": {
+                "type": "integer"
+              },
+              "partId": {
+                "type": "integer"
+              },
+              "qty": {
+                "type": "string",
+                "pattern": "^\\d{1,14}(\\.\\d{1,4})?$"
+              },
+              "unitPrice": {
+                "type": "string",
+                "pattern": "^\\d{1,14}(\\.\\d{1,4})?$"
+              },
+              "discount1Pct": {
+                "type": "string"
+              },
+              "discount2Pct": {
+                "type": "string"
+              },
+              "vatPct": {
+                "type": "string"
+              },
+              "netAmount": {
+                "type": "string",
+                "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+              },
+              "vatAmount": {
+                "type": "string",
+                "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
