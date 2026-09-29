@@ -61,7 +61,7 @@ func pow10(n int) int {
 // every posted document balances and carries the grand total on the card account.
 func TestDocumentsProperty_TotalsAreSumOfRoundedLinesAndEntriesBalance(t *testing.T) {
 	f := newDocs(t)
-	r := rand.New(rand.NewSource(7))
+	r := rand.New(rand.NewSource(7)) //nolint:gosec // reproducible seed
 	vats := []string{"0", "1", "8", "10", "18", "20"}
 	for n := 0; n < 30; n++ {
 		var lines []string
@@ -129,7 +129,7 @@ func TestDocumentsProperty_TotalsAreSumOfRoundedLinesAndEntriesBalance(t *testin
 // the model the test keeps; every entry balances.
 func TestDocumentsProperty_OnHandFollowsPostAndCancelCycles(t *testing.T) {
 	f := newDocs(t)
-	r := rand.New(rand.NewSource(11))
+	r := rand.New(rand.NewSource(11)) //nolint:gosec // reproducible seed
 	type key struct{ part, depot uint }
 	model := map[key]int{{f.p1, f.depot}: 10}
 	sign := map[string]int{"SALES_INVOICE_WITH_WAYBILL": -1, "SALES_INVOICE": -1, "SALES_WAYBILL": -1, "PURCHASE_RETURN_WAYBILL": -1,
