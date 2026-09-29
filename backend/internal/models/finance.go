@@ -22,6 +22,9 @@ type NumberSeries struct {
 	Version   int    `json:"version" gorm:"column:version"`
 }
 
+// TRY is the only currency of contracts v1.1; one currency per journal entry.
+const TRY = "TRY"
+
 type Side string
 
 const (
@@ -98,6 +101,7 @@ type JournalEntry struct {
 	ReversesEntryID   *uint      `json:"reversesEntryId" gorm:"column:reverses_entry_id"`
 	ReversedByEntryID *uint      `json:"reversedByEntryId" gorm:"column:reversed_by_entry_id"`
 	SourceNo          *string    `json:"sourceNo" gorm:"column:source_no"`
+	OwnerID           *string    `json:"-" gorm:"column:owner_id"`
 	IdempotencyKey    *string    `json:"idempotencyKey" gorm:"column:idempotency_key"`
 	Postings          []Posting  `json:"postings" gorm:"-"`
 	CreatedBy         *uint      `json:"createdBy" gorm:"column:created_by"`

@@ -322,12 +322,15 @@ func (s *LedgerService) changeOverride(ctx context.Context, orgID uint, year int
 		if posted {
 			return apierror.AlreadyCarriedForward
 		}
-		if _, err := account(q, orgID, accountID); err != nil {
+		if _, err := q.GetAccount(orgID, accountID); err != nil {
+			if repository.IsNotFound(err) {
+				return apierror.UnknownRef(apierror.AccountNotFound, "accountId")
+			}
 			return err
 		}
 		if _, err := q.GetDepot(orgID, depotID); err != nil {
 			if repository.IsNotFound(err) {
-				return apierror.DepotNotFound
+				return apierror.UnknownRef(apierror.DepotNotFound, "depotId")
 			}
 			return err
 		}

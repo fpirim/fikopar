@@ -23,11 +23,12 @@ func (q *Q) InsertPosting(orgID uint, p *models.Posting) error {
 const entrySelect = `SELECT e.id, e.org_id, e.depot_id, e.entry_no, e.entry_date, e.description, e.source_type, e.source_id,
 	e.reverses_entry_id, e.idempotency_key, e.created_by, e.created_at,
 	(SELECT r.id FROM journal_entries r WHERE r.reverses_entry_id = e.id) AS reversed_by_entry_id,
-	coalesce(
-	  (SELECT receipt_no FROM receipts x WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1),
-	  (SELECT voucher_no FROM cash_vouchers x WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1)
-	) AS source_no
-	FROM journal_entries e`
+	coalesce(r.receipt_no, v.voucher_no) AS source_no, coalesce(r.id, v.id)::text AS owner_id
+	FROM journal_entries e
+	LEFT JOIN LATERAL (SELECT x.id, x.receipt_no FROM receipts x
+	  WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1) r ON true
+	LEFT JOIN LATERAL (SELECT x.id, x.voucher_no FROM cash_vouchers x
+	  WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1) v ON true`
 
 func (q *Q) GetEntry(orgID, id uint) (*models.JournalEntry, error) {
 	e, err := first[models.JournalEntry](q.db, entrySelect+` WHERE e.org_id = ? AND e.id = ?`, orgID, id)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -12,12 +11,6 @@ import (
 	"github.com/fpirim/fikopar/backend/internal/apierror"
 	"github.com/fpirim/fikopar/backend/internal/models"
 	"github.com/fpirim/fikopar/backend/internal/repository"
-)
-
-// References inside a request body that do not resolve are business-rule failures (422), not 404s.
-var (
-	refAccountNotFound = &apierror.APIError{Code: apierror.AccountNotFound.Code, Status: http.StatusUnprocessableEntity}
-	refDepotNotFound   = &apierror.APIError{Code: apierror.DepotNotFound.Code, Status: http.StatusUnprocessableEntity}
 )
 
 type LineInput struct {
@@ -76,7 +69,7 @@ func depotRef(q *repository.Q, orgID, depotID uint) (*models.Depot, error) {
 	}
 	d, err := q.GetDepot(orgID, depotID)
 	if repository.IsNotFound(err) {
-		return nil, refDepotNotFound
+		return nil, apierror.UnknownRef(apierror.DepotNotFound, "depotId")
 	}
 	return d, err
 }
@@ -112,7 +105,7 @@ func postEntry(ctx context.Context, q *repository.Q, orgID uint, in entryInput) 
 	for _, l := range in.lines {
 		a, ok := byID[l.AccountID]
 		if !ok {
-			return nil, refAccountNotFound
+			return nil, apierror.UnknownRef(apierror.AccountNotFound, "accountId")
 		}
 		if !a.IsActive {
 			return nil, apierror.WithDetail(apierror.AccountInactive, a.Code)
@@ -225,7 +218,7 @@ func (s *LedgerService) Reverse(ctx context.Context, orgID, id uint, reason stri
 		case models.SourceReversal:
 			return apierror.InvalidStateTransition
 		default:
-			return apierror.WithDetail(apierror.EntryOwnedBySource, owner(e))
+			return apierror.WithOwner(apierror.EntryOwnedBySource, owner(e))
 		}
 		out, err = reverseEntry(ctx, q, e, reason)
 		return err
@@ -233,15 +226,15 @@ func (s *LedgerService) Reverse(ctx context.Context, orgID, id uint, reason stri
 	return out, err
 }
 
-func owner(e *models.JournalEntry) string {
-	ref := ""
+func owner(e *models.JournalEntry) apierror.Owner {
+	o := apierror.Owner{SourceType: string(e.SourceType), SourceNo: e.SourceNo}
 	switch {
-	case e.SourceNo != nil:
-		ref = *e.SourceNo
+	case e.OwnerID != nil:
+		o.SourceID = *e.OwnerID
 	case e.SourceID != nil:
-		ref = *e.SourceID
+		o.SourceID = *e.SourceID
 	}
-	return string(e.SourceType) + ":" + ref
+	return o
 }
 
 func reverseEntry(ctx context.Context, q *repository.Q, e *models.JournalEntry, reason string) (*models.JournalEntry, error) {

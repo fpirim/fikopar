@@ -21,16 +21,12 @@ func NewLedgerService(store *repository.Store) *LedgerService { return &LedgerSe
 
 var (
 	accountCode  = regexp.MustCompile(`^[0-9]{3}(\.[0-9A-Za-z-]+)*$`)
-	currencyCode = regexp.MustCompile(`^[A-Z]{3}$`)
 	accountRoles = map[string]bool{
 		"CASH": true, "SALES": true, "SALES_RETURNS": true, "PURCHASES": true, "PURCHASE_RETURNS": true,
 		"PRICE_DIFFERENCE": true, "OUTPUT_VAT": true, "INPUT_VAT": true, "RECEIVABLE_CHEQUES": true,
 		"RECEIVABLE_NOTES": true, "CHEQUES_AT_BANK": true, "PAYABLE_CHEQUES": true, "PAYABLE_NOTES": true,
 		"OPENING": true, "CASH_OVER_SHORT": true,
 	}
-	// setAccountRoles answers 422 for unknown references, not 404.
-	roleAccountNotFound = &apierror.APIError{Code: apierror.AccountNotFound.Code, Status: http.StatusUnprocessableEntity}
-	roleDepotNotFound   = &apierror.APIError{Code: apierror.DepotNotFound.Code, Status: http.StatusUnprocessableEntity}
 )
 
 type AccountPage struct {
@@ -110,9 +106,9 @@ func (s *LedgerService) CreateAccount(ctx context.Context, orgID uint, in Accoun
 		return nil, apierror.WithField(apierror.InvalidRequest, "type")
 	}
 	if in.Currency == "" {
-		in.Currency = "TRY"
+		in.Currency = models.TRY
 	}
-	if !currencyCode.MatchString(in.Currency) {
+	if in.Currency != models.TRY {
 		return nil, apierror.WithField(apierror.InvalidRequest, "currency")
 	}
 	a := &models.Account{OrgID: orgID, Code: in.Code, Name: in.Name, Type: in.Type, NormalSide: side, SicilID: in.SicilID, Currency: in.Currency}
@@ -123,7 +119,7 @@ func (s *LedgerService) CreateAccount(ctx context.Context, orgID uint, in Accoun
 				return err
 			}
 			if !ok {
-				return apierror.SicilNotFound
+				return apierror.UnknownRef(apierror.SicilNotFound, "sicilId")
 			}
 		}
 		if err := q.CreateAccount(a); err != nil {
@@ -195,14 +191,14 @@ func (s *LedgerService) SetAccountRoles(ctx context.Context, orgID uint, roles [
 		for _, r := range roles {
 			if _, err := q.GetAccount(orgID, r.AccountID); err != nil {
 				if repository.IsNotFound(err) {
-					return roleAccountNotFound
+					return apierror.UnknownRef(apierror.AccountNotFound, "accountId")
 				}
 				return err
 			}
 			if r.DepotID != nil {
 				if _, err := q.GetDepot(orgID, *r.DepotID); err != nil {
 					if repository.IsNotFound(err) {
-						return roleDepotNotFound
+						return apierror.UnknownRef(apierror.DepotNotFound, "depotId")
 					}
 					return err
 				}

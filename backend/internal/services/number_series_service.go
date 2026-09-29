@@ -33,7 +33,7 @@ func (s *NumberSeriesService) Update(ctx context.Context, orgID, id uint, versio
 	err := s.store.InTx(ctx, func(q *repository.Q) error {
 		cur, err := q.GetNumberSeries(orgID, id)
 		if repository.IsNotFound(err) {
-			return apierror.WithDetail(apierror.InvalidRequest, "number series not found")
+			return apierror.NumberSeriesNotFound
 		}
 		if err != nil {
 			return err

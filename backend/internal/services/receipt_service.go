@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"strings"
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
@@ -16,8 +15,6 @@ type ReceiptService struct {
 }
 
 func NewReceiptService(store *repository.Store) *ReceiptService { return &ReceiptService{store: store} }
-
-var refSicilNotFound = &apierror.APIError{Code: apierror.SicilNotFound.Code, Status: http.StatusUnprocessableEntity}
 
 type ReceiptCreate struct {
 	Kind          string          `json:"kind"`
@@ -42,7 +39,7 @@ func (s *ReceiptService) Create(ctx context.Context, orgID uint, in ReceiptCreat
 	switch in.Method {
 	case "CASH", "BANK_TRANSFER":
 	case "CHEQUE", "NOTE":
-		return nil, &apierror.Detailed{Err: apierror.InvalidRequest, Field: "method", Detail: "cheque and note receipts arrive with instruments"}
+		return nil, apierror.WithField(apierror.MethodNotAvailable, "method")
 	default:
 		return nil, apierror.WithField(apierror.InvalidRequest, "method")
 	}
@@ -55,7 +52,7 @@ func (s *ReceiptService) Create(ctx context.Context, orgID uint, in ReceiptCreat
 	if in.Currency == "" {
 		in.Currency = "TRY"
 	}
-	if !currencyCode.MatchString(in.Currency) {
+	if in.Currency != models.TRY {
 		return nil, apierror.WithField(apierror.InvalidRequest, "currency")
 	}
 	in.Description = strings.TrimSpace(in.Description)
@@ -67,7 +64,7 @@ func (s *ReceiptService) Create(ctx context.Context, orgID uint, in ReceiptCreat
 		}
 		sicil, err := q.GetSicilRef(orgID, in.SicilID)
 		if repository.IsNotFound(err) {
-			return refSicilNotFound
+			return apierror.UnknownRef(apierror.SicilNotFound, "sicilId")
 		}
 		if err != nil {
 			return err
@@ -156,7 +153,7 @@ func roleAccount(q *repository.Q, orgID uint, role string, depotID uint) (*model
 func bankAccount(q *repository.Q, orgID, id uint) (*models.Account, error) {
 	a, err := q.GetAccount(orgID, id)
 	if repository.IsNotFound(err) {
-		return nil, refAccountNotFound
+		return nil, apierror.UnknownRef(apierror.AccountNotFound, "bankAccountId")
 	}
 	if err != nil {
 		return nil, err
