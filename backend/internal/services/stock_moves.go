@@ -69,9 +69,24 @@ func postMovements(ctx context.Context, q *repository.Q, orgID uint, moves []rep
 		}
 	}
 	warnings := []models.StockWarning{}
+	var parts []uint
 	for _, k := range keys {
 		if v := after[k]; v < 0 {
 			warnings = append(warnings, models.StockWarning{Code: models.WarningNegativeStock, PartID: k.part, DepotID: k.depot, OnHandAfter: v})
+			parts = append(parts, k.part)
+		}
+	}
+	if len(parts) > 0 {
+		refs, err := q.PartRefs(orgID, parts)
+		if err != nil {
+			return nil, nil, err
+		}
+		stockNo := make(map[uint]string, len(refs))
+		for _, r := range refs {
+			stockNo[r.ID] = r.StockNo
+		}
+		for i := range warnings {
+			warnings[i].StockNo = stockNo[warnings[i].PartID]
 		}
 	}
 	return ids, warnings, nil
