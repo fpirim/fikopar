@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { server } from '../mocks/node'
-import { gridStockCountLines, setStockCountLine } from '../api/endpoints'
+import { gridParts, gridStockCountLines, setStockCountLine } from '../api/endpoints'
 
 const pinned = () => document.querySelector('.ag-floating-bottom') as HTMLElement
 const row = (no: string) => screen.getByText(no).closest('[role="row"]') as HTMLElement
@@ -42,6 +42,14 @@ describe('StockCountPage', () => {
     const calls = capture('post', '/api/orgs/:orgId/stock/counts/:countId/lines/grid')
     renderApp('/stock-counts/2')
     const diff = await screen.findByRole('button', { name: 'Yalnız farklar' })
+    await waitFor(() =>
+      expect(calls[0].body).toMatchObject({
+        sortModel: [
+          { colId: 'shelf', sort: 'asc' },
+          { colId: 'stockNo', sort: 'asc' },
+        ],
+      }),
+    )
     await userEvent.click(diff)
     expect(diff).toHaveAttribute('aria-pressed', 'true')
     await waitFor(() => expect(calls[calls.length - 1].body).toMatchObject({ only: 'DIFFERENCES' }))
@@ -176,6 +184,40 @@ describe('StockCountPage', () => {
     const pdf = calls.find((c) => c.headers.get('Accept') === 'application/pdf')!
     expect(pdf.url.searchParams.get('sheet')).toBe('BLIND')
     expect(pdf.url.searchParams.get('only')).toBe('NOT_COUNTED')
+  })
+
+  it('adds a part found on a shelf with its count', async () => {
+    // A part without a shelf or stock in depot 1 is not on the sheet.
+    const off = await gridParts(1, {
+      depotId: 1,
+      startRow: 0,
+      endRow: 50,
+      filterModel: { shelf: { filterType: 'text', type: 'blank' } },
+    })
+    const no = off.rows.find((r) => Number(r.onHand) === 0)!.stockNo
+    const calls = capture('post', '/api/orgs/:orgId/stock/counts/:countId/lines')
+    renderApp('/stock-counts/2')
+    await userEvent.click(await screen.findByRole('button', { name: 'Parça ekle' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.type(within(dialog).getByLabelText('Stok no ya da kod'), no)
+    await userEvent.click(await within(dialog).findByRole('option', { name: new RegExp(no) }))
+    await userEvent.type(within(dialog).getByLabelText('Sayılan'), '2')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Ekle' }))
+    expect(await screen.findByText(`${no} sayıma eklendi`)).toBeInTheDocument()
+    expect(calls[0].body).toMatchObject({ countedQty: '2' })
+    expect(calls[0].headers.get('Idempotency-Key')).toBeTruthy()
+  })
+
+  it('refuses a part that already has a line', async () => {
+    renderApp('/stock-counts/2')
+    await userEvent.click(await screen.findByRole('button', { name: 'Parça ekle' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.type(within(dialog).getByLabelText('Stok no ya da kod'), 'HP-3774')
+    await userEvent.click(await within(dialog).findByRole('option', { name: /HP-3774/ }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Ekle' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Parça sayımda zaten var; orada sayın',
+    )
   })
 
   it('exports the filtered lines to Excel', async () => {

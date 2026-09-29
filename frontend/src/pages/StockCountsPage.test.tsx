@@ -14,6 +14,7 @@ describe('StockCountsPage', () => {
     expect(open).toHaveTextContent('SÜRÜYOR')
     expect(open).toHaveTextContent('28.09.2026')
     expect(open).toHaveTextContent(/412 \/ [\d.]+/)
+    expect(screen.getAllByRole('link', { name: /^SAY-/ })[0]).toHaveTextContent('SAY-2026-1-000002')
     const done = screen.getByRole('link', { name: 'SAY-2026-1-000001' }).closest('tr')!
     expect(done).toHaveTextContent('KAPANDI')
     expect(done).toHaveTextContent('−8.100,00')
