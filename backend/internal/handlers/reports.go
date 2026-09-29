@@ -270,3 +270,5 @@ func carryForwardPDF(c echo.Context, cf *services.CarryForward) error {
 	})
 	return sendFile(c, mimePDF, fmt.Sprintf("carry-forward-%d.pdf", cf.Year), data, err)
 }
+
+func (h *ReportHandler) Dashboard(c echo.Context) error { return notImplemented(c) }
