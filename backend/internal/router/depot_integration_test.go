@@ -15,12 +15,11 @@ import (
 )
 
 type depotJSON struct {
-	ID                 uint   `json:"id"`
-	Code               string `json:"code"`
-	Name               string `json:"name"`
-	VatRate            string `json:"vatRate"`
-	AllowNegativeStock bool   `json:"allowNegativeStock"`
-	Version            int    `json:"version"`
+	ID      uint   `json:"id"`
+	Code    string `json:"code"`
+	Name    string `json:"name"`
+	VatRate string `json:"vatRate"`
+	Version int    `json:"version"`
 }
 
 func TestDepots_CreateAndListArePerOrg(t *testing.T) {
