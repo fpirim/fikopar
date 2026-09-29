@@ -90,6 +90,8 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.GET(sicilIDPath, h.Sicil.Get)
 	org.PUT(sicilIDPath, h.Sicil.Update)
 	org.DELETE(sicilIDPath, h.Sicil.Delete)
+	org.GET(sicilIDPath+"/summary", h.Report.SicilSummary)
+	org.GET("/search", h.Report.Search)
 
 	org.GET("/depots", h.Depot.List)
 	org.POST("/depots", h.Depot.Create, orgAdmin)

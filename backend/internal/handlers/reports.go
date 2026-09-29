@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
@@ -76,6 +77,42 @@ func (h *ReportHandler) Balances(c echo.Context) error {
 	t.Totals = []any{"Total", nil, nil, nil, sum[0], sum[1], sum[2], sum[3]}
 	data, err := export.XLSX("Balances", t)
 	return sendFile(c, mimeXLSX, "balances-"+in.AsOf.String()+".xlsx", data, err)
+}
+
+func (h *ReportHandler) SicilSummary(c echo.Context) error {
+	id, err := pathID(c, "sicilId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	depot, err := optionalDepot(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	asOf, err := queryDate(c, "asOf")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	sum, err := h.reports.SicilSummary(c.Request().Context(), orgID(c), id, depot, asOf)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, sum)
+}
+
+func (h *ReportHandler) Search(c echo.Context) error {
+	limit := 0
+	if v := c.QueryParam("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n == 0 {
+			return apierror.Respond(c, apierror.WithField(apierror.InvalidRequest, "limit"))
+		}
+		limit = n
+	}
+	res, err := h.reports.Search(c.Request().Context(), orgID(c), c.QueryParam("q"), limit)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, res)
 }
 
 func deref(s *string) string {

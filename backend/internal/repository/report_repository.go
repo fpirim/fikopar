@@ -9,6 +9,7 @@ import (
 type BalanceQuery struct {
 	AsOf      models.Date
 	DepotID   *uint
+	AccountID *uint
 	SicilTipi *string
 	Grid      ReportGridRequest
 	All       bool
@@ -49,7 +50,7 @@ const balancesCTE = `WITH b AS (
 	LEFT JOIN (postings p JOIN journal_entries e ON e.id = p.entry_id)
 	       ON p.account_id = a.id AND e.entry_date >= ledger_start(a.org_id, ?) AND e.entry_date <= ?
 	      AND (?::bigint IS NULL OR e.depot_id = ?)
-	WHERE a.org_id = ? AND (?::text IS NULL OR s.sicil_tipi = ?)
+	WHERE a.org_id = ? AND (?::text IS NULL OR s.sicil_tipi = ?) AND (?::bigint IS NULL OR a.id = ?)
 	GROUP BY a.id, s.id
 ), r AS (
 	SELECT *, debit_total - credit_total AS balance,
@@ -58,7 +59,7 @@ const balancesCTE = `WITH b AS (
 )`
 
 func (q *Q) Balances(orgID uint, in BalanceQuery) ([]models.BalanceRow, *BalanceTotals, error) {
-	cteArgs := []any{in.DepotID, in.AsOf, in.AsOf, in.AsOf, in.DepotID, in.DepotID, orgID, in.SicilTipi, in.SicilTipi}
+	cteArgs := []any{in.DepotID, in.AsOf, in.AsOf, in.AsOf, in.DepotID, in.DepotID, orgID, in.SicilTipi, in.SicilTipi, in.AccountID, in.AccountID}
 	if err := knownCols(in.Grid, balanceCols); err != nil {
 		return nil, nil, err
 	}
