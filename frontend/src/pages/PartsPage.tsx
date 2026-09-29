@@ -24,15 +24,26 @@ import SelectCompany from '../components/layout/SelectCompany'
 
 const STOCK: StockOnly[] = ['ALL', 'IN_STOCK', 'BELOW_MIN', 'NEGATIVE', 'BELOW_MIN_OR_NEGATIVE']
 const MAX_BODY = 14
-const QTY_W = monoWidth(7)
+const QTY_W: Record<string, number> = {
+  onHand: monoWidth(7),
+  available: 100,
+  minQty: monoWidth(4),
+  maxQty: monoWidth(4),
+}
 
 type Row = PartRow & { label?: string }
 type Qty = Extract<PartColId, 'onHand' | 'reserved' | 'available' | 'minQty' | 'maxQty'>
 
-// OEM codes first, then ALT: "3774612M91 · K9-3774".
-function codeSummary(codes: PartRow['codes']): string {
+const codeList = (codes: PartRow['codes']) => {
   const pick = (kind: string) => (codes ?? []).filter((c) => c.kind === kind).map((c) => c.code)
-  return [...pick('OEM'), ...pick('ALT')].join(' · ')
+  return [...pick('OEM'), ...pick('ALT')]
+}
+
+// First OEM (else ALT) code and how many more: "3774612M91 +1".
+function codeSummary(codes: PartRow['codes']): string {
+  const [first, ...rest] = codeList(codes)
+  if (!first) return ''
+  return rest.length ? `${first} +${rest.length}` : first
 }
 
 export default function PartsPage() {
@@ -74,7 +85,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
     field,
     headerName: t(`col.${field}`),
     flex: 0,
-    width: QTY_W,
+    width: QTY_W[field],
     hide: (field === 'minQty' || field === 'maxQty') && !depotId,
     ...numCol,
     ...(withFilter ? exprFilter({ kind: 'number', placeholder: t('grid:fk.positive') }) : {}),
@@ -105,8 +116,8 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
         colId: 'name',
         field: 'name',
         headerName: t('col.name'),
-        flex: 2,
-        minWidth: 180,
+        flex: 1,
+        minWidth: 160,
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
       },
       {
@@ -114,7 +125,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
         field: 'brand',
         headerName: t('col.brand'),
         flex: 0,
-        width: 112,
+        width: 100,
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
       },
       {
@@ -129,8 +140,8 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
       {
         colId: 'codes',
         headerName: t('col.codes'),
-        flex: 1,
-        minWidth: 150,
+        flex: 0,
+        width: monoWidth(14),
         cellClass: 'font-mono text-fk-muted',
         sortable: false,
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
@@ -148,7 +159,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
         width: monoWidth(7),
         hide: !depotId,
         cellClass: 'font-mono',
-        ...exprFilter({ kind: 'text', placeholder: t('startsWith'), defaultOp: 'startsWith' }),
+        ...exprFilter({ kind: 'text', placeholder: 'A-0', defaultOp: 'startsWith' }),
       },
       {
         colId: 'listPrice',
@@ -164,7 +175,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
         colId: 'status',
         headerName: t('col.status'),
         flex: 0,
-        width: 112,
+        width: 100,
         sortable: false,
         cellRenderer: (p: ICellRendererParams<Row>) => {
           const r = p.data
@@ -228,7 +239,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
     { header: labels.name, value: (r: PartRow) => r.name },
     { header: labels.brand, value: (r: PartRow) => r.brand ?? '' },
     { header: labels.catalogCode, value: (r: PartRow) => String(r.catalogCode) },
-    { header: labels.codes, value: (r: PartRow) => codeSummary(r.codes) },
+    { header: labels.codes, value: (r: PartRow) => codeList(r.codes).join(' | ') },
     { header: labels.onHand, value: (r: PartRow) => r.onHand },
     { header: labels.available, value: (r: PartRow) => r.available },
     ...(depotId

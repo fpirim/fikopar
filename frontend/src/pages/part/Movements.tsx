@@ -32,7 +32,7 @@ const TONE: Record<Label, ChipTone> = {
   COUNT: 'grey',
   OPENING: 'grey',
 }
-const MAX_BODY = 8
+const MAX_BODY = 10
 const QTY_W = monoWidth(6)
 
 // Movements of one part with the running on-hand (ledger order), opening and closing on hand.
