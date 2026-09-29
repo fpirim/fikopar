@@ -2583,7 +2583,7 @@ export interface components {
       credit_limit?: components['schemas']['Money'] | null
       contacts?: components['schemas']['SicilContact'][]
       emails?: string[]
-      /** @description Second cascaded discount percent (planned) */
+      /** @description Second cascaded discount percent, applied after iskonto; default of a line's discount2Pct */
       iskonto2?: number
       /** @description The card's salesperson, a company member (v1.5); default of a document's salesRepUserId */
       sales_rep_user_id?: number | null
@@ -2617,6 +2617,8 @@ export interface components {
       tc_no?: string
       gun?: string
       iskonto?: number
+      /** @description Out of range: 400 ERR_INVALID_ISKONTO */
+      iskonto2?: number
       sicil_tipi?: components['schemas']['SicilTipi']
       telefonlar?: components['schemas']['SicilTelefon'][]
       credit_limit?: components['schemas']['Money'] | null
@@ -2637,6 +2639,8 @@ export interface components {
       tc_no?: string
       gun?: string
       iskonto?: number
+      /** @description Out of range: 400 ERR_INVALID_ISKONTO */
+      iskonto2?: number
       sicil_tipi?: components['schemas']['SicilTipi']
       telefonlar?: components['schemas']['SicilTelefon'][]
       credit_limit?: components['schemas']['Money'] | null

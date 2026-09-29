@@ -18,6 +18,7 @@
     "tcNo": "National ID Number",
     "gun": "Payment Term (days)",
     "iskonto": "Discount",
+    "iskonto2": "Discount 2",
     "hesapTipi": "Account Type"
   },
   "grid": {
