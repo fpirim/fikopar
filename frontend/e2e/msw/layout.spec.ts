@@ -20,6 +20,11 @@ for (const lang of ['en', 'tr'] as const) {
         await expect(page.locator('.fk-grid .ag-row').first()).toBeVisible()
         await page.waitForTimeout(300)
         expect(await clipped(page)).toEqual([])
+        const overflow = await page
+          .locator('.fk-grid .ag-center-cols-viewport')
+          .first()
+          .evaluate((el) => el.scrollWidth - el.clientWidth)
+        expect(overflow).toBeLessThanOrEqual(0)
       })
     }
   })

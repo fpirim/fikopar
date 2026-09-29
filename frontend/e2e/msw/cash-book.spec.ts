@@ -1,7 +1,7 @@
 import { test, expect, grid, pinnedBottom } from './fixtures'
 
 test('cash book totals match the mockup week', async ({ page }) => {
-  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29')
+  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29&depot=1')
   await expect(page.getByText('Depot 1 · 22.09 – 29.09.2026')).toBeVisible()
   await expect(page.getByRole('group', { name: 'Opening', exact: true })).toContainText('38,215.50')
   await expect(page.getByRole('group', { name: 'In', exact: true })).toContainText('+52,400.00')
@@ -12,7 +12,7 @@ test('cash book totals match the mockup week', async ({ page }) => {
 })
 
 test('expense and deposit vouchers post to the till', async ({ page }) => {
-  await page.goto('/cash-book?from=2026-09-22&to=2099-12-31')
+  await page.goto('/cash-book?from=2026-09-22&to=2099-12-31&depot=1')
   await page.getByRole('button', { name: 'Expense' }).click()
   let dialog = page.getByRole('dialog', { name: 'Expense from the till' })
   await expect(dialog).toContainText('GDR-2026-1-000039')
@@ -32,7 +32,7 @@ test('expense and deposit vouchers post to the till', async ({ page }) => {
 })
 
 test('till count records the difference', async ({ page }) => {
-  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29')
+  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29&depot=1')
   await page.getByRole('button', { name: 'Count cash' }).click()
   const dialog = page.getByRole('dialog', { name: 'Count cash · Depot 1' })
   await expect(dialog).toContainText('46,815.50')
@@ -40,4 +40,13 @@ test('till count records the difference', async ({ page }) => {
   await expect(dialog).toContainText('4.50')
   await dialog.getByRole('button', { name: 'Record count' }).click()
   await expect(page.getByText('Count recorded, difference 4.50')).toBeVisible()
+})
+
+test('All depots asks for a depot before showing a till', async ({ page }) => {
+  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29')
+  const prompt = page.getByRole('region', { name: 'Choose a depot' })
+  await expect(prompt).toContainText('Each depot has its own till')
+  await prompt.getByRole('button', { name: 'Depot 1' }).click()
+  await expect(page).toHaveURL(/depot=1/)
+  await expect(page.getByRole('group', { name: 'Closing' })).toContainText('46,815.50')
 })

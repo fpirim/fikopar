@@ -36,3 +36,27 @@ test('Enter on a focused row opens the override', async ({ page }) => {
   await page.getByRole('button', { name: 'Preview PDF' }).click()
   expect((await pdf).suggestedFilename()).toBe('carry-forward-2026.pdf')
 })
+
+test.describe('admin', () => {
+  test.use({ admin: true })
+
+  test('reopens a posted year with a reason and posts it again', async ({ page }) => {
+    await page.goto('/carry-forward/2025')
+    await expect(page.getByText('Posted', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Reopen…' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Reopen the 2025 carry-forward' })
+    await dialog.getByLabel('Reason').fill('Late supplier invoice')
+    await dialog.getByRole('button', { name: 'Reopen' }).click()
+    await expect(page.getByText('Carry forward 2025 reopened')).toBeVisible()
+    await expect(page.getByText('Reopened', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: /Post \d+ opening entries/ }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Post' }).click()
+    await expect(page.getByText('Posted', { exact: true })).toBeVisible()
+  })
+})
+
+test('a user does not see reopen', async ({ page }) => {
+  await page.goto('/carry-forward/2025')
+  await expect(page.getByText('Posted', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Reopen…' })).toHaveCount(0)
+})

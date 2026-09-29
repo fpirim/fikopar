@@ -20,7 +20,7 @@ test('sidebar sections, company switch and depot in the URL', async ({ page }) =
 })
 
 test('language switch keeps the screen and reformats numbers', async ({ page }) => {
-  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29')
+  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29&depot=1')
   await expect(page.getByRole('group', { name: 'Closing' })).toContainText('46,815.50')
   await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'TR' }).click()
   await expect(page.getByRole('heading', { name: 'Kasa defteri' })).toBeVisible()

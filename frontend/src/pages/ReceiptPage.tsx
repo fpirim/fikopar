@@ -34,7 +34,7 @@ import { MoneyInput } from '../components/ui/money-input'
 import { Segmented } from '../components/ui/segmented'
 import { TextField } from '../components/ui/text-field'
 import { FkGrid } from '../components/grid/FkGrid'
-import { exprFilter, numCol } from '../components/grid/columns'
+import { DOC_NO_CHARS, exprFilter, monoWidth, numCol } from '../components/grid/columns'
 import SelectCompany from '../components/layout/SelectCompany'
 import { cn } from '@/lib/utils'
 
@@ -429,7 +429,7 @@ function RecentReceipts({
         sort: 'desc',
         sortIndex: 1,
         cellClass: 'font-mono',
-        minWidth: 170,
+        minWidth: monoWidth(DOC_NO_CHARS),
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
       },
       {
@@ -485,6 +485,7 @@ function RecentReceipts({
       {
         field: 'instrumentNo',
         headerName: t('receipt.col.source'),
+        minWidth: monoWidth(DOC_NO_CHARS),
         cellClass: 'font-mono',
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
         cellRenderer: (p: ICellRendererParams<Receipt>) =>

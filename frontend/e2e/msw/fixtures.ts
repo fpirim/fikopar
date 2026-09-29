@@ -1,14 +1,15 @@
 import { test as base, expect, type Page } from '@playwright/test'
 
-// Signed in as the MSW demo user, company 1, English unless a test picks Turkish.
-export const test = base.extend<{ page: Page; lang: 'en' | 'tr' }>({
+// Signed in as the MSW demo user (or an admin), company 1, English unless a test picks Turkish.
+export const test = base.extend<{ page: Page; lang: 'en' | 'tr'; admin: boolean }>({
   lang: ['en', { option: true }],
-  page: async ({ page, lang }, use) => {
-    await page.addInitScript((l) => {
-      localStorage.setItem('token', 'msw-token')
+  admin: [false, { option: true }],
+  page: async ({ page, lang, admin }, use) => {
+    await page.addInitScript(([l, token]) => {
+      localStorage.setItem('token', token)
       localStorage.setItem('selectedOrganizationId', '1')
       if (!localStorage.getItem('lang')) localStorage.setItem('lang', l)
-    }, lang)
+    }, [lang, admin ? 'msw-admin' : 'msw-token'] as const)
     // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(page)
   },

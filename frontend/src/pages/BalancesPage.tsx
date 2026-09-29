@@ -109,7 +109,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
     headerName: t(`col.${label}`),
     field,
     flex: 0,
-    width: field === 'overdue' ? 116 : 136,
+    width: 136,
     ...numCol,
     ...exprFilter({ kind: 'number', placeholder: t('grid:fk.positive') }),
     valueFormatter: (p) => formatMoney(p.value),

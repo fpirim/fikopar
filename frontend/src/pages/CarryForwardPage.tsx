@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useApi } from '../hooks/useApi'
 import { useDepot } from '../hooks/useDepot'
+import { useDepots } from '../hooks/useDepots'
 import { useDownload } from '../hooks/useDownload'
 import { useIdempotencyKey } from '../hooks/useIdempotencyKey'
 import { useOrgId } from '../hooks/useOrgId'
@@ -56,6 +57,7 @@ function CarryForward({ orgId, year }: Readonly<{ orgId: number; year: number }>
   const download = useDownload()
   const idem = useIdempotencyKey()
   const admin = useAuth().user?.role === 'admin'
+  const depots = useDepots()
   const cf = useApi(() => getCarryForward(orgId, year, depotId), [orgId, year, depotId])
   const [editing, setEditing] = useState<CarryForwardRow | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -98,7 +100,7 @@ function CarryForward({ orgId, year }: Readonly<{ orgId: number; year: number }>
         ...exprFilter({
           kind: 'enum',
           anyLabel: t('grid:fk.all'),
-          options: ['1', '2'].map((d) => ({ value: d, label: d })),
+          options: depots.map((d) => ({ value: String(d.id), label: d.code })),
         }),
       },
       {
@@ -141,7 +143,7 @@ function CarryForward({ orgId, year }: Readonly<{ orgId: number; year: number }>
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, i18n.language, year],
+    [t, i18n.language, year, depots],
   )
 
   async function post() {

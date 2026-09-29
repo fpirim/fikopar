@@ -38,7 +38,7 @@ test('06 receipt', async ({ page }) => {
 })
 
 test('08 cash book', async ({ page }) => {
-  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29')
+  await page.goto('/cash-book?from=2026-09-22&to=2026-09-29&depot=1')
   await expect(pinnedBottom(page)).toContainText('46,815.50')
   await page.screenshot({ path: shot('08-cash-book'), animations: 'disabled' })
   await page.getByRole('button', { name: 'Expense' }).click()
