@@ -18,12 +18,13 @@ import (
 )
 
 type Handlers struct {
-	Auth  *handlers.AuthHandler
-	User  *handlers.UserHandler
-	Admin *handlers.AdminHandler
-	Org   *handlers.OrganizationHandler
-	Sicil *handlers.SicilHandler
-	Depot *handlers.DepotHandler
+	Auth   *handlers.AuthHandler
+	User   *handlers.UserHandler
+	Admin  *handlers.AdminHandler
+	Org    *handlers.OrganizationHandler
+	Sicil  *handlers.SicilHandler
+	Depot  *handlers.DepotHandler
+	Ledger *handlers.LedgerHandler
 }
 
 type Services struct {
@@ -90,6 +91,17 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 
 	org.GET("/depots", h.Depot.List)
 	org.POST("/depots", h.Depot.Create, orgAdmin)
+
+	org.GET("/number-series", h.Ledger.ListNumberSeries)
+	org.PATCH("/number-series/:seriesId", h.Ledger.UpdateNumberSeries, orgAdmin)
+
+	const accountPath = "/ledger/accounts/:accountId"
+	org.GET("/ledger/accounts", h.Ledger.ListAccounts)
+	org.POST("/ledger/accounts", h.Ledger.CreateAccount)
+	org.GET(accountPath, h.Ledger.GetAccount)
+	org.PATCH(accountPath, h.Ledger.UpdateAccount)
+	org.GET("/ledger/account-roles", h.Ledger.ListAccountRoles)
+	org.PUT("/ledger/account-roles", h.Ledger.SetAccountRoles, orgAdmin)
 
 	// Admin only
 	admin := api.Group("/admin")
