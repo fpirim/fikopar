@@ -44,7 +44,7 @@ describe('CashBookPage', () => {
     expect(prompt).toHaveTextContent('Her deponun kendi kasası var')
     expect(screen.queryByRole('button', { name: 'Gider' })).not.toBeInTheDocument()
     expect(calls).toHaveLength(0)
-    await userEvent.click(within(prompt).getByRole('button', { name: 'Depo 2' }))
+    await userEvent.click(await within(prompt).findByRole('button', { name: 'Depo 2' }))
     expect(await screen.findByText('Depo 2 · 22.09 – 29.09.2026')).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('depot=2')
     await waitFor(() => expect(calls[0].url.searchParams.get('depotId')).toBe('2'))

@@ -101,6 +101,10 @@
       "save": "Sayımı kaydet",
       "saved": "Sayım kaydedildi, fark {{diff}}",
       "last": "Son sayımlar"
+    },
+    "pickDepot": {
+      "title": "Depo seçin",
+      "body": "Her deponun kendi kasası var. Defterini açmak için bir depo seçin."
     }
   }
 }

@@ -31,15 +31,40 @@ function weekAgo(iso: string): string {
 
 export default function CashBookPage() {
   const orgId = useOrgId()
-  return orgId ? <CashBook orgId={orgId} /> : <SelectCompany />
+  const { depotId } = useDepot()
+  if (!orgId) return <SelectCompany />
+  // One till per depot: with "All depots" there is no book to show.
+  return depotId ? <CashBook orgId={orgId} depotId={depotId} /> : <DepotPrompt />
 }
 
-function CashBook({ orgId }: Readonly<{ orgId: number }>) {
+function DepotPrompt() {
+  const { t } = useTranslation('treasury')
+  const { setDepot } = useDepot()
+  const depots = useDepots()
+  return (
+    <div className="flex flex-col gap-4">
+      <h1 className="text-2xl font-semibold">{t('cash.title')}</h1>
+      <Panel aria-labelledby="cb-pick" className="flex flex-col items-start gap-3 p-[18px]">
+        <h2 id="cb-pick" className="text-15 font-semibold">
+          {t('cash.pickDepot.title')}
+        </h2>
+        <p className="text-sm text-fk-muted">{t('cash.pickDepot.body')}</p>
+        <div className="flex gap-2">
+          {depots.map((d) => (
+            <Button key={d.id} variant="outline" onClick={() => setDepot(d.id!)}>
+              {t('cash.depotN', { id: d.code })}
+            </Button>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  )
+}
+
+function CashBook({ orgId, depotId }: Readonly<{ orgId: number; depotId: number }>) {
   const { t, i18n } = useTranslation(['treasury', 'grid'])
   const [params, setParams] = useSearchParams()
-  const { depotId: topDepot } = useDepot()
   const depots = useDepots()
-  const depotId = topDepot ?? depots[0]?.id ?? 1
   const depotCode = depots.find((d) => d.id === depotId)?.code ?? String(depotId)
   const to = params.get('to') ?? todayIso()
   const from = params.get('from') ?? weekAgo(to)

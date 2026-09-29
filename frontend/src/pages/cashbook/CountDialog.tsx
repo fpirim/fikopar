@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ApiError } from '../../api/client'
+import { errorText } from '../../api/errorText'
 import { createCashCount, getCashBook } from '../../api/endpoints'
 import type { CashCountCreate } from '../../api/types'
 import { useToast } from '../../context/ToastContext'
@@ -59,7 +59,7 @@ export default function CountDialog({
       toast.success(t('cash.countDialog.saved', { diff: formatMoney(c.difference) }))
       onSaved()
     } catch (err) {
-      setError(t(`errors:${err instanceof ApiError ? err.code : 'ERR_UNKNOWN'}`))
+      setError(errorText(t, err, { date: today }))
     } finally {
       setBusy(false)
     }

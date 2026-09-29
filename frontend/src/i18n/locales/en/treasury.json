@@ -101,6 +101,10 @@
       "save": "Record count",
       "saved": "Count recorded, difference {{diff}}",
       "last": "Last counts"
+    },
+    "pickDepot": {
+      "title": "Choose a depot",
+      "body": "Each depot has its own till. Pick one to open its cash book."
     }
   }
 }
