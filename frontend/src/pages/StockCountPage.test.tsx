@@ -27,6 +27,24 @@ async function count(no: string, text: string) {
 }
 
 describe('StockCountPage', () => {
+  it('shows the unit cost of each line, the last purchase where there is one', async () => {
+    await shelfA0()
+    const cost = (no: string) => row(no).querySelector('[col-id="unitCost"]') as HTMLElement
+    await waitFor(() => expect(cost('GS-4410')).toHaveTextContent(/\d/))
+    const hp = await gridStockCountLines(1, 2, {
+      startRow: 0,
+      endRow: 1,
+      filterModel: { stockNo: { filterType: 'text', type: 'equals', filter: 'GS-4410' } },
+    })
+    const l = hp.rows[0]
+    expect(cost('GS-4410')).toHaveTextContent(
+      l.unitCost
+        ? new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2 }).format(Number(l.unitCost))
+        : '—',
+    )
+    expect(cost('GS-4410').classList.contains('fk-muted')).toBe(l.costSource !== 'LAST_PURCHASE')
+  })
+
   it('shows the header, progress and the shelf totals of mockup 10', async () => {
     await shelfA0()
     expect(screen.getByRole('heading', { name: 'SAY-2026-1-000002' })).toBeInTheDocument()

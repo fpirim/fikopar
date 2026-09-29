@@ -6,7 +6,7 @@ import { exportStockMovements, gridStockMovements } from '../../api/endpoints'
 import type { Depot, GridRequest, StockMovement } from '../../api/types'
 import { useDownload } from '../../hooks/useDownload'
 import { useInfiniteGrid } from '../../hooks/useInfiniteGrid'
-import { formatDay, formatQty } from '../../lib/format'
+import { formatDay, formatMoney, formatQty } from '../../lib/format'
 import { Button } from '../../components/ui/button'
 import { Chip, type ChipTone } from '../../components/ui/chip'
 import { Panel } from '../../components/ui/panel'
@@ -110,9 +110,11 @@ export default function Movements({
         }),
         cellRenderer: (p: ICellRendererParams<StockMovement>) =>
           p.value ? (
-            <Chip size="sm" tone={TONE[p.value as Label]}>
-              {t(`label.${p.value}`)}
-            </Chip>
+            <span title={p.data?.reversal ? t('reversalTitle') : undefined}>
+              <Chip size="sm" tone={p.data?.reversal ? 'red' : TONE[p.value as Label]}>
+                {p.data?.reversal ? `↺ ${t(`label.${p.value}`)}` : t(`label.${p.value}`)}
+              </Chip>
+            </span>
           ) : null,
       },
       {
@@ -126,6 +128,8 @@ export default function Movements({
         cellRenderer: (p: ICellRendererParams<StockMovement>) =>
           p.data?.countId ? (
             <Link to={`/stock-counts/${p.data.countId}`}>{p.value}</Link>
+          ) : p.data?.documentId ? (
+            <Link to={`/invoices/${p.data.documentId}`}>{p.value}</Link>
           ) : (
             (p.value ?? '—')
           ),
@@ -162,6 +166,18 @@ export default function Movements({
       },
       qty('qtyIn'),
       qty('qtyOut'),
+      {
+        colId: 'unitCost',
+        field: 'unitCost',
+        headerName: t('mcol.unitCost'),
+        flex: 0,
+        width: monoWidth(10),
+        ...numCol,
+        ...exprFilter({ kind: 'number', placeholder: t('grid:fk.positive') }),
+        valueFormatter: (p) =>
+          p.value === null || p.value === undefined ? '—' : formatMoney(p.value),
+        cellClassRules: { 'fk-muted': (p) => p.value === null || p.value === undefined },
+      },
       {
         colId: 'runningOnHand',
         field: 'runningOnHand',

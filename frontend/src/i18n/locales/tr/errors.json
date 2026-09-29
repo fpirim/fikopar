@@ -82,5 +82,14 @@
   "ERR_STOCK_COUNT_LINE_NOT_FOUND": "Sayım satırı bulunamadı",
   "ERR_TRANSFER_NOT_FOUND": "Transfer bulunamadı",
   "ERR_DUPLICATE_LINE": "Bir parça iki kez girilmiş",
-  "ERR_SAME_DEPOT": "İki farklı depo seçin"
+  "ERR_SAME_DEPOT": "İki farklı depo seçin",
+  "ERR_DOCUMENT_NOT_FOUND": "Belge bulunamadı",
+  "ERR_DOCUMENT_EMPTY": "Kaydetmeden önce en az bir satır ekleyin",
+  "ERR_DOCUMENT_NOT_DRAFT": "Yalnızca taslak değiştirilebilir",
+  "ERR_LINKED_DOCUMENT_INVALID": "Asıl belge bu cariye ait, kaydedilmiş bir belge olmalı",
+  "ERR_WAYBILL_INVALID": "İrsaliye kaydedilmiş, bu cari ve depoya ait olmalı ve satır satır faturalanmalı",
+  "ERR_WAYBILL_BILLED": "Bu irsaliye zaten faturalandı",
+  "ERR_RETURN_QTY_EXCEEDED": "Kalan miktardan fazlası iade ediliyor",
+  "ERR_PRICE_DIFFERENCE_EXCEEDED": "İndirim, faturanın kalan tutarından büyük",
+  "ERR_DOCUMENT_HAS_DEPENDENTS": "Bu belgeye bağlı iade veya fiyat farkı var; önce onları iptal edin"
 }

@@ -77,7 +77,8 @@
     "depotId": "Depo",
     "in": "Giriş",
     "out": "Çıkış",
-    "runningOnHand": "Mevcut"
+    "runningOnHand": "Mevcut",
+    "unitCost": "Maliyet"
   },
   "label": {
     "SALE": "SATIŞ",
@@ -106,5 +107,6 @@
     "dismiss": "Kapat"
   },
   "save": "Kaydet",
-  "cancel": "Vazgeç"
+  "cancel": "Vazgeç",
+  "reversalTitle": "İptal edilen belgenin karşı hareketi"
 }

@@ -21,6 +21,13 @@ import type {
 import { applyGrid } from './grid'
 import { belowMinLevels, catalogSearch, resetStock, stockHandlers } from './stockHandlers'
 import {
+  documentHandlers,
+  documentRef,
+  documentSeries,
+  resetDocuments,
+  type Card,
+} from './documentHandlers'
+import {
   balanceRow,
   createDb,
   demoUser,
@@ -41,9 +48,23 @@ const etag = (version: number) => ({ ETag: `"${version}"` })
 
 const db: { current: Db } = { current: createDb() }
 
+const cards = (): Card[] =>
+  db.current.ledger.parties.map((p) => ({
+    sicilId: p.sicilId,
+    accountId: p.accountId,
+    code: p.code,
+    name: p.name,
+    tipi: p.tipi,
+    balance: Number(balanceRow(p, null).balance),
+    limit: p.tipi === 'MUSTERI' ? 250000 : null,
+  }))
+
+resetDocuments(cards)
+
 export function resetDb() {
   db.current = createDb()
   resetStock()
+  resetDocuments(cards)
 }
 
 function nextNumber(prefix: string, depotId: number, year = 2026): string {
@@ -154,8 +175,11 @@ function statement(accountId: number, from: string, to: string, depotId: number 
       const d = l.depotId ?? 0
       perDepot.set(d, resets ? amount : (perDepot.get(d) ?? 0) + amount)
       const { accountId, ...rest } = l
+      const ref = l.sourceType === 'document' ? documentRef(l.documentNo ?? null) : null
       return {
         ...rest,
+        documentId: ref?.id ?? null,
+        documentType: ref?.type ?? null,
         entryId: l.entryId ?? accountId * 100 + i,
         runningBalance: m(running()),
         resetsBalance: resets,
@@ -558,6 +582,7 @@ const ROLE_PREFIX: Record<string, string> = {
 
 export const handlers = [
   ...stockHandlers,
+  ...documentHandlers,
   http.get('/healthz', () => HttpResponse.json({ status: 'ok', version: '3.0.0+4f2c91a' })),
   http.post('/api/auth/login', async ({ request }) => {
     const body = (await request.json()) as { email: string; password: string }
@@ -672,7 +697,7 @@ export const handlers = [
   http.get(`${O}/number-series`, ({ request }) => {
     const q = new URL(request.url).searchParams
     return HttpResponse.json(
-      db.current.series.filter(
+      [...db.current.series, ...documentSeries()].filter(
         (s) =>
           (!q.get('prefix') || s.prefix === q.get('prefix')) &&
           (!q.get('depotId') || s.depotId === Number(q.get('depotId'))) &&
