@@ -21,7 +21,11 @@ func NewAuthService(cfg *config.Config) *AuthService {
 }
 
 func (s *AuthService) HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	cost := s.cfg.BcryptCost
+	if cost == 0 {
+		cost = bcrypt.DefaultCost
+	}
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), cost)
 	return string(bytes), err
 }
 

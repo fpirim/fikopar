@@ -19,6 +19,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type testApp struct {
@@ -38,6 +39,7 @@ func newTestApp(t *testing.T) *testApp {
 		UploadDir:          t.TempDir(),
 		LogoUploadDir:      t.TempDir(),
 		CORSAllowedOrigins: "*",
+		BcryptCost:         bcrypt.MinCost,
 	}
 
 	a := app.New(testDB, cfg)
