@@ -113,6 +113,7 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.PUT(cfPath+"/overrides", h.Ledger.SetCarryForwardOverride, orgAdmin)
 	org.DELETE(cfPath+"/overrides", h.Ledger.DeleteCarryForwardOverride, orgAdmin)
 	org.POST(cfPath+"/post", h.Ledger.PostCarryForward, orgAdmin)
+	org.POST(cfPath+"/reopen", h.Ledger.ReopenCarryForward, orgAdmin)
 
 	const entryPath = "/ledger/entries/:entryId"
 	org.GET("/ledger/entries", h.Ledger.ListEntries)

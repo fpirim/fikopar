@@ -32,9 +32,19 @@ type CFRow struct {
 	JournalEntryID *uint        `json:"journalEntryId"`
 }
 
+type CFStep struct {
+	Code   string `json:"code"`
+	Status string `json:"status"`
+}
+
 type CarryForward struct {
 	Year         int          `json:"year"`
 	Status       string       `json:"status"`
+	Version      int          `json:"version"`
+	PostedAt     *time.Time   `json:"postedAt"`
+	ReopenedAt   *time.Time   `json:"reopenedAt"`
+	ReopenReason *string      `json:"reopenReason"`
+	Steps        []CFStep     `json:"steps"`
 	Checks       []CFCheck    `json:"checks"`
 	AccountCount int          `json:"accountCount"`
 	EntryCount   int          `json:"entryCount"`
@@ -68,10 +78,11 @@ type cfKey struct{ account, depot uint }
 // buildCarryForward derives opening rows for `year` from the closing balances of 31 December of
 // year − 1; overrides replace a row's amounts and both zero skip it.
 func buildCarryForward(q *repository.Q, orgID uint, year int, depotID *uint) (*CarryForward, error) {
-	posted, err := q.CarryForwardPosted(orgID, year)
+	active, reopened, err := q.CarryForwardRuns(orgID, year)
 	if err != nil {
 		return nil, err
 	}
+	posted := active != nil
 	closeDate := models.NewDate(year-1, time.December, 31)
 	closings, err := q.ClosingBalances(orgID, closeDate, depotID)
 	if err != nil {
@@ -145,8 +156,14 @@ func buildCarryForward(q *repository.Q, orgID uint, year int, depotID *uint) (*C
 	}
 
 	cf := &CarryForward{Year: year, Status: "PREVIEW", Rows: make([]CFRow, 0, len(rows))}
+	if reopened != nil {
+		cf.Status, cf.ReopenedAt, cf.ReopenReason = "REOPENED", reopened.ReopenedAt, reopened.ReopenReason
+	}
 	if posted {
-		cf.Status = "POSTED"
+		cf.Status, cf.PostedAt = "POSTED", &active.PostedAt
+	}
+	if cf.Version, err = q.PreviewVersion(orgID, year); err != nil {
+		return nil, err
 	}
 	accounts := map[uint]bool{}
 	for _, r := range rows {
@@ -167,8 +184,46 @@ func buildCarryForward(q *repository.Q, orgID uint, year int, depotID *uint) (*C
 		}
 		return a.DepotID < b.DepotID
 	})
-	cf.Checks, err = carryForwardChecks(q, orgID, closeDate, posted)
-	return cf, err
+	if cf.Checks, err = carryForwardChecks(q, orgID, closeDate, posted); err != nil {
+		return nil, err
+	}
+	cf.Steps = carryForwardSteps(cf.Checks, posted)
+	return cf, nil
+}
+
+var stepChecks = [...][2]string{
+	{"CLOSE_DOCUMENTS", "NO_DRAFT_DOCUMENTS"}, {"STOCK_COUNTS", "STOCK_COUNTS_POSTED"},
+	{"ACCOUNT_BALANCES", "LEDGER_BALANCED"}, {"OPEN_YEAR", "YEAR_NOT_OPENED"},
+}
+
+// carryForwardSteps maps the checks onto the four screen steps; OPEN_YEAR is done by posting.
+func carryForwardSteps(checks []CFCheck, posted bool) []CFStep {
+	byCode := make(map[string]CFCheck, len(checks))
+	for _, c := range checks {
+		byCode[c.Code] = c
+	}
+	steps := make([]CFStep, len(stepChecks))
+	seenOpen := false
+	for i, sc := range stepChecks {
+		c := byCode[sc[1]]
+		status := "TODO"
+		switch {
+		case posted:
+			status = "DONE"
+		case c.Blocking && !c.OK:
+			status = "BLOCKED"
+		case c.OK && sc[0] != "OPEN_YEAR":
+			status = "DONE"
+		}
+		if status != "DONE" && !seenOpen {
+			seenOpen = true
+			if status == "TODO" {
+				status = "CURRENT"
+			}
+		}
+		steps[i] = CFStep{Code: sc[0], Status: status}
+	}
+	return steps
 }
 
 func carryForwardChecks(q *repository.Q, orgID uint, closeDate models.Date, posted bool) ([]CFCheck, error) {
@@ -192,16 +247,24 @@ func carryForwardChecks(q *repository.Q, orgID uint, closeDate models.Date, post
 	}, nil
 }
 
+func lockYear(q *repository.Q, orgID uint, year int) error {
+	if err := q.LockLedger(orgID, true); err != nil {
+		return err
+	}
+	return q.LockCarryForward(orgID, year)
+}
+
 // PostCarryForward writes one opening entry per (account, depot) dated 1 January against the
-// OPENING account. A second run is refused by the run row, the entries' source key and the
-// opening_balances key, so re-running can never post twice.
+// OPENING account and closes year − 1. A second active run is refused by the run index, the
+// entries' source key and the opening_balances index, so re-running can never post twice.
 func (s *LedgerService) PostCarryForward(ctx context.Context, orgID uint, year int) (*CarryForward, error) {
 	if err := validYear(year); err != nil {
 		return nil, err
 	}
+	jan1 := models.NewDate(year, time.January, 1)
 	var out *CarryForward
 	err := s.store.InTx(ctx, func(q *repository.Q) error {
-		if err := q.LockCarryForward(orgID, year); err != nil {
+		if err := lockYear(q, orgID, year); err != nil {
 			return err
 		}
 		posted, err := q.CarryForwardPosted(orgID, year)
@@ -210,6 +273,9 @@ func (s *LedgerService) PostCarryForward(ctx context.Context, orgID uint, year i
 		}
 		if posted {
 			return apierror.AlreadyCarriedForward
+		}
+		if err := yearOpen(q, orgID, jan1); err != nil {
+			return err
 		}
 		cf, err := buildCarryForward(q, orgID, year, nil)
 		if err != nil {
@@ -224,19 +290,22 @@ func (s *LedgerService) PostCarryForward(ctx context.Context, orgID uint, year i
 		if len(blocked) > 0 {
 			return apierror.WithDetail(apierror.CarryForwardBlocked, strings.Join(blocked, ","))
 		}
-		jan1 := models.NewDate(year, time.January, 1)
+		runID, err := q.InsertCarryForwardRun(orgID, year, cf.EntryCount, cf.TotalDebit, cf.TotalCredit, actorFrom(ctx).userID())
+		if repository.IsUniqueViolation(err) {
+			return apierror.AlreadyCarriedForward
+		}
+		if err != nil {
+			return err
+		}
 		for _, r := range cf.Rows {
 			if r.Status == "SKIP" {
 				continue
 			}
-			if err := postOpening(ctx, q, orgID, year, jan1, r); err != nil {
+			if err := postOpening(ctx, q, orgID, runID, jan1, r); err != nil {
 				return err
 			}
 		}
-		if err := q.InsertCarryForwardRun(orgID, year, cf.EntryCount, cf.TotalDebit, cf.TotalCredit, actorFrom(ctx).userID()); err != nil {
-			if repository.IsUniqueViolation(err) {
-				return apierror.AlreadyCarriedForward
-			}
+		if err := q.BumpPreviewVersion(orgID, year); err != nil {
 			return err
 		}
 		out, err = buildCarryForward(q, orgID, year, nil)
@@ -249,7 +318,7 @@ func (s *LedgerService) PostCarryForward(ctx context.Context, orgID uint, year i
 	return out, err
 }
 
-func postOpening(ctx context.Context, q *repository.Q, orgID uint, year int, jan1 models.Date, r CFRow) error {
+func postOpening(ctx context.Context, q *repository.Q, orgID, runID uint, jan1 models.Date, r CFRow) error {
 	opening, err := roleAccount(q, orgID, "OPENING", r.DepotID)
 	if err != nil {
 		return err
@@ -258,7 +327,8 @@ func postOpening(ctx context.Context, q *repository.Q, orgID uint, year int, jan
 	if r.OpeningCredit > 0 {
 		side, amount = models.Credit, r.OpeningCredit
 	}
-	src := fmt.Sprintf("%d:%d:%d", year, r.AccountID, r.DepotID)
+	year := jan1.Year()
+	src := fmt.Sprintf("%d:%d:%d:%d", year, runID, r.AccountID, r.DepotID)
 	e, err := postEntry(ctx, q, orgID, entryInput{
 		depotID: r.DepotID, date: jan1, description: fmt.Sprintf("Opening balance %d", year),
 		source: models.SourceOpening, sourceID: &src,
@@ -270,7 +340,7 @@ func postOpening(ctx context.Context, q *repository.Q, orgID uint, year int, jan
 		}
 		return err
 	}
-	return q.InsertOpeningBalance(orgID, models.OpeningBalance{AccountID: r.AccountID, DepotID: r.DepotID, Year: year,
+	return q.InsertOpeningBalance(orgID, runID, models.OpeningBalance{AccountID: r.AccountID, DepotID: r.DepotID, Year: year,
 		Debit: r.OpeningDebit, Credit: r.OpeningCredit, Source: "CARRY_FORWARD", JournalEntryID: e.ID})
 }
 
@@ -282,7 +352,83 @@ type OverrideInput struct {
 	Reason    string       `json:"reason"`
 }
 
-func (s *LedgerService) SetOverride(ctx context.Context, orgID uint, year int, in OverrideInput) (*CarryForward, error) {
+// ReopenCarryForward voids the year's active run: each opening entry is reversed on 1 January and
+// the year before is open again. A later carried year has to be reopened first.
+func (s *LedgerService) ReopenCarryForward(ctx context.Context, orgID uint, year, version int, reason string) (*CarryForward, error) {
+	if err := validYear(year); err != nil {
+		return nil, err
+	}
+	reason = strings.TrimSpace(reason)
+	if len([]rune(reason)) < 3 {
+		return nil, apierror.WithField(apierror.InvalidRequest, "reason")
+	}
+	jan1 := models.NewDate(year, time.January, 1)
+	ctx = withIdempotencyKey(ctx, "")
+	var out *CarryForward
+	err := s.store.InTx(ctx, func(q *repository.Q) error {
+		if err := lockYear(q, orgID, year); err != nil {
+			return err
+		}
+		if err := checkPreviewVersion(q, orgID, year, version); err != nil {
+			return err
+		}
+		active, _, err := q.CarryForwardRuns(orgID, year)
+		if err != nil {
+			return err
+		}
+		if active == nil {
+			return apierror.NotCarriedForward
+		}
+		if err := yearOpen(q, orgID, jan1); err != nil {
+			return err
+		}
+		ids, err := q.RunOpeningEntryIDs(active.ID)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			e, err := entry(q, orgID, id)
+			if err != nil {
+				return err
+			}
+			rev, err := reverseEntry(ctx, q, e, jan1, reason)
+			if err != nil {
+				return err
+			}
+			if err := q.VoidOpening(id, rev.ID); err != nil {
+				return err
+			}
+		}
+		if err := q.ReopenCarryForwardRun(active.ID, actorFrom(ctx).userID(), reason); err != nil {
+			return err
+		}
+		if err := q.BumpPreviewVersion(orgID, year); err != nil {
+			return err
+		}
+		if out, err = buildCarryForward(q, orgID, year, nil); err != nil {
+			return err
+		}
+		return audit(ctx, q, orgID, "carry_forward.reopened", "carry_forward", uint(year), nil,
+			map[string]any{"year": year, "runId": active.ID, "reversed": len(ids), "reason": reason})
+	})
+	return out, err
+}
+
+func checkPreviewVersion(q *repository.Q, orgID uint, year, version int) error {
+	v, err := q.PreviewVersion(orgID, year)
+	if err == nil && v != version {
+		return apierror.VersionConflict
+	}
+	return err
+}
+
+// PreviewQuery names the expected preview version and the depot the returned preview is restricted to.
+type PreviewQuery struct {
+	Version int
+	DepotID *uint
+}
+
+func (s *LedgerService) SetOverride(ctx context.Context, orgID uint, year int, pq PreviewQuery, in OverrideInput) (*CarryForward, error) {
 	in.Reason = strings.TrimSpace(in.Reason)
 	switch {
 	case validYear(year) != nil:
@@ -294,22 +440,22 @@ func (s *LedgerService) SetOverride(ctx context.Context, orgID uint, year int, i
 	case len([]rune(in.Reason)) < 3:
 		return nil, apierror.WithField(apierror.InvalidRequest, "reason")
 	}
-	return s.changeOverride(ctx, orgID, year, in.AccountID, in.DepotID, func(q *repository.Q) error {
+	return s.changeOverride(ctx, orgID, year, pq, in.AccountID, in.DepotID, func(q *repository.Q) error {
 		return q.UpsertCarryForwardOverride(orgID, year, repository.Override{AccountID: in.AccountID, DepotID: in.DepotID,
 			Debit: in.Debit, Credit: in.Credit, Reason: in.Reason}, actorFrom(ctx).userID())
 	})
 }
 
-func (s *LedgerService) DeleteOverride(ctx context.Context, orgID uint, year int, accountID, depotID uint) (*CarryForward, error) {
+func (s *LedgerService) DeleteOverride(ctx context.Context, orgID uint, year int, pq PreviewQuery, accountID, depotID uint) (*CarryForward, error) {
 	if err := validYear(year); err != nil {
 		return nil, err
 	}
-	return s.changeOverride(ctx, orgID, year, accountID, depotID, func(q *repository.Q) error {
+	return s.changeOverride(ctx, orgID, year, pq, accountID, depotID, func(q *repository.Q) error {
 		return q.DeleteCarryForwardOverride(orgID, year, accountID, depotID)
 	})
 }
 
-func (s *LedgerService) changeOverride(ctx context.Context, orgID uint, year int, accountID, depotID uint, change func(q *repository.Q) error) (*CarryForward, error) {
+func (s *LedgerService) changeOverride(ctx context.Context, orgID uint, year int, pq PreviewQuery, accountID, depotID uint, change func(q *repository.Q) error) (*CarryForward, error) {
 	var out *CarryForward
 	err := s.store.InTx(ctx, func(q *repository.Q) error {
 		if err := q.LockCarryForward(orgID, year); err != nil {
@@ -334,13 +480,19 @@ func (s *LedgerService) changeOverride(ctx context.Context, orgID uint, year int
 			}
 			return err
 		}
+		if err := checkPreviewVersion(q, orgID, year, pq.Version); err != nil {
+			return err
+		}
 		if err := change(q); err != nil {
+			return err
+		}
+		if err := q.BumpPreviewVersion(orgID, year); err != nil {
 			return err
 		}
 		if err := audit(ctx, q, orgID, "carry_forward.override_changed", "account", accountID, nil, map[string]any{"year": year, "depotId": depotID}); err != nil {
 			return err
 		}
-		out, err = buildCarryForward(q, orgID, year, nil)
+		out, err = buildCarryForward(q, orgID, year, pq.DepotID)
 		return err
 	})
 	return out, err

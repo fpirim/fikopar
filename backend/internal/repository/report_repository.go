@@ -104,17 +104,23 @@ func concat(parts ...[]any) []any {
 
 func IsBadFilter(err error) bool { return errors.Is(err, ErrBadFilter) }
 
+// StatementLines lists the account's postings in [from, to]. Openings dated `from` are part of the
+// brought-forward row; later active openings are resetsBalance lines; voided ones and their
+// reversals net to zero and are left out.
 func (q *Q) StatementLines(orgID, accountID uint, depotID *uint, from, to models.Date) ([]models.StatementLine, error) {
 	return list[models.StatementLine](q.db, `
 		SELECT e.id AS entry_id, e.entry_date, e.depot_id, coalesce(r.receipt_no, v.voucher_no, e.entry_no) AS document_no,
 		       e.source_type, e.source_id, coalesce(r.kind, v.kind) AS subtype, p.due_date, e.description,
 		       CASE p.side WHEN 'DEBIT' THEN p.amount ELSE 0 END AS debit,
-		       CASE p.side WHEN 'CREDIT' THEN p.amount ELSE 0 END AS credit
+		       CASE p.side WHEN 'CREDIT' THEN p.amount ELSE 0 END AS credit,
+		       e.source_type = 'opening' AS resets_balance
 		FROM postings p
 		JOIN journal_entries e ON e.id = p.entry_id
 		LEFT JOIN receipts r ON r.org_id = e.org_id AND e.id IN (r.journal_entry_id, r.voided_by_entry_id)
 		LEFT JOIN cash_vouchers v ON v.org_id = e.org_id AND e.id IN (v.journal_entry_id, v.voided_by_entry_id)
-		WHERE e.org_id = ? AND p.account_id = ? AND e.entry_date BETWEEN ? AND ? AND e.source_type <> 'opening'
+		WHERE e.org_id = ? AND p.account_id = ? AND e.entry_date BETWEEN ? AND ?
 		  AND (?::bigint IS NULL OR e.depot_id = ?)
-		ORDER BY e.entry_date, e.id, p.line_no`, orgID, accountID, from, to, depotID, depotID)
+		  AND (NOT `+isOpening+` OR (e.source_type = 'opening' AND e.entry_date > ?
+		       AND NOT EXISTS (SELECT 1 FROM journal_entries x WHERE x.reverses_entry_id = e.id)))
+		ORDER BY e.entry_date, resets_balance DESC, e.id, p.line_no`, orgID, accountID, from, to, depotID, depotID, from)
 }

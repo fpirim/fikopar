@@ -103,6 +103,7 @@ type JournalEntry struct {
 	SourceNo          *string    `json:"sourceNo" gorm:"column:source_no"`
 	OwnerID           *string    `json:"-" gorm:"column:owner_id"`
 	IdempotencyKey    *string    `json:"idempotencyKey" gorm:"column:idempotency_key"`
+	Currency          string     `json:"currency" gorm:"-"`
 	Postings          []Posting  `json:"postings" gorm:"-"`
 	CreatedBy         *uint      `json:"createdBy" gorm:"column:created_by"`
 	CreatedAt         time.Time  `json:"createdAt" gorm:"column:created_at"`

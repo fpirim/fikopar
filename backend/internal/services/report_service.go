@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
 	"github.com/fpirim/fikopar/backend/internal/models"
@@ -62,7 +63,8 @@ type StatementResult struct {
 }
 
 // Statement lists the account's movements between from and to (inclusive) after one
-// brought-forward row per depot.
+// brought-forward row per depot. Crossing 1 January of a carried-forward year restarts every
+// depot's balance at that year's openings, so the closing balance is the balance as of `to`.
 func (s *ReportService) Statement(ctx context.Context, orgID, accountID uint, from, to *models.Date, depotID *uint) (*StatementResult, error) {
 	if err := validPeriod(from, to); err != nil {
 		return nil, err
@@ -77,9 +79,28 @@ func (s *ReportService) Statement(ctx context.Context, orgID, accountID uint, fr
 		if err != nil {
 			return err
 		}
+		carried, err := q.ActiveRunYears(orgID, from.Year()+1, to.Year())
+		if err != nil {
+			return err
+		}
 		st := &models.Statement{AccountID: acc.ID, From: *from, To: *to, BroughtForward: []models.StatementLine{}}
 		totals := map[uint]*models.DepotTotal{}
-		var run models.Money
+		runs := map[uint]models.Money{}
+		sum := func() models.Money {
+			var t models.Money
+			for _, r := range runs {
+				t += r
+			}
+			return t
+		}
+		restart := func(before models.Date) {
+			for len(carried) > 0 && !before.Before(models.NewDate(carried[0], time.January, 1).Time) {
+				carried = carried[1:]
+				for k := range runs {
+					runs[k] = 0
+				}
+			}
+		}
 		for _, d := range depots {
 			bf, err := q.OpeningBalanceAt(acc.ID, d.ID, *from)
 			if err != nil {
@@ -92,8 +113,8 @@ func (s *ReportService) Statement(ctx context.Context, orgID, accountID uint, fr
 			} else {
 				line.Credit = -bf
 			}
-			run += bf
-			line.RunningBalance = run
+			runs[d.ID] = bf
+			line.RunningBalance = sum()
 			st.BroughtForward = append(st.BroughtForward, line)
 			totals[d.ID] = &models.DepotTotal{DepotID: d.ID, Debit: line.Debit, Credit: line.Credit}
 		}
@@ -103,20 +124,22 @@ func (s *ReportService) Statement(ctx context.Context, orgID, accountID uint, fr
 		}
 		for i := range lines {
 			l := &lines[i]
-			run += l.Debit - l.Credit
-			l.RunningBalance = run
-			if t, ok := totals[*l.DepotID]; ok {
+			restart(l.EntryDate)
+			runs[*l.DepotID] += l.Debit - l.Credit
+			l.RunningBalance = sum()
+			if t, ok := totals[*l.DepotID]; ok && !l.ResetsBalance {
 				t.Debit += l.Debit
 				t.Credit += l.Credit
 			}
 		}
+		restart(*to)
 		st.Lines = lines
 		for _, d := range depots {
 			t := totals[d.ID]
-			t.Balance = t.Debit - t.Credit
+			t.Balance = runs[d.ID]
 			st.DepotTotals = append(st.DepotTotals, *t)
 		}
-		st.ClosingBalance = run
+		st.ClosingBalance = sum()
 		res = &StatementResult{Statement: st, Account: acc, Depots: depots}
 		return nil
 	})

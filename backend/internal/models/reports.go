@@ -28,6 +28,7 @@ type StatementLine struct {
 	Debit          Money      `json:"debit" gorm:"column:debit"`
 	Credit         Money      `json:"credit" gorm:"column:credit"`
 	RunningBalance Money      `json:"runningBalance" gorm:"-"`
+	ResetsBalance  bool       `json:"resetsBalance" gorm:"column:resets_balance"`
 }
 
 type DepotTotal struct {

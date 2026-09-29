@@ -235,7 +235,7 @@ func (s *ReceiptService) Void(ctx context.Context, orgID, id uint, reason string
 		if err != nil {
 			return err
 		}
-		rev, err := reverseEntry(ctx, q, e, reason)
+		rev, err := reverseEntry(ctx, q, e, today(), reason)
 		if err != nil {
 			return err
 		}

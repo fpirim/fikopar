@@ -255,6 +255,29 @@ func (h *LedgerHandler) GetCarryForward(c echo.Context) error {
 	if accepts(c, mimePDF) {
 		return carryForwardPDF(c, cf)
 	}
+	setETag(c, cf.Version)
+	return c.JSON(http.StatusOK, cf)
+}
+
+// previewQuery reads If-Match and previewDepotId of the override endpoints.
+func previewQuery(c echo.Context) (services.PreviewQuery, error) {
+	var pq services.PreviewQuery
+	d, err := queryUint(c, "previewDepotId")
+	if err != nil {
+		return pq, err
+	}
+	if d != 0 {
+		pq.DepotID = &d
+	}
+	pq.Version, err = ifMatch(c)
+	return pq, err
+}
+
+func respondPreview(c echo.Context, cf *services.CarryForward, err error) error {
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	setETag(c, cf.Version)
 	return c.JSON(http.StatusOK, cf)
 }
 
@@ -267,11 +290,12 @@ func (h *LedgerHandler) SetCarryForwardOverride(c echo.Context) error {
 	if err := bindJSON(c, &in); err != nil {
 		return apierror.Respond(c, err)
 	}
-	cf, err := h.ledger.SetOverride(reqCtx(c), orgID(c), year, in)
+	pq, err := previewQuery(c)
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
-	return c.JSON(http.StatusOK, cf)
+	cf, err := h.ledger.SetOverride(reqCtx(c), orgID(c), year, pq, in)
+	return respondPreview(c, cf, err)
 }
 
 func (h *LedgerHandler) DeleteCarryForwardOverride(c echo.Context) error {
@@ -287,11 +311,12 @@ func (h *LedgerHandler) DeleteCarryForwardOverride(c echo.Context) error {
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
-	cf, err := h.ledger.DeleteOverride(reqCtx(c), orgID(c), year, accountID, depotID)
+	pq, err := previewQuery(c)
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
-	return c.JSON(http.StatusOK, cf)
+	cf, err := h.ledger.DeleteOverride(reqCtx(c), orgID(c), year, pq, accountID, depotID)
+	return respondPreview(c, cf, err)
 }
 
 func (h *LedgerHandler) PostCarryForward(c echo.Context) error {
@@ -300,8 +325,27 @@ func (h *LedgerHandler) PostCarryForward(c echo.Context) error {
 		return apierror.Respond(c, err)
 	}
 	org := orgID(c)
-	return idempotent(c, h.idem, func(ctx context.Context, _ []byte) (int, any, error) {
+	return idempotentETag(c, h.idem, func(ctx context.Context, _ []byte) (int, any, error) {
 		return created(h.ledger.PostCarryForward(ctx, org, year))
+	})
+}
+
+func (h *LedgerHandler) ReopenCarryForward(c echo.Context) error {
+	year, err := pathYear(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	version, err := ifMatch(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	org := orgID(c)
+	return idempotentETag(c, h.idem, func(ctx context.Context, body []byte) (int, any, error) {
+		var in reasonBody
+		if err := json.Unmarshal(body, &in); err != nil {
+			return 0, nil, apierror.InvalidRequest
+		}
+		return okStatus(h.ledger.ReopenCarryForward(ctx, org, year, version, in.Reason))
 	})
 }
 

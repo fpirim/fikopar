@@ -194,7 +194,7 @@ func (s *CashService) VoidVoucher(ctx context.Context, orgID, id uint, reason st
 		if err != nil {
 			return err
 		}
-		rev, err := reverseEntry(ctx, q, e, reason)
+		rev, err := reverseEntry(ctx, q, e, today(), reason)
 		if err != nil {
 			return err
 		}

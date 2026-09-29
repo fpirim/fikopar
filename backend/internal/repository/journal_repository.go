@@ -123,6 +123,7 @@ func (q *Q) attachPostings(entries []*models.JournalEntry) error {
 	for _, p := range ps {
 		e := byID[p.EntryID]
 		e.Postings = append(e.Postings, p)
+		e.Currency = p.Currency
 	}
 	return nil
 }
