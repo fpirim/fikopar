@@ -16,6 +16,7 @@ test('logs in as admin and reaches the dashboard', async ({ page }) => {
 
 test('logs out back to the login page', async ({ page }) => {
   await loginAsAdmin(page)
+  await page.getByRole('button', { name: 'Hesap menüsü' }).click()
   await page.getByRole('button', { name: /çıkış/i }).click()
   await expect(page).toHaveURL(/\/login$/)
 })

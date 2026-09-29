@@ -1,0 +1,48 @@
+{
+  "mainNav": "Ana menü",
+  "section": {
+    "overview": "Genel bakış",
+    "trade": "Ticaret",
+    "accounts": "Cari",
+    "treasury": "Finans",
+    "stock": "Stok",
+    "system": "Sistem"
+  },
+  "item": {
+    "dashboard": "Gösterge paneli",
+    "invoices": "Faturalar ve iadeler",
+    "balances": "Bakiyeler",
+    "statements": "Ekstreler",
+    "carryForward": "Cari devir",
+    "receipts": "Makbuzlar",
+    "cheques": "Çek ve senetler",
+    "cashBook": "Kasa defteri",
+    "parts": "Parça ve fiyatlar",
+    "counts": "Stok sayımları",
+    "journal": "Yevmiye",
+    "migration": "Aktarım",
+    "profile": "Profil",
+    "sicil": "Hesap kartları",
+    "organizations": "Organizasyonlar",
+    "users": "Kullanıcılar"
+  },
+  "company": "Şirket",
+  "companyOf": "Şirket · {{index}} / {{count}}",
+  "depot": "Depo",
+  "allDepots": "Tüm depolar",
+  "depotN": "Depo {{code}}",
+  "language": "Dil",
+  "search": "Ara",
+  "searchPlaceholder": "Hesap, parça, belge no.",
+  "searchResults": "Arama sonuçları",
+  "searchNone": "Eşleşme yok",
+  "hits": {
+    "accounts": "Hesaplar",
+    "documents": "Belgeler",
+    "parts": "Parçalar"
+  },
+  "accountMenu": "Hesap menüsü",
+  "demo": "DEMO",
+  "selectCompany": "Soldaki menüden bir şirket seçin.",
+  "notInBuild": "Bu sürümde henüz yok."
+}

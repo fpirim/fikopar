@@ -8,6 +8,10 @@ import AdminUsersPage from './pages/AdminUsersPage'
 import AdminOrganizationsPage from './pages/AdminOrganizationsPage'
 import SicilPage from './pages/SicilPage'
 import NumericInputPlayground from './pages/NumericInputPlayground'
+import NotInBuildPage from './pages/NotInBuildPage'
+
+const LATER = ['/invoices', '/cheques', '/parts', '/stock-counts', '/migration']
+const F1 = ['/balances', '/statements/*', '/receipts', '/cash-book', '/carry-forward', '/journal/*']
 
 function AppRoutes() {
   return (
@@ -21,6 +25,9 @@ function AppRoutes() {
           <Route path="/sicil" element={<SicilPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />
+          {[...LATER, ...F1].map((p) => (
+            <Route key={p} path={p} element={<NotInBuildPage />} />
+          ))}
         </Route>
       </Route>
     </Routes>
