@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useNarrow } from '../hooks/useNarrow'
 import type { AgGridReact } from 'ag-grid-react'
 import type { ColDef, ICellRendererParams } from 'ag-grid-community'
 import { exportParts, gridParts, listCatalogs } from '../api/endpoints'
@@ -56,6 +57,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
   const { t, i18n } = useTranslation(['parts', 'grid'])
   const [params, setParams] = useSearchParams()
   const { depotId } = useDepot()
+  const narrow = useNarrow()
   const stock = (params.get('stock') as StockOnly | null) ?? 'ALL'
   const catalogId = params.get('catalog') ? Number(params.get('catalog')) : null
   const includeInactive = params.get('inactive') === '1'
@@ -127,6 +129,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
         colId: 'brand',
         field: 'brand',
         headerName: t('col.brand'),
+        hide: narrow,
         flex: 0,
         width: 100,
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
@@ -135,6 +138,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
         colId: 'catalogCode',
         field: 'catalogCode',
         headerName: t('col.catalogCode'),
+        hide: narrow,
         flex: 0,
         width: monoWidth(4),
         cellClass: 'font-mono',
@@ -143,6 +147,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
       {
         colId: 'codes',
         headerName: t('col.codes'),
+        hide: narrow,
         flex: 0,
         width: monoWidth(14),
         cellClass: 'font-mono text-fk-muted',
@@ -224,7 +229,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, i18n.language, depotId, depots],
+    [t, i18n.language, depotId, depots, narrow],
   )
 
   const labels = Object.fromEntries(

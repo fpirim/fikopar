@@ -17,6 +17,7 @@ import {
 import type { BalanceColId, BalanceRow, BalanceTotals, GridRequest, SicilTipi } from '../api/types'
 import { useDepot, withDepot } from '../hooks/useDepot'
 import { useDownload } from '../hooks/useDownload'
+import { useNarrow } from '../hooks/useNarrow'
 import { useInfiniteGrid } from '../hooks/useInfiniteGrid'
 import { useOrgId } from '../hooks/useOrgId'
 import { formatDay, formatMoney, todayIso } from '../lib/format'
@@ -106,10 +107,12 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
   )
   const grid = useInfiniteGrid<BalanceRow>(fetchPage, [orgId, asOf, depotId, tipi])
 
+  const narrow = useNarrow()
   const money = (field: Money, label: string, neg?: (n: number) => boolean): ColDef<Row> => ({
     colId: field,
     headerName: t(`col.${label}`),
     field,
+    hide: narrow && (field === 'debitTotal' || field === 'creditTotal'),
     flex: 0,
     width: MONEY_W,
     ...numCol,
@@ -174,6 +177,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
         colId: 'sicilTipi',
         field: 'sicilTipi',
         headerName: t('col.type'),
+        hide: narrow,
         flex: 0,
         width: 96,
         ...exprFilter({
@@ -204,7 +208,7 @@ function Balances({ orgId }: Readonly<{ orgId: number }>) {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, i18n.language, depotId],
+    [t, i18n.language, depotId, narrow],
   )
 
   const labels = Object.fromEntries(
