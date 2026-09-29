@@ -10,10 +10,16 @@ import { server } from '../mocks/node'
 const HP = '/parts/1001'
 const stockTable = () => screen.findByRole('table', { name: 'Depo bazında stok' })
 const priceTable = () => screen.findByRole('table', { name: 'Liste fiyatları' })
+// Leaf texts of each row, space separated.
 const rowText = (table: HTMLElement) =>
   within(table)
     .getAllByRole('row')
-    .map((r) => r.textContent?.replace(/\s+/g, ' ').trim())
+    .map((r) =>
+      Array.from(r.querySelectorAll('*'))
+        .filter((el) => el.children.length === 0 && el.textContent?.trim())
+        .map((el) => el.textContent!.trim())
+        .join(' '),
+    )
 
 describe('PartPage', () => {
   it('shows the header with codes, stock per depot and a total row', async () => {
@@ -48,7 +54,7 @@ describe('PartPage', () => {
     renderApp(HP)
     await waitFor(async () =>
       expect(rowText(await priceTable()).slice(1)).toEqual([
-        '01.09.2026 12.400,00 GEÇERLİ +6,9%',
+        '01.09.2026 GEÇERLİ 12.400,00 +6,9%',
         '01.04.2026 11.600,00 +8,4%',
         '02.01.2026 10.700,00 —',
       ]),
@@ -70,7 +76,7 @@ describe('PartPage', () => {
     expect(calls[0].body).toEqual({ price: '13100.00', validFrom: '2026-10-15' })
     expect(calls[0].headers.get('Idempotency-Key')).toBeTruthy()
     await waitFor(async () =>
-      expect(rowText(await priceTable())[1]).toBe('15.10.2026 13.100,00 İLERİ +5,6%'),
+      expect(rowText(await priceTable())[1]).toBe('15.10.2026 İLERİ 13.100,00 +5,6%'),
     )
     expect(screen.getByText('Sonraki: 15.10.2026 itibarıyla 13.100,00')).toBeInTheDocument()
   })
@@ -165,7 +171,7 @@ describe('PartPage', () => {
     const alert = await screen.findByRole('alertdialog')
     expect(alert).toHaveTextContent('Ayarlar değişti')
     const before = reads.length
-    await userEvent.click(within(alert).getByRole('button', { name: 'Yenile' }))
+    await userEvent.click(within(alert).getByRole('button', { name: 'Yeniden yükle' }))
     await waitFor(() => expect(reads.length).toBeGreaterThan(before))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })

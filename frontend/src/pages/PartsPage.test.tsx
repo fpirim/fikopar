@@ -7,16 +7,21 @@ import { capture, captureDownloads } from '../test/msw'
 const pinned = () => document.querySelector('.ag-floating-bottom') as HTMLElement
 const location = () => screen.getByTestId('location').textContent
 const last = <T,>(xs: T[]) => xs[xs.length - 1]
+const firstPart = async () => (await screen.findAllByRole('link', { name: /^[A-Z]{2}-\d{4}$/ }))[0]
+
+async function findHp() {
+  await firstPart()
+  await userEvent.type(screen.getByLabelText('Parça filtresi'), 'HP-3774')
+  await screen.findByText('1–1 / 1')
+  return screen.findByRole('link', { name: 'HP-3774' })
+}
 
 describe('PartsPage', () => {
   it('loads every depot with a pinned total row and default sort', async () => {
     const calls = capture('post', '/api/orgs/:orgId/catalog/parts/grid')
     renderApp('/parts')
     expect(await screen.findByRole('heading', { name: 'Parça ve fiyatlar' })).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'HP-3774' })).toHaveAttribute(
-      'href',
-      '/parts/1001',
-    )
+    expect(await firstPart()).toHaveAttribute('href', expect.stringMatching(/^\/parts\/\d+$/))
     await waitFor(() => expect(pinned()).toHaveTextContent(/1\.988 \/ 1\.988/))
     expect(calls[0].body).toMatchObject({
       depotId: null,
@@ -31,13 +36,10 @@ describe('PartsPage', () => {
   it('scopes stock columns to the top-bar depot and shows min, max and shelf', async () => {
     const calls = capture('post', '/api/orgs/:orgId/catalog/parts/grid')
     renderApp('/parts?depot=1')
-    expect(await screen.findByRole('link', { name: 'HP-3774' })).toHaveAttribute(
-      'href',
-      '/parts/1001?depot=1',
-    )
+    expect(await findHp()).toHaveAttribute('href', '/parts/1001?depot=1')
     expect(screen.getByRole('columnheader', { name: 'Raf' })).toBeInTheDocument()
     expect(calls[0].body).toMatchObject({ depotId: 1 })
-    const row = (await screen.findByRole('link', { name: 'HP-3774' })).closest('.ag-row')!
+    const row = (await findHp()).closest('.ag-row')!
     const idx = row.getAttribute('row-index')
     const cells = document.querySelectorAll(`.ag-row[row-index="${idx}"] [col-id="shelf"]`)
     expect(cells[0]).toHaveTextContent('A-04-2')
@@ -46,7 +48,7 @@ describe('PartsPage', () => {
   it('filters by stock state from the segment and keeps it in the URL', async () => {
     const calls = capture('post', '/api/orgs/:orgId/catalog/parts/grid')
     renderApp('/parts')
-    await screen.findByRole('link', { name: 'HP-3774' })
+    await firstPart()
     await userEvent.click(
       within(screen.getByRole('group', { name: 'Stok' })).getByRole('button', { name: 'Eksi' }),
     )
@@ -54,31 +56,34 @@ describe('PartsPage', () => {
     await waitFor(() => expect(last(calls).body).toMatchObject({ stock: 'NEGATIVE' }))
     expect(await screen.findByRole('link', { name: 'BR-2215' })).toBeInTheDocument()
     expect((await screen.findAllByText('EKSİ')).length).toBeGreaterThan(0)
-    expect(screen.queryByRole('link', { name: 'HP-3774' })).not.toBeInTheDocument()
+    expect(screen.queryByText('MİN ALTI')).not.toBeInTheDocument()
+    expect(await screen.findByText(/^1–\d+ \/ \d+$/)).toBeVisible()
   })
 
   it('opens with the dashboard link state and marks below-minimum rows', async () => {
     renderApp('/parts?stock=BELOW_MIN_OR_NEGATIVE&depot=1')
-    expect(await screen.findByRole('link', { name: 'CL-1150' })).toBeInTheDocument()
+    await firstPart()
     expect((await screen.findAllByText('MİN ALTI')).length).toBeGreaterThan(0)
     expect(
       within(screen.getByRole('group', { name: 'Stok' })).getByRole('button', {
         name: 'Min altı veya eksi',
       }),
     ).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(pinned()).toHaveTextContent('/'))
+    expect(await screen.findByText(/^1–\d+ \/ \d+$/)).toBeVisible()
   })
 
   it('sends code and number filters by PartColId', async () => {
     const calls = capture('post', '/api/orgs/:orgId/catalog/parts/grid')
     renderApp('/parts')
-    await screen.findByRole('link', { name: 'HP-3774' })
+    await firstPart()
     await userEvent.type(screen.getByLabelText('OEM / alt. filtresi'), '3774612')
     await waitFor(() =>
       expect(last(calls).body).toMatchObject({
         filterModel: { codes: { filterType: 'text', type: 'contains', filter: '3774612' } },
       }),
     )
-    await waitFor(() => expect(pinned()).toHaveTextContent(/^1 \/ 1\.988/))
+    await waitFor(() => expect(pinned()).toHaveTextContent('1 / 1.988 · 1 filtre'))
     await userEvent.type(screen.getByLabelText('Liste fiyatı filtresi'), '> 10.000')
     await waitFor(() =>
       expect(last(calls).body).toMatchObject({
@@ -90,7 +95,7 @@ describe('PartsPage', () => {
   it('narrows to a catalog and includes inactive parts on request', async () => {
     const calls = capture('post', '/api/orgs/:orgId/catalog/parts/grid')
     renderApp('/parts')
-    await screen.findByRole('link', { name: 'HP-3774' })
+    await firstPart()
     await userEvent.selectOptions(screen.getByLabelText('Katalog'), '12 · Hydraulics 2026')
     await waitFor(() => expect(last(calls).body).toMatchObject({ catalogId: 1 }))
     expect(location()).toContain('catalog=1')
