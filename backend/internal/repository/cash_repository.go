@@ -4,6 +4,10 @@ import (
 	"github.com/fpirim/fikopar/backend/internal/models"
 )
 
+// isOpening matches opening entries and the reversals that void them on reopening.
+const isOpening = `(e.source_type = 'opening' OR (e.source_type = 'reversal' AND EXISTS (
+	SELECT 1 FROM journal_entries o WHERE o.id = e.reverses_entry_id AND o.source_type = 'opening')))`
+
 // Balance window: the latest carried-forward year up to the date starts the books; opening
 // entries of that year are included and earlier postings are summarised by them.
 const inWindow = `e.entry_date >= ledger_start(e.org_id, ?) AND e.entry_date <= ?`
@@ -24,7 +28,7 @@ func (q *Q) OpeningBalanceAt(accountID, depotID uint, from models.Date) (models.
 	err := q.db.Raw(`SELECT coalesce(sum(CASE p.side WHEN 'DEBIT' THEN p.amount ELSE -p.amount END), 0)
 		FROM postings p JOIN journal_entries e ON e.id = p.entry_id
 		WHERE p.account_id = ? AND e.depot_id = ? AND e.entry_date >= ledger_start(e.org_id, ?)
-		  AND (e.entry_date < ? OR (e.source_type = 'opening' AND e.entry_date = ?))`,
+		  AND (e.entry_date < ? OR (`+isOpening+` AND e.entry_date = ?))`,
 		accountID, depotID, from, from, from).Row().Scan(&m)
 	return m, err
 }
@@ -58,7 +62,7 @@ func (q *Q) CashLines(orgID, accountID, depotID uint, from, to models.Date) ([]C
 		LEFT JOIN cash_vouchers v ON v.org_id = e.org_id AND e.id IN (v.journal_entry_id, v.voided_by_entry_id)
 		LEFT JOIN sicils s ON s.id = r.sicil_id
 		WHERE e.org_id = ? AND p.account_id = ? AND e.depot_id = ? AND e.entry_date BETWEEN ? AND ?
-		  AND e.source_type <> 'opening'
+		  AND NOT `+isOpening+`
 		ORDER BY e.entry_date, e.id, p.line_no`, orgID, accountID, depotID, from, to)
 }
 

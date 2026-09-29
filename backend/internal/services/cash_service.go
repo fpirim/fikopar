@@ -55,7 +55,7 @@ func validPeriod(from, to *models.Date) error {
 
 func (s *CashService) Book(ctx context.Context, orgID, depotID uint, from, to *models.Date) (*CashBook, error) {
 	if depotID == 0 {
-		return nil, apierror.WithField(apierror.InvalidRequest, "depotId")
+		return nil, apierror.DepotRequired
 	}
 	if err := validPeriod(from, to); err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func (s *CashService) CreateVoucher(ctx context.Context, orgID uint, in CashVouc
 		if in.Kind == "EXPENSE" {
 			other, err = q.GetAccount(orgID, in.AccountID)
 			if repository.IsNotFound(err) {
-				return refAccountNotFound
+				return apierror.UnknownRef(apierror.AccountNotFound, "accountId")
 			}
 			if err == nil && other.Type != "EXPENSE" {
 				return apierror.WithField(notExpenseAccount, "accountId")
@@ -194,7 +194,7 @@ func (s *CashService) VoidVoucher(ctx context.Context, orgID, id uint, reason st
 		if err != nil {
 			return err
 		}
-		rev, err := reverseEntry(ctx, q, e, reason)
+		rev, err := reverseEntry(ctx, q, e, today(), reason)
 		if err != nil {
 			return err
 		}

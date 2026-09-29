@@ -9,11 +9,11 @@ import (
 type SicilRepository interface {
 	Create(card *models.Sicil) error
 	GetByID(organizationID, id uint) (*models.Sicil, error)
-	UpdateFields(organizationID, id uint, fields map[string]any) error
+	// Update applies fields (and, when non-nil, replaces the phones) at the expected version in one
+	// transaction; false means no card of the org has that version.
+	Update(organizationID, id uint, version int, fields map[string]any, telefonlar *[]models.SicilTelefon) (bool, error)
 	Delete(organizationID, id uint) error
 	ListForGrid(req GridRequest, organizationID uint) (*GridResponse, error)
-	// Called inside the service's transaction so card and phones change atomically.
-	ReplaceTelefonlar(sicilID uint, telefonlar []models.SicilTelefon) error
 }
 
 type sicilRepo struct {
@@ -37,11 +37,25 @@ func (r *sicilRepo) GetByID(organizationID, id uint) (*models.Sicil, error) {
 }
 
 // The service layer whitelists fields; organization_id must never reach here.
-func (r *sicilRepo) UpdateFields(organizationID, id uint, fields map[string]any) error {
-	if len(fields) == 0 {
-		return nil
+func (r *sicilRepo) Update(organizationID, id uint, version int, fields map[string]any, telefonlar *[]models.SicilTelefon) (bool, error) {
+	set := make(map[string]any, len(fields)+1)
+	for k, v := range fields {
+		set[k] = v
 	}
-	return r.db.Model(&models.Sicil{}).Where("organization_id = ? AND id = ?", organizationID, id).Updates(fields).Error
+	set["version"] = gorm.Expr("version + 1")
+	ok := false
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&models.Sicil{}).Where("organization_id = ? AND id = ? AND version = ?", organizationID, id, version).Updates(set)
+		if res.Error != nil || res.RowsAffected == 0 {
+			return res.Error
+		}
+		ok = true
+		if telefonlar == nil {
+			return nil
+		}
+		return replaceTelefonlar(tx, id, *telefonlar)
+	})
+	return ok, err
 }
 
 func (r *sicilRepo) Delete(organizationID, id uint) error {
@@ -72,18 +86,16 @@ func (r *sicilRepo) ListForGrid(req GridRequest, organizationID uint) (*GridResp
 	return paginatedGridWithMapping(scoped, req, &[]models.Sicil{}, colMap, []string{"hesap_no", "hesap_adi", "sehir"})
 }
 
-func (r *sicilRepo) ReplaceTelefonlar(sicilID uint, telefonlar []models.SicilTelefon) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("sicil_id = ?", sicilID).Delete(&models.SicilTelefon{}).Error; err != nil {
-			return err
-		}
-		if len(telefonlar) == 0 {
-			return nil
-		}
-		for i := range telefonlar {
-			telefonlar[i].ID = 0
-			telefonlar[i].SicilID = sicilID
-		}
-		return tx.Create(&telefonlar).Error
-	})
+func replaceTelefonlar(tx *gorm.DB, sicilID uint, telefonlar []models.SicilTelefon) error {
+	if err := tx.Where("sicil_id = ?", sicilID).Delete(&models.SicilTelefon{}).Error; err != nil {
+		return err
+	}
+	if len(telefonlar) == 0 {
+		return nil
+	}
+	for i := range telefonlar {
+		telefonlar[i].ID = 0
+		telefonlar[i].SicilID = sicilID
+	}
+	return tx.Create(&telefonlar).Error
 }

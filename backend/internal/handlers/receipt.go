@@ -74,7 +74,7 @@ func (h *ReceiptHandler) Void(c echo.Context) error {
 }
 
 func (h *ReceiptHandler) Grid(c echo.Context) error {
-	var req repository.GridRequest
+	var req repository.ReceiptGridRequest
 	if err := bindJSON(c, &req); err != nil {
 		return apierror.Respond(c, err)
 	}

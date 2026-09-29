@@ -76,15 +76,26 @@ var (
 	CarryForwardBlocked      = &APIError{"ERR_CARRY_FORWARD_BLOCKED", http.StatusUnprocessableEntity}
 	CashVoucherNotFound      = &APIError{"ERR_CASH_VOUCHER_NOT_FOUND", http.StatusNotFound}
 	CashVoucherAlreadyVoided = &APIError{"ERR_CASH_VOUCHER_ALREADY_VOIDED", http.StatusConflict}
-	// The contract has no ERR_DEPOT_CODE_EXISTS; see docs/review/phase-1-contract-issues.md.
-	DepotCodeExists = &APIError{"ERR_INVALID_REQUEST", http.StatusConflict}
+	DepotCodeExists          = &APIError{"ERR_DEPOT_CODE_EXISTS", http.StatusConflict}
+	NumberSeriesNotFound     = &APIError{"ERR_NUMBER_SERIES_NOT_FOUND", http.StatusNotFound}
+	MethodNotAvailable       = &APIError{"ERR_METHOD_NOT_AVAILABLE", http.StatusBadRequest}
+	YearClosed               = &APIError{"ERR_YEAR_CLOSED", http.StatusConflict}
+	NotCarriedForward        = &APIError{"ERR_NOT_CARRIED_FORWARD", http.StatusConflict}
 )
+
+// Owner names the document, receipt, instrument or voucher that owns a journal entry.
+type Owner struct {
+	SourceType string  `json:"sourceType"`
+	SourceID   string  `json:"sourceId"`
+	SourceNo   *string `json:"sourceNo"`
+}
 
 // Detailed adds the contract's optional detail and field to a code.
 type Detailed struct {
 	Err    *APIError
 	Detail string
 	Field  string
+	Owner  *Owner
 }
 
 func (e *Detailed) Error() string { return e.Err.Code + ": " + e.Detail }
@@ -92,17 +103,26 @@ func (e *Detailed) Unwrap() error { return e.Err }
 
 func WithDetail(err *APIError, detail string) error { return &Detailed{Err: err, Detail: detail} }
 func WithField(err *APIError, field string) error   { return &Detailed{Err: err, Field: field} }
+func WithOwner(err *APIError, o Owner) error        { return &Detailed{Err: err, Owner: &o} }
+
+// UnknownRef is an id in the request body that does not resolve: 422 with the field.
+func UnknownRef(err *APIError, field string) error {
+	return &Detailed{Err: &APIError{Code: err.Code, Status: http.StatusUnprocessableEntity}, Field: field}
+}
 
 // Respond maps unexpected errors to ERR_INTERNAL so internals never leak.
 func Respond(c echo.Context, err error) error {
 	var d *Detailed
 	if errors.As(err, &d) {
-		body := map[string]string{"code": d.Err.Code}
+		body := map[string]any{"code": d.Err.Code}
 		if d.Detail != "" {
 			body["detail"] = d.Detail
 		}
 		if d.Field != "" {
 			body["field"] = d.Field
+		}
+		if d.Owner != nil {
+			body["owner"] = d.Owner
 		}
 		return c.JSON(d.Err.Status, body)
 	}

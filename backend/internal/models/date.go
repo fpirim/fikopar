@@ -12,7 +12,11 @@ const DateLayout = "2006-01-02"
 // Date is a calendar date without time zone, "2006-01-02" on the wire.
 type Date struct{ time.Time }
 
+// ParseDate reads yyyy-mm-dd; a time part after a space or "T" is ignored.
 func ParseDate(s string) (Date, error) {
+	if len(s) > len(DateLayout) && (s[len(DateLayout)] == ' ' || s[len(DateLayout)] == 'T') {
+		s = s[:len(DateLayout)]
+	}
 	t, err := time.Parse(DateLayout, s)
 	if err != nil {
 		return Date{}, err

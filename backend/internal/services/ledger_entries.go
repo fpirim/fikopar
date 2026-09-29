@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -12,12 +11,6 @@ import (
 	"github.com/fpirim/fikopar/backend/internal/apierror"
 	"github.com/fpirim/fikopar/backend/internal/models"
 	"github.com/fpirim/fikopar/backend/internal/repository"
-)
-
-// References inside a request body that do not resolve are business-rule failures (422), not 404s.
-var (
-	refAccountNotFound = &apierror.APIError{Code: apierror.AccountNotFound.Code, Status: http.StatusUnprocessableEntity}
-	refDepotNotFound   = &apierror.APIError{Code: apierror.DepotNotFound.Code, Status: http.StatusUnprocessableEntity}
 )
 
 type LineInput struct {
@@ -76,15 +69,30 @@ func depotRef(q *repository.Q, orgID, depotID uint) (*models.Depot, error) {
 	}
 	d, err := q.GetDepot(orgID, depotID)
 	if repository.IsNotFound(err) {
-		return nil, refDepotNotFound
+		return nil, apierror.UnknownRef(apierror.DepotNotFound, "depotId")
 	}
 	return d, err
 }
 
+// yearOpen answers ERR_YEAR_CLOSED when a carry-forward run lies after the date's year.
+func yearOpen(q *repository.Q, orgID uint, d models.Date) error {
+	closed, err := q.YearClosed(orgID, d)
+	if err == nil && closed {
+		return apierror.YearClosed
+	}
+	return err
+}
+
 // postEntry is the only writer of journal entries. The service rejects what the database would
-// reject at commit (Σ debit ≠ Σ credit, < 2 lines) so callers get a contract error, not a 500.
+// reject (closed year, Σ debit ≠ Σ credit, < 2 lines, not TRY) so callers get a contract error, not a 500.
 func postEntry(ctx context.Context, q *repository.Q, orgID uint, in entryInput) (*models.JournalEntry, error) {
 	if _, err := depotRef(q, orgID, in.depotID); err != nil {
+		return nil, err
+	}
+	if err := q.LockLedger(orgID, false); err != nil {
+		return nil, err
+	}
+	if err := yearOpen(q, orgID, in.date); err != nil {
 		return nil, err
 	}
 	if len(in.lines) < 2 {
@@ -108,25 +116,25 @@ func postEntry(ctx context.Context, q *repository.Q, orgID uint, in entryInput) 
 	for _, a := range accounts {
 		byID[a.ID] = a
 	}
-	net := map[string]models.Money{}
+	var net models.Money
 	for _, l := range in.lines {
 		a, ok := byID[l.AccountID]
-		if !ok {
-			return nil, refAccountNotFound
-		}
-		if !a.IsActive {
+		switch {
+		case !ok:
+			return nil, apierror.UnknownRef(apierror.AccountNotFound, "accountId")
+		case !a.IsActive:
 			return nil, apierror.WithDetail(apierror.AccountInactive, a.Code)
+		case a.Currency != models.TRY:
+			return nil, apierror.WithDetail(apierror.CurrencyMismatch, a.Code)
 		}
 		if l.Side == models.Debit {
-			net[a.Currency] += l.Amount
+			net += l.Amount
 		} else {
-			net[a.Currency] -= l.Amount
+			net -= l.Amount
 		}
 	}
-	for cur, d := range net {
-		if d != 0 {
-			return nil, apierror.WithDetail(apierror.EntryUnbalanced, fmt.Sprintf("%s off by %s", cur, d))
-		}
+	if net != 0 {
+		return nil, apierror.WithDetail(apierror.EntryUnbalanced, fmt.Sprintf("off by %s", net))
 	}
 
 	no, err := q.NextNumber(orgID, in.depotID, "J", in.date.Year())
@@ -149,7 +157,7 @@ func postEntry(ctx context.Context, q *repository.Q, orgID uint, in entryInput) 
 	}
 	for i, l := range in.lines {
 		p := &models.Posting{EntryID: e.ID, LineNo: i + 1, AccountID: l.AccountID, Side: l.Side, Amount: l.Amount,
-			Currency: byID[l.AccountID].Currency, DueDate: l.DueDate, Memo: l.Memo}
+			Currency: models.TRY, DueDate: l.DueDate, Memo: l.Memo}
 		if err := q.InsertPosting(orgID, p); err != nil {
 			return nil, err
 		}
@@ -166,7 +174,6 @@ func postEntry(ctx context.Context, q *repository.Q, orgID uint, in entryInput) 
 
 func ledgerEntryPayload(e *models.JournalEntry) map[string]any {
 	postings := make([]map[string]any, len(e.Postings))
-	currency := e.Postings[0].Currency
 	var total models.Money
 	for i, p := range e.Postings {
 		m := map[string]any{"accountId": p.AccountID, "accountCode": p.AccountCode, "side": p.Side, "amount": p.Amount}
@@ -174,13 +181,13 @@ func ledgerEntryPayload(e *models.JournalEntry) map[string]any {
 			m["dueDate"] = p.DueDate
 		}
 		postings[i] = m
-		if p.Side == models.Debit && p.Currency == currency {
+		if p.Side == models.Debit {
 			total += p.Amount
 		}
 	}
 	return map[string]any{
 		"entryId": e.ID, "entryNo": e.EntryNo, "entryDate": e.EntryDate, "sourceType": e.SourceType,
-		"sourceId": e.SourceID, "reversesEntryId": e.ReversesEntryID, "currency": currency, "total": total,
+		"sourceId": e.SourceID, "reversesEntryId": e.ReversesEntryID, "currency": models.TRY, "total": total,
 		"postings": postings,
 	}
 }
@@ -225,26 +232,26 @@ func (s *LedgerService) Reverse(ctx context.Context, orgID, id uint, reason stri
 		case models.SourceReversal:
 			return apierror.InvalidStateTransition
 		default:
-			return apierror.WithDetail(apierror.EntryOwnedBySource, owner(e))
+			return apierror.WithOwner(apierror.EntryOwnedBySource, owner(e))
 		}
-		out, err = reverseEntry(ctx, q, e, reason)
+		out, err = reverseEntry(ctx, q, e, today(), reason)
 		return err
 	})
 	return out, err
 }
 
-func owner(e *models.JournalEntry) string {
-	ref := ""
+func owner(e *models.JournalEntry) apierror.Owner {
+	o := apierror.Owner{SourceType: string(e.SourceType), SourceNo: e.SourceNo}
 	switch {
-	case e.SourceNo != nil:
-		ref = *e.SourceNo
+	case e.OwnerID != nil:
+		o.SourceID = *e.OwnerID
 	case e.SourceID != nil:
-		ref = *e.SourceID
+		o.SourceID = *e.SourceID
 	}
-	return string(e.SourceType) + ":" + ref
+	return o
 }
 
-func reverseEntry(ctx context.Context, q *repository.Q, e *models.JournalEntry, reason string) (*models.JournalEntry, error) {
+func reverseEntry(ctx context.Context, q *repository.Q, e *models.JournalEntry, date models.Date, reason string) (*models.JournalEntry, error) {
 	if e.ReversedByEntryID != nil {
 		return nil, apierror.EntryAlreadyReversed
 	}
@@ -254,7 +261,7 @@ func reverseEntry(ctx context.Context, q *repository.Q, e *models.JournalEntry, 
 	}
 	src := strconv.FormatUint(uint64(e.ID), 10)
 	return postEntry(ctx, q, e.OrgID, entryInput{
-		depotID: e.DepotID, date: today(), description: "Reversal of " + e.EntryNo + ": " + reason,
+		depotID: e.DepotID, date: date, description: "Reversal of " + e.EntryNo + ": " + reason,
 		source: models.SourceReversal, sourceID: &src, reverses: &e.ID, lines: lines,
 	})
 }

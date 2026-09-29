@@ -22,6 +22,9 @@ type NumberSeries struct {
 	Version   int    `json:"version" gorm:"column:version"`
 }
 
+// TRY is the only currency of contracts v1.1; one currency per journal entry.
+const TRY = "TRY"
+
 type Side string
 
 const (
@@ -96,9 +99,13 @@ type JournalEntry struct {
 	SourceType        SourceType `json:"sourceType" gorm:"column:source_type"`
 	SourceID          *string    `json:"sourceId" gorm:"column:source_id"`
 	ReversesEntryID   *uint      `json:"reversesEntryId" gorm:"column:reverses_entry_id"`
+	ReversesEntryNo   *string    `json:"reversesEntryNo" gorm:"column:reverses_entry_no"`
 	ReversedByEntryID *uint      `json:"reversedByEntryId" gorm:"column:reversed_by_entry_id"`
+	ReversedByEntryNo *string    `json:"reversedByEntryNo" gorm:"column:reversed_by_entry_no"`
 	SourceNo          *string    `json:"sourceNo" gorm:"column:source_no"`
+	OwnerID           *string    `json:"-" gorm:"column:owner_id"`
 	IdempotencyKey    *string    `json:"idempotencyKey" gorm:"column:idempotency_key"`
+	Currency          string     `json:"currency" gorm:"-"`
 	Postings          []Posting  `json:"postings" gorm:"-"`
 	CreatedBy         *uint      `json:"createdBy" gorm:"column:created_by"`
 	CreatedAt         time.Time  `json:"createdAt" gorm:"column:created_at"`
@@ -116,6 +123,7 @@ type TrailItem struct {
 	Label       string    `json:"label" gorm:"column:label"`
 	Ref         *string   `json:"ref" gorm:"column:ref"`
 	ActorUserID *uint     `json:"actorUserId" gorm:"column:actor_user_id"`
+	ActorLogin  *string   `json:"actorLogin" gorm:"column:actor_login"`
 }
 
 type Receipt struct {

@@ -40,13 +40,38 @@ func (q *Q) VoidReceipt(orgID, id, entryID uint) error {
 	return q.db.Exec(`UPDATE receipts SET voided_by_entry_id = ?, voided_at = now() WHERE org_id = ? AND id = ?`, entryID, orgID, id).Error
 }
 
-func (q *Q) GridReceipts(orgID uint, req GridRequest) (*GridResponse, error) {
-	cols := map[string]string{
-		"receiptNo": "receipt_no", "date": "receipt_date", "kind": "kind", "method": "method",
-		"sicilName": "sicil_name", "amount": "amount", "depotId": "depot_id", "origin": "origin",
-		"instrumentNo": "instrument_no",
+// ReceiptGridRequest is gridReceipts: AG Grid model plus the top-bar depot (nil = all depots).
+type ReceiptGridRequest struct {
+	ReportGridRequest
+	DepotID *uint `json:"depotId"`
+}
+
+var receiptCols = map[string]GridCol{
+	"receiptNo": {"receipt_no", ColText}, "date": {"receipt_date", ColDate}, "kind": {"kind", ColText},
+	"method": {"method", ColText}, "sicilName": {"sicil_name", ColText}, "amount": {"amount", ColNumber},
+	"depotId": {"depot_id", ColNumber}, "origin": {"origin", ColText}, "instrumentNo": {"instrument_no", ColText},
+}
+
+func (q *Q) GridReceipts(orgID uint, req ReceiptGridRequest) (*GridResponse, error) {
+	where, wargs, err := whereClause(req.FilterModel, receiptCols)
+	if err != nil {
+		return nil, err
 	}
-	base := q.db.Table("("+receiptSelect+" WHERE r.org_id = ?) AS g", orgID)
-	req.SortModel = append(req.SortModel, SortModel{ColID: "date", Sort: "desc"}, SortModel{ColID: "receiptNo", Sort: "desc"})
-	return paginatedGridWithMapping(base, req, &[]models.Receipt{}, cols, []string{"receipt_no", "sicil_name"})
+	search, sargs := searchClause(req.Search, []string{"receipt_no", "sicil_name"})
+	base := `SELECT * FROM (` + receiptSelect + ` WHERE r.org_id = ? AND (?::bigint IS NULL OR r.depot_id = ?)) g WHERE ` + where + ` AND ` + search
+	args := concat([]any{orgID, req.DepotID, req.DepotID}, wargs, sargs)
+	var total int64
+	if err := q.db.Raw(`SELECT count(*) FROM (`+base+`) c`, args...).Scan(&total).Error; err != nil {
+		return nil, err
+	}
+	sql := base + ` ORDER BY ` + orderClause(req.SortModel, receiptCols, "receipt_date DESC, receipt_no DESC")
+	if n := req.EndRow - req.StartRow; n > 0 {
+		sql += ` LIMIT ? OFFSET ?`
+		args = append(args, n, req.StartRow)
+	}
+	rows, err := list[models.Receipt](q.db, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &GridResponse{Rows: rows, TotalCount: total}, nil
 }

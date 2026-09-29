@@ -80,8 +80,15 @@ func (f *cfFix) preview(t *testing.T, year string) carryForward {
 func (f *cfFix) override(t *testing.T, token string, account, depot uint, debit, credit, reason string) *carryForwardRec {
 	t.Helper()
 	body := fmt.Sprintf(`{"accountId":%d,"depotId":%d,"debit":%q,"credit":%q,"reason":%q}`, account, depot, debit, credit, reason)
-	rec := f.req(t, http.MethodPut, f.path("/ledger/carry-forwards/2027/overrides"), token, body, nil)
+	rec := f.req(t, http.MethodPut, f.path("/ledger/carry-forwards/2027/overrides"), token, body, f.ifMatch(t))
 	return &carryForwardRec{rec.Code, rec.Body.String()}
+}
+
+func (f *cfFix) ifMatch(t *testing.T) map[string]string {
+	t.Helper()
+	rec := f.do(t, http.MethodGet, f.path("/ledger/carry-forwards/2027"), f.token, "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	return map[string]string{"If-Match": rec.Header().Get("ETag")}
 }
 
 type carryForwardRec struct {
@@ -132,7 +139,7 @@ func TestCarryForward_PreviewOverridePostAndReopen(t *testing.T) {
 	assert.Equal(t, "SKIP", p.row(t, f.sales, f.depot2).Status)
 	assert.Equal(t, 5, p.EntryCount)
 
-	del := f.req(t, http.MethodDelete, f.path(fmt.Sprintf("/ledger/carry-forwards/2027/overrides?accountId=%d&depotId=%d", f.sales, f.depot2)), f.admin, "", nil)
+	del := f.req(t, http.MethodDelete, f.path(fmt.Sprintf("/ledger/carry-forwards/2027/overrides?accountId=%d&depotId=%d", f.sales, f.depot2)), f.admin, "", f.ifMatch(t))
 	require.Equal(t, http.StatusOK, del.Code, del.Body.String())
 	assert.Equal(t, "READY", decode[carryForward](t, del).row(t, f.sales, f.depot2).Status)
 

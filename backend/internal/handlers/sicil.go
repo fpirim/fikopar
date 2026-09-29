@@ -26,18 +26,21 @@ type telefonPayload struct {
 }
 
 type createSicilRequest struct {
-	HesapNo    string           `json:"hesap_no"`
-	HesapAdi   string           `json:"hesap_adi"`
-	Adres      string           `json:"adres"`
-	Ilce       string           `json:"ilce"`
-	Sehir      string           `json:"sehir"`
-	VDairesi   string           `json:"v_dairesi"`
-	VNo        string           `json:"v_no"`
-	TCNo       string           `json:"tc_no"`
-	Gun        string           `json:"gun"`
-	Iskonto    float64          `json:"iskonto"`
-	SicilTipi  models.SicilTipi `json:"sicil_tipi"`
-	Telefonlar []telefonPayload `json:"telefonlar"`
+	HesapNo     string               `json:"hesap_no"`
+	HesapAdi    string               `json:"hesap_adi"`
+	Adres       string               `json:"adres"`
+	Ilce        string               `json:"ilce"`
+	Sehir       string               `json:"sehir"`
+	VDairesi    string               `json:"v_dairesi"`
+	VNo         string               `json:"v_no"`
+	TCNo        string               `json:"tc_no"`
+	Gun         string               `json:"gun"`
+	Iskonto     float64              `json:"iskonto"`
+	SicilTipi   models.SicilTipi     `json:"sicil_tipi"`
+	Telefonlar  []telefonPayload     `json:"telefonlar"`
+	CreditLimit *models.Money        `json:"credit_limit"`
+	Contacts    models.SicilContacts `json:"contacts"`
+	Emails      models.StringList    `json:"emails"`
 }
 
 func (h *SicilHandler) Grid(c echo.Context) error {
@@ -65,23 +68,27 @@ func (h *SicilHandler) Create(c echo.Context) error {
 		telefonlar = append(telefonlar, models.SicilTelefon{Tipi: t.Tipi, Numara: t.Numara})
 	}
 	card := &models.Sicil{
-		HesapNo:    req.HesapNo,
-		HesapAdi:   req.HesapAdi,
-		Adres:      req.Adres,
-		Ilce:       req.Ilce,
-		Sehir:      req.Sehir,
-		VDairesi:   req.VDairesi,
-		VNo:        req.VNo,
-		TCNo:       req.TCNo,
-		Gun:        req.Gun,
-		Iskonto:    req.Iskonto,
-		SicilTipi:  req.SicilTipi,
-		Telefonlar: telefonlar,
+		HesapNo:     req.HesapNo,
+		HesapAdi:    req.HesapAdi,
+		Adres:       req.Adres,
+		Ilce:        req.Ilce,
+		Sehir:       req.Sehir,
+		VDairesi:    req.VDairesi,
+		VNo:         req.VNo,
+		TCNo:        req.TCNo,
+		Gun:         req.Gun,
+		Iskonto:     req.Iskonto,
+		SicilTipi:   req.SicilTipi,
+		Telefonlar:  telefonlar,
+		CreditLimit: req.CreditLimit,
+		Contacts:    req.Contacts,
+		Emails:      req.Emails,
 	}
 	created, err := h.svc.Create(orgID(c), card)
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
+	setETag(c, created.Version)
 	return c.JSON(http.StatusCreated, created)
 }
 
@@ -94,6 +101,7 @@ func (h *SicilHandler) Get(c echo.Context) error {
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
+	setETag(c, card.Version)
 	return c.JSON(http.StatusOK, card)
 }
 
@@ -102,14 +110,19 @@ func (h *SicilHandler) Update(c echo.Context) error {
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
+	version, err := ifMatch(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
 	var updates map[string]any
 	if err := c.Bind(&updates); err != nil {
 		return apierror.Respond(c, apierror.InvalidRequest)
 	}
-	card, err := h.svc.Update(orgID(c), id, updates)
+	card, err := h.svc.Update(orgID(c), id, version, updates)
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
+	setETag(c, card.Version)
 	return c.JSON(http.StatusOK, card)
 }
 

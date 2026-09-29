@@ -10,10 +10,11 @@ const (
 )
 
 type AccountFilter struct {
-	Type      string
-	SicilID   uint
-	AfterCode string
-	Limit     int
+	Type         string
+	SicilID      uint
+	CodePrefixes []string
+	AfterCode    string
+	Limit        int
 }
 
 func (q *Q) ListAccounts(orgID uint, f AccountFilter) ([]models.Account, error) {
@@ -26,6 +27,10 @@ func (q *Q) ListAccounts(orgID uint, f AccountFilter) ([]models.Account, error) 
 	if f.SicilID != 0 {
 		sql += ` AND sicil_id = ?`
 		args = append(args, f.SicilID)
+	}
+	for _, p := range f.CodePrefixes {
+		sql += ` AND code LIKE ?`
+		args = append(args, p+"%")
 	}
 	if f.AfterCode != "" {
 		sql += ` AND code > ?`

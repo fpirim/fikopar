@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -58,8 +59,19 @@ func setETag(c echo.Context, version int) {
 
 const maxBody = 1 << 20
 
+type idemOp func(ctx context.Context, body []byte) (int, any, error)
+
 // idempotent reads the raw body once, then runs op under the request's Idempotency-Key.
-func idempotent(c echo.Context, idem *services.IdempotencyService, op func(ctx context.Context, body []byte) (int, any, error)) error {
+func idempotent(c echo.Context, idem *services.IdempotencyService, op idemOp) error {
+	return runIdempotent(c, idem, op, false)
+}
+
+// idempotentETag also sends the response's version as ETag, on replays too.
+func idempotentETag(c echo.Context, idem *services.IdempotencyService, op idemOp) error {
+	return runIdempotent(c, idem, op, true)
+}
+
+func runIdempotent(c echo.Context, idem *services.IdempotencyService, op idemOp, etag bool) error {
 	key := strings.TrimSpace(c.Request().Header.Get("Idempotency-Key"))
 	if key == "" {
 		return apierror.Respond(c, apierror.IdempotencyKeyRequired)
@@ -80,6 +92,12 @@ func idempotent(c echo.Context, idem *services.IdempotencyService, op func(ctx c
 	}
 	if res.Replayed {
 		c.Response().Header().Set("Idempotent-Replayed", "true")
+	}
+	var v struct {
+		Version *int `json:"version"`
+	}
+	if etag && json.Unmarshal(res.Body, &v) == nil && v.Version != nil {
+		setETag(c, *v.Version)
 	}
 	return c.Blob(res.Status, echo.MIMEApplicationJSON, res.Body)
 }

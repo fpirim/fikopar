@@ -38,10 +38,22 @@ func TestSicilRepository_CRUD(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Ceylan", got.HesapAdi)
 
-	require.NoError(t, repo.UpdateFields(orgA, c.ID, map[string]any{"hesap_adi": "Ceylan A.Ş."}))
+	assert.Equal(t, 1, got.Version)
+	phones := []models.SicilTelefon{{Tipi: models.TelefonTipiIs, Numara: "212"}}
+	ok, err := repo.Update(orgA, c.ID, 1, map[string]any{"hesap_adi": "Ceylan A.Ş."}, &phones)
+	require.NoError(t, err)
+	assert.True(t, ok)
 	reloaded, err := repo.GetByID(orgA, c.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Ceylan A.Ş.", reloaded.HesapAdi)
+	assert.Equal(t, 2, reloaded.Version)
+	require.Len(t, reloaded.Telefonlar, 1)
+	ok, err = repo.Update(orgA, c.ID, 1, map[string]any{"hesap_adi": "stale"}, nil)
+	require.NoError(t, err)
+	assert.False(t, ok, "a stale version changes nothing")
+	ok, err = repo.Update(orgB, c.ID, 2, map[string]any{"hesap_adi": "foreign"}, nil)
+	require.NoError(t, err)
+	assert.False(t, ok)
 
 	_, err = repo.GetByID(orgB, c.ID)
 	assert.Error(t, err, "a card is invisible through another org")

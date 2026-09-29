@@ -10,5 +10,6 @@ runs `check/invariants.sql`.
 
 v1.1 changed `0001_common` (`sicils.version`) and `0002_ledger` (TRY-only postings, one currency per entry,
 `carry_forward_runs` with reopen, `carry_forward_previews`, closed-year trigger, `ledger_start()`, voidable
-`opening_balances`). The promoted files and `0004_ledger_runtime` (its `carry_forward_runs` has no reopen) are v1; the
-backend brings them to v1.1 with a new migration.
+`opening_balances`). The promoted files and `0004_ledger_runtime` (its `carry_forward_runs` has no reopen) are v1;
+[`../0005_contracts_v1_1.sql`](../0005_contracts_v1_1.sql) brings them to v1.1. Opening entries posted before it keep
+the v1 source key `<year>:<account>:<depot>`.

@@ -146,10 +146,10 @@ func TestReceipts_Validation(t *testing.T) {
 		{"zero", receiptBody("COLLECTION", f.depot, f.customer, "2026-03-11", "CASH", "0.00", ""), 400, "ERR_INVALID_AMOUNT"},
 		{"foreign sicil", receiptBody("COLLECTION", f.depot, foreign, "2026-03-11", "CASH", "1.00", ""), 422, "ERR_SICIL_NOT_FOUND"},
 		{"unknown depot", receiptBody("COLLECTION", 999999, f.customer, "2026-03-11", "CASH", "1.00", ""), 422, "ERR_DEPOT_NOT_FOUND"},
-		{"currency", receiptBody("COLLECTION", f.depot, f.customer, "2026-03-11", "CASH", "1.00", `,"currency":"EUR"`), 422, "ERR_CURRENCY_MISMATCH"},
+		{"currency", receiptBody("COLLECTION", f.depot, f.customer, "2026-03-11", "CASH", "1.00", `,"currency":"EUR"`), 400, "ERR_INVALID_REQUEST"},
 		{"kind", receiptBody("REFUND", f.depot, f.customer, "2026-03-11", "CASH", "1.00", ""), 400, "ERR_INVALID_REQUEST"},
-		{"cheque until F4", receiptBody("COLLECTION", f.depot, f.customer, "2026-03-11", "CHEQUE", "1.00", ""), 400, "ERR_INVALID_REQUEST"},
-		{"note until F4", receiptBody("PAYMENT", f.depot, f.supplier, "2026-03-11", "NOTE", "1.00", ""), 400, "ERR_INVALID_REQUEST"},
+		{"cheque until F4", receiptBody("COLLECTION", f.depot, f.customer, "2026-03-11", "CHEQUE", "1.00", ""), 400, "ERR_METHOD_NOT_AVAILABLE"},
+		{"note until F4", receiptBody("PAYMENT", f.depot, f.supplier, "2026-03-11", "NOTE", "1.00", ""), 400, "ERR_METHOD_NOT_AVAILABLE"},
 		{"endorsement", receiptBody("PAYMENT", f.depot, f.supplier, "2026-03-11", "ENDORSEMENT", "1.00", ""), 400, "ERR_INVALID_REQUEST"},
 	}
 	for _, tc := range cases {

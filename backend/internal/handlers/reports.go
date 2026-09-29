@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
@@ -76,6 +77,42 @@ func (h *ReportHandler) Balances(c echo.Context) error {
 	t.Totals = []any{"Total", nil, nil, nil, sum[0], sum[1], sum[2], sum[3]}
 	data, err := export.XLSX("Balances", t)
 	return sendFile(c, mimeXLSX, "balances-"+in.AsOf.String()+".xlsx", data, err)
+}
+
+func (h *ReportHandler) SicilSummary(c echo.Context) error {
+	id, err := pathID(c, "sicilId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	depot, err := optionalDepot(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	asOf, err := queryDate(c, "asOf")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	sum, err := h.reports.SicilSummary(c.Request().Context(), orgID(c), id, depot, asOf)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, sum)
+}
+
+func (h *ReportHandler) Search(c echo.Context) error {
+	limit := 0
+	if v := c.QueryParam("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n == 0 {
+			return apierror.Respond(c, apierror.WithField(apierror.InvalidRequest, "limit"))
+		}
+		limit = n
+	}
+	res, err := h.reports.Search(c.Request().Context(), orgID(c), c.QueryParam("q"), limit)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, res)
 }
 
 func deref(s *string) string {
@@ -178,7 +215,7 @@ func (h *ReportHandler) CashBookExport(c echo.Context, b *services.CashBook) err
 	return sendFile(c, mimePDF, name+".pdf", data, err)
 }
 
-func (h *ReportHandler) ReceiptGridXLSX(c echo.Context, req repository.GridRequest) error {
+func (h *ReportHandler) ReceiptGridXLSX(c echo.Context, req repository.ReceiptGridRequest) error {
 	req.StartRow, req.EndRow = 0, 0
 	resp, err := h.receipts.Grid(c.Request().Context(), orgID(c), req)
 	if err != nil {
@@ -187,7 +224,7 @@ func (h *ReportHandler) ReceiptGridXLSX(c echo.Context, req repository.GridReque
 	t := export.Table{Columns: []export.Column{{Title: "Number", Kind: export.Text}, {Title: "Date", Kind: export.DateCol},
 		{Title: "Kind", Kind: export.Text}, {Title: "Method", Kind: export.Text}, {Title: "Account", Kind: export.Text},
 		{Title: "Source", Kind: export.Text}, {Title: "Amount", Kind: export.MoneyCol}}}
-	for _, r := range *resp.Rows.(*[]models.Receipt) {
+	for _, r := range resp.Rows.([]models.Receipt) {
 		t.Rows = append(t.Rows, []any{r.ReceiptNo, r.Date, r.Kind, r.Method, r.SicilName, deref(r.InstrumentNo), r.Amount})
 	}
 	data, err := export.XLSX("Receipts", t)

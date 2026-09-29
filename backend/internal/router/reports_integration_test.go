@@ -152,7 +152,7 @@ func TestBalances_AsOfIsInclusiveWithOverdueAndTotals(t *testing.T) {
 	assert.Equal(t, "300.00", rows["120.B"].Balance, "entries on the as-of day are included")
 	assert.Equal(t, "0.00", rows["120.B"].Overdue)
 	assert.Equal(t, "-200.00", rows["320.C"].Balance)
-	assert.Equal(t, map[string]string{"debit": "800.00", "credit": "300.00", "balance": "500.00", "overdue": "400.00"}, g.Totals)
+	assert.Equal(t, map[string]string{"debitTotal": "800.00", "creditTotal": "300.00", "balance": "500.00", "overdue": "400.00"}, g.Totals)
 
 	g = f.grid(t, `{"asOf":"2026-03-30","startRow":0,"endRow":100}`)
 	rows = byCode(g.Rows)

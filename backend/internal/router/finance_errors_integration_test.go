@@ -100,14 +100,14 @@ func TestFinance_BadInputsAreRejected(t *testing.T) {
 		status             int
 	}{
 		{patch, "/number-series/x", `{}`, 400},
-		{patch, "/number-series/999999", `{"width":6}`, 400},
+		{patch, "/number-series/999999", `{"width":6}`, 404},
 		{patch, "/number-series/1", `{bad`, 400},
 		{put, "/ledger/account-roles", `{bad`, 400},
 		{post, "/depots", `{bad`, 400},
 		{put, "/ledger/carry-forwards/x/overrides", `{}`, 400},
 		{put, "/ledger/carry-forwards/2027/overrides", `{bad`, 400},
-		{put, "/ledger/carry-forwards/2027/overrides", fmt.Sprintf(`{"accountId":999999,"depotId":%d,"debit":"1.00","credit":"0.00","reason":"abc"}`, f.depot), 404},
-		{put, "/ledger/carry-forwards/2027/overrides", fmt.Sprintf(`{"accountId":%d,"depotId":999999,"debit":"1.00","credit":"0.00","reason":"abc"}`, f.cash), 404},
+		{put, "/ledger/carry-forwards/2027/overrides", fmt.Sprintf(`{"accountId":999999,"depotId":%d,"debit":"1.00","credit":"0.00","reason":"abc"}`, f.depot), 422},
+		{put, "/ledger/carry-forwards/2027/overrides", fmt.Sprintf(`{"accountId":%d,"depotId":999999,"debit":"1.00","credit":"0.00","reason":"abc"}`, f.cash), 422},
 		{put, "/ledger/carry-forwards/1999/overrides", fmt.Sprintf(`{"accountId":%d,"depotId":%d,"debit":"1.00","credit":"0.00","reason":"abc"}`, f.cash, f.depot), 400},
 		{del, "/ledger/carry-forwards/x/overrides?accountId=1&depotId=1", "", 400},
 		{del, "/ledger/carry-forwards/2027/overrides?accountId=x&depotId=1", "", 400},

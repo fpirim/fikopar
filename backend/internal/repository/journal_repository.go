@@ -22,12 +22,15 @@ func (q *Q) InsertPosting(orgID uint, p *models.Posting) error {
 
 const entrySelect = `SELECT e.id, e.org_id, e.depot_id, e.entry_no, e.entry_date, e.description, e.source_type, e.source_id,
 	e.reverses_entry_id, e.idempotency_key, e.created_by, e.created_at,
-	(SELECT r.id FROM journal_entries r WHERE r.reverses_entry_id = e.id) AS reversed_by_entry_id,
-	coalesce(
-	  (SELECT receipt_no FROM receipts x WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1),
-	  (SELECT voucher_no FROM cash_vouchers x WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1)
-	) AS source_no
-	FROM journal_entries e`
+	(SELECT o.entry_no FROM journal_entries o WHERE o.id = e.reverses_entry_id) AS reverses_entry_no,
+	rb.id AS reversed_by_entry_id, rb.entry_no AS reversed_by_entry_no,
+	coalesce(r.receipt_no, v.voucher_no) AS source_no, coalesce(r.id, v.id)::text AS owner_id
+	FROM journal_entries e
+	LEFT JOIN journal_entries rb ON rb.reverses_entry_id = e.id
+	LEFT JOIN LATERAL (SELECT x.id, x.receipt_no FROM receipts x
+	  WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1) r ON true
+	LEFT JOIN LATERAL (SELECT x.id, x.voucher_no FROM cash_vouchers x
+	  WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1) v ON true`
 
 func (q *Q) GetEntry(orgID, id uint) (*models.JournalEntry, error) {
 	e, err := first[models.JournalEntry](q.db, entrySelect+` WHERE e.org_id = ? AND e.id = ?`, orgID, id)
@@ -122,6 +125,7 @@ func (q *Q) attachPostings(entries []*models.JournalEntry) error {
 	for _, p := range ps {
 		e := byID[p.EntryID]
 		e.Postings = append(e.Postings, p)
+		e.Currency = p.Currency
 	}
 	return nil
 }
@@ -135,7 +139,7 @@ func (q *Q) EntryTrail(orgID, entryID uint) ([]models.TrailItem, error) {
 		  SELECT * FROM outbox WHERE org_id = ? AND (
 		    (aggregate_type = 'journal_entry' AND aggregate_id = ?) OR payload->>'journalEntryId' = ?)
 		)
-		SELECT at, kind, label, ref, actor_user_id FROM (
+		SELECT at, kind, label, ref, actor_user_id, split_part(u.email, '@', 1) AS actor_login FROM (
 		  SELECT occurred_at AS at, 'AUDIT' AS kind, action AS label, request_id AS ref, actor_user_id, 0 AS rank
 		    FROM audit_events WHERE org_id = ? AND entity_type = 'journal_entry' AND entity_id = ?
 		  UNION ALL
@@ -143,7 +147,8 @@ func (q *Q) EntryTrail(orgID, entryID uint) ([]models.TrailItem, error) {
 		  UNION ALL
 		  SELECT d.delivered_at, 'DELIVERY', d.consumer, ev.id::text, NULL, 2
 		    FROM outbox_deliveries d JOIN ev ON ev.id = d.event_id
-		) t ORDER BY at, rank, label`, orgID, id, id, orgID, id)
+		) t LEFT JOIN users u ON u.id = t.actor_user_id
+		ORDER BY at, rank, label`, orgID, id, id, orgID, id)
 }
 
 type OutboxEvent struct {

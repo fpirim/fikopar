@@ -80,22 +80,22 @@ func TestUpdate_NotFound(t *testing.T) {
 	svc, repo := newSicilService()
 	repo.On("GetByID", uint(1), uint(5)).Return(nil, gorm.ErrRecordNotFound)
 
-	_, err := svc.Update(1, 5, map[string]any{"hesap_adi": "Y"})
+	_, err := svc.Update(1, 5, 1, map[string]any{"hesap_adi": "Y"})
 	require.ErrorIs(t, err, apierror.SicilNotFound)
 }
 
 func TestUpdate_IgnoresOrganizationIDChange(t *testing.T) {
 	svc, repo := newSicilService()
 	repo.On("GetByID", uint(1), uint(5)).Return(&models.Sicil{
-		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "Eski", SicilTipi: models.SicilTipiFirma,
+		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "Eski", SicilTipi: models.SicilTipiFirma, Version: 1,
 	}, nil).Once()
-	repo.On("UpdateFields", uint(1), uint(5), mock.MatchedBy(func(fields map[string]any) bool {
+	repo.On("Update", uint(1), uint(5), 1, mock.MatchedBy(func(fields map[string]any) bool {
 		_, hasOrg := fields["organization_id"]
 		return !hasOrg && fields["hesap_adi"] == "Yeni"
-	})).Return(nil).Once()
+	}), noPhones).Return(true, nil).Once()
 	repo.On("GetByID", uint(1), uint(5)).Return(&models.Sicil{ID: 5, OrganizationID: 1, HesapAdi: "Yeni"}, nil).Once()
 
-	updated, err := svc.Update(1, 5, map[string]any{
+	updated, err := svc.Update(1, 5, 1, map[string]any{
 		"hesap_adi":       "Yeni",
 		"organization_id": uint(2), // attacker tries to move it to another org
 	})
@@ -106,22 +106,22 @@ func TestUpdate_IgnoresOrganizationIDChange(t *testing.T) {
 func TestUpdate_RejectsInvalidSicilTipi(t *testing.T) {
 	svc, repo := newSicilService()
 	repo.On("GetByID", uint(1), uint(5)).Return(&models.Sicil{
-		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma,
+		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma, Version: 1,
 	}, nil)
 
-	_, err := svc.Update(1, 5, map[string]any{"sicil_tipi": "XYZ"})
+	_, err := svc.Update(1, 5, 1, map[string]any{"sicil_tipi": "XYZ"})
 	require.ErrorIs(t, err, apierror.InvalidSicilTipi)
-	repo.AssertNotCalled(t, "UpdateFields", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestUpdate_DuplicateMapsToHesapNoExists(t *testing.T) {
 	svc, repo := newSicilService()
 	repo.On("GetByID", uint(1), uint(5)).Return(&models.Sicil{
-		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma,
+		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma, Version: 1,
 	}, nil).Once()
-	repo.On("UpdateFields", uint(1), uint(5), mock.Anything).Return(errors.New("UNIQUE constraint failed")).Once()
+	repo.On("Update", uint(1), uint(5), 1, mock.Anything, noPhones).Return(false, errors.New("UNIQUE constraint failed")).Once()
 
-	_, err := svc.Update(1, 5, map[string]any{"hesap_no": "002"})
+	_, err := svc.Update(1, 5, 1, map[string]any{"hesap_no": "002"})
 	require.ErrorIs(t, err, apierror.HesapNoExists)
 }
 
@@ -187,18 +187,17 @@ func TestCreate_RejectsEmptyTelefonNumara(t *testing.T) {
 func TestUpdate_TelefonlarReplaceAll(t *testing.T) {
 	svc, repo := newSicilService()
 	repo.On("GetByID", uint(1), uint(5)).Return(&models.Sicil{
-		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma,
+		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma, Version: 1,
 	}, nil).Once()
-	repo.On("UpdateFields", uint(1), uint(5), mock.Anything).Return(nil).Once()
-	repo.On("ReplaceTelefonlar", uint(5), mock.MatchedBy(func(ts []models.SicilTelefon) bool {
-		return len(ts) == 1 && ts[0].Tipi == models.TelefonTipiEv && ts[0].Numara == "+90 312 000 00 00"
-	})).Return(nil).Once()
+	repo.On("Update", uint(1), uint(5), 1, mock.Anything, mock.MatchedBy(func(ts *[]models.SicilTelefon) bool {
+		return ts != nil && len(*ts) == 1 && (*ts)[0].Tipi == models.TelefonTipiEv && (*ts)[0].Numara == "+90 312 000 00 00"
+	})).Return(true, nil).Once()
 	repo.On("GetByID", uint(1), uint(5)).Return(&models.Sicil{
 		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma,
 		Telefonlar: []models.SicilTelefon{{Tipi: models.TelefonTipiEv, Numara: "+90 312 000 00 00"}},
 	}, nil).Once()
 
-	updated, err := svc.Update(1, 5, map[string]any{
+	updated, err := svc.Update(1, 5, 1, map[string]any{
 		"hesap_adi": "X",
 		"telefonlar": []any{
 			map[string]any{"tipi": "EV", "numara": "+90 312 000 00 00"},
@@ -211,13 +210,104 @@ func TestUpdate_TelefonlarReplaceAll(t *testing.T) {
 func TestUpdate_NoTelefonlarKey_KeepsExisting(t *testing.T) {
 	svc, repo := newSicilService()
 	existing := &models.Sicil{
-		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma,
+		ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma, Version: 3,
 		Telefonlar: []models.SicilTelefon{{Tipi: models.TelefonTipiCep, Numara: "+90 555 111 22 33"}},
 	}
 	repo.On("GetByID", uint(1), uint(5)).Return(existing, nil)
-	repo.On("UpdateFields", uint(1), uint(5), mock.Anything).Return(nil)
+	repo.On("Update", uint(1), uint(5), 3, mock.Anything, noPhones).Return(true, nil).Once()
 
-	_, err := svc.Update(1, 5, map[string]any{"hesap_adi": "Yeni"})
+	_, err := svc.Update(1, 5, 3, map[string]any{"hesap_adi": "Yeni"})
 	require.NoError(t, err)
-	repo.AssertNotCalled(t, "ReplaceTelefonlar", mock.Anything, mock.Anything)
+	repo.AssertExpectations(t)
+}
+
+var noPhones = mock.MatchedBy(func(ts *[]models.SicilTelefon) bool { return ts == nil })
+
+func cardV(version int) *models.Sicil {
+	return &models.Sicil{ID: 5, OrganizationID: 1, HesapNo: "001", HesapAdi: "X", SicilTipi: models.SicilTipiFirma, Version: version}
+}
+
+func TestUpdate_StaleVersionIsConflictWithoutWriting(t *testing.T) {
+	svc, repo := newSicilService()
+	repo.On("GetByID", uint(1), uint(5)).Return(cardV(2), nil)
+
+	_, err := svc.Update(1, 5, 1, map[string]any{"hesap_adi": "Y"})
+	require.ErrorIs(t, err, apierror.VersionConflict)
+	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestUpdate_LostRaceIsConflict(t *testing.T) {
+	svc, repo := newSicilService()
+	repo.On("GetByID", uint(1), uint(5)).Return(cardV(2), nil).Once()
+	repo.On("Update", uint(1), uint(5), 2, mock.Anything, noPhones).Return(false, nil).Once()
+
+	_, err := svc.Update(1, 5, 2, map[string]any{"hesap_adi": "Y"})
+	require.ErrorIs(t, err, apierror.VersionConflict)
+}
+
+func TestUpdate_ContactsEmailsAndCreditLimit(t *testing.T) {
+	svc, repo := newSicilService()
+	repo.On("GetByID", uint(1), uint(5)).Return(cardV(1), nil)
+	repo.On("Update", uint(1), uint(5), 1, mock.MatchedBy(func(f map[string]any) bool {
+		c, _ := f["contacts"].(models.SicilContacts)
+		e, _ := f["emails"].(models.StringList)
+		l, _ := f["credit_limit"].(*models.Money)
+		return len(c) == 1 && c[0].Name == "Ayşe" && c[0].Email == "a@x.com" &&
+			len(e) == 1 && e[0] == "info@x.com" && l != nil && *l == 1250_00
+	}), noPhones).Return(true, nil).Once()
+
+	_, err := svc.Update(1, 5, 1, map[string]any{
+		"contacts":     []any{map[string]any{"name": " Ayşe ", "role": "Muhasebe", "email": "a@x.com"}},
+		"emails":       []any{" info@x.com "},
+		"credit_limit": "1250.00",
+	})
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+
+	repo.On("Update", uint(1), uint(5), 1, mock.MatchedBy(func(f map[string]any) bool {
+		v, ok := f["credit_limit"]
+		return ok && v == (*models.Money)(nil)
+	}), noPhones).Return(true, nil).Once()
+	_, err = svc.Update(1, 5, 1, map[string]any{"credit_limit": nil})
+	require.NoError(t, err)
+}
+
+func TestUpdate_RejectsBadContactsEmailsAndCreditLimit(t *testing.T) {
+	svc, repo := newSicilService()
+	repo.On("GetByID", uint(1), uint(5)).Return(cardV(1), nil)
+	for field, v := range map[string]any{
+		"credit_limit": "-1.00",
+		"emails":       []any{"nope"},
+		"contacts":     []any{map[string]any{"role": "no name"}},
+	} {
+		_, err := svc.Update(1, 5, 1, map[string]any{field: v})
+		var d *apierror.Detailed
+		require.ErrorAs(t, err, &d, field)
+		assert.Equal(t, apierror.InvalidRequest, d.Err, field)
+		assert.Equal(t, field, d.Field)
+	}
+	for _, bad := range []map[string]any{
+		{"credit_limit": 12.5}, {"emails": "a@x.com"}, {"contacts": []any{"x"}}, {"contacts": []any{map[string]any{"name": "A", "email": "bad"}}},
+	} {
+		_, err := svc.Update(1, 5, 1, bad)
+		require.Error(t, err, bad)
+	}
+	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestCreate_ValidatesAndDefaultsTheLists(t *testing.T) {
+	svc, repo := newSicilService()
+	repo.On("Create", mock.Anything).Return(nil)
+	card, err := svc.Create(1, &models.Sicil{HesapNo: "001", HesapAdi: "X"})
+	require.NoError(t, err)
+	assert.NotNil(t, card.Contacts)
+	assert.NotNil(t, card.Emails)
+
+	neg := models.Money(-1)
+	_, err = svc.Create(1, &models.Sicil{HesapNo: "001", HesapAdi: "X", CreditLimit: &neg})
+	require.Error(t, err)
+	_, err = svc.Create(1, &models.Sicil{HesapNo: "001", HesapAdi: "X", Emails: models.StringList{"x"}})
+	require.Error(t, err)
+	_, err = svc.Create(1, &models.Sicil{HesapNo: "001", HesapAdi: "X", Contacts: models.SicilContacts{{Name: " "}}})
+	require.Error(t, err)
 }

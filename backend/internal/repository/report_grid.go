@@ -61,6 +61,21 @@ type GridCol struct {
 
 var ErrBadFilter = errors.New("bad filter")
 
+// knownCols rejects colIds outside the whitelist instead of ignoring them.
+func knownCols(req ReportGridRequest, cols map[string]GridCol) error {
+	for id := range req.FilterModel {
+		if _, ok := cols[id]; !ok {
+			return fmt.Errorf("%w: %s", ErrBadFilter, id)
+		}
+	}
+	for _, s := range req.SortModel {
+		if _, ok := cols[s.ColID]; !ok {
+			return fmt.Errorf("%w: %s", ErrBadFilter, s.ColID)
+		}
+	}
+	return nil
+}
+
 // whereClause turns column filters into AND-combined SQL over whitelisted expressions.
 func whereClause(filters map[string]TypedFilter, cols map[string]GridCol) (string, []any, error) {
 	var parts []string

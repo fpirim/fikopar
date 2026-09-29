@@ -44,7 +44,9 @@ func TestDepots_CreateAndListArePerOrg(t *testing.T) {
 
 	// Same code in another org is fine; twice in one org is a conflict.
 	require.Equal(t, http.StatusCreated, app.post(t, orgPath(orgB, "/depots"), admin, `{"code":"1","name":"Merkez"}`).Code)
-	assert.Equal(t, http.StatusConflict, app.post(t, orgPath(orgA, "/depots"), admin, `{"code":"1","name":"Again"}`).Code)
+	rec = app.post(t, orgPath(orgA, "/depots"), admin, `{"code":"1","name":"Again"}`)
+	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Equal(t, "ERR_DEPOT_CODE_EXISTS", errCode(t, rec))
 }
 
 func TestDepots_CreateRequiresAdmin(t *testing.T) {
