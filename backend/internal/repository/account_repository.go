@@ -97,3 +97,16 @@ func (q *Q) RoleAccount(orgID uint, role string, depotID uint) (*models.Account,
 		WHERE r.org_id = ? AND r.role = ? AND (r.depot_id = ? OR r.depot_id IS NULL)
 		ORDER BY r.depot_id NULLS LAST LIMIT 1`, orgID, role, depotID)
 }
+
+// CreateAccountIfAbsent returns false when the code already exists; a concurrent insert of the
+// same code waits for the other transaction instead of failing.
+func (q *Q) CreateAccountIfAbsent(a *models.Account) (bool, error) {
+	rows, err := list[models.Account](q.db, `INSERT INTO accounts (org_id, code, name, type, normal_side, sicil_id, currency)
+		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (org_id, code) DO NOTHING RETURNING `+accountCols,
+		a.OrgID, a.Code, a.Name, a.Type, a.NormalSide, a.SicilID, a.Currency)
+	if err != nil || len(rows) == 0 {
+		return false, err
+	}
+	*a = rows[0]
+	return true, nil
+}

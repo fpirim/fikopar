@@ -18,13 +18,14 @@ import (
 )
 
 type Handlers struct {
-	Auth   *handlers.AuthHandler
-	User   *handlers.UserHandler
-	Admin  *handlers.AdminHandler
-	Org    *handlers.OrganizationHandler
-	Sicil  *handlers.SicilHandler
-	Depot  *handlers.DepotHandler
-	Ledger *handlers.LedgerHandler
+	Auth    *handlers.AuthHandler
+	User    *handlers.UserHandler
+	Admin   *handlers.AdminHandler
+	Org     *handlers.OrganizationHandler
+	Sicil   *handlers.SicilHandler
+	Depot   *handlers.DepotHandler
+	Ledger  *handlers.LedgerHandler
+	Receipt *handlers.ReceiptHandler
 }
 
 type Services struct {
@@ -109,6 +110,16 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.GET(entryPath, h.Ledger.GetEntry)
 	org.GET(entryPath+"/trail", h.Ledger.EntryTrail)
 	org.POST(entryPath+"/reversal", h.Ledger.ReverseEntry)
+
+	org.POST("/receipts/grid", h.Receipt.Grid)
+	org.POST("/receipts", h.Receipt.Create)
+	org.GET("/receipts/:receiptId", h.Receipt.Get)
+	org.POST("/receipts/:receiptId/void", h.Receipt.Void)
+	org.GET("/cash-book", h.Receipt.CashBook)
+	org.POST("/cash-vouchers", h.Receipt.CreateVoucher)
+	org.POST("/cash-vouchers/:voucherId/void", h.Receipt.VoidVoucher)
+	org.GET("/cash-counts", h.Receipt.ListCounts)
+	org.POST("/cash-counts", h.Receipt.CreateCount)
 
 	// Admin only
 	admin := api.Group("/admin")

@@ -116,3 +116,5 @@ func queryDate(c echo.Context, name string) (*models.Date, error) {
 	}
 	return &d, nil
 }
+
+func okStatus(v any, err error) (int, any, error) { return http.StatusOK, v, err }

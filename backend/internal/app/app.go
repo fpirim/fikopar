@@ -30,13 +30,14 @@ func New(db *gorm.DB, cfg *config.Config) *App {
 	idem := services.NewIdempotencyService(store)
 
 	e := router.New(router.Handlers{
-		Auth:   handlers.NewAuthHandler(userRepo, authService),
-		User:   handlers.NewUserHandler(userRepo, userService, authService),
-		Admin:  handlers.NewAdminHandler(userService, userRepo),
-		Org:    handlers.NewOrganizationHandler(orgService),
-		Sicil:  handlers.NewSicilHandler(sicilService),
-		Depot:  handlers.NewDepotHandler(services.NewDepotService(store), idem),
-		Ledger: handlers.NewLedgerHandler(services.NewLedgerService(store), services.NewNumberSeriesService(store), idem),
+		Auth:    handlers.NewAuthHandler(userRepo, authService),
+		User:    handlers.NewUserHandler(userRepo, userService, authService),
+		Admin:   handlers.NewAdminHandler(userService, userRepo),
+		Org:     handlers.NewOrganizationHandler(orgService),
+		Sicil:   handlers.NewSicilHandler(sicilService),
+		Depot:   handlers.NewDepotHandler(services.NewDepotService(store), idem),
+		Ledger:  handlers.NewLedgerHandler(services.NewLedgerService(store), services.NewNumberSeriesService(store), idem),
+		Receipt: handlers.NewReceiptHandler(services.NewReceiptService(store), services.NewCashService(store), idem),
 	}, router.Services{Auth: authService, Membership: services.NewMembershipService(orgRepo)}, cfg)
 	return &App{Echo: e, UserService: userService, Relay: services.NewOutboxRelay(store, services.LedgerCheck{})}
 }
