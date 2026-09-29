@@ -162,7 +162,8 @@ test.describe('catalog and stock', () => {
     await expect(page.getByLabel('Format')).toHaveValue('LISAKT')
     await page.getByRole('button', { name: 'Upload and preview' }).click()
     const tabs = page.getByRole('tablist', { name: 'Change' })
-    await expect(tabs.getByRole('tab', { name: /New\s*1/ })).toBeVisible()
+    // The wrong-catalog row is new and in error.
+    await expect(tabs.getByRole('tab', { name: /New\s*2/ })).toBeVisible()
     await expect(tabs.getByRole('tab', { name: /Price\s*1/ })).toBeVisible()
     await expect(tabs.getByRole('tab', { name: /Errors\s*1/ })).toBeVisible()
     await expect(grid(page)).toContainText('Yağ soğutucu, İş makinası ŞÇÖÜ')

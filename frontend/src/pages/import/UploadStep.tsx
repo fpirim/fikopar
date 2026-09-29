@@ -113,7 +113,12 @@ export default function UploadStep({ orgId }: Readonly<{ orgId: number }>) {
             id={ids.file}
             type="file"
             accept=".csv,.xlsx,.txt"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null
+              setFile(f)
+              // .txt is only LISAKT; the server reads it as CSV without the preset.
+              if (f?.name.toLowerCase().endsWith('.txt')) setPreset('LISAKT')
+            }}
             className="h-10 w-full rounded-md border border-fk-input bg-fk-surface px-2 py-[7px] text-sm text-fk-text file:mr-3 file:rounded file:border-0 file:bg-fk-chip-grey file:px-2 file:py-0.5 file:text-13"
           />
           <span className="text-fk-faint">{t('import.upload.fileHint')}</span>

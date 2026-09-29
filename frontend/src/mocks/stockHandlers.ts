@@ -1061,11 +1061,7 @@ async function createImport(request: Request): Promise<{ status: number; body: J
   const text = await file.text()
   const name = file.name.toLowerCase()
   const format =
-    mapping?.preset === 'LISAKT' || name.endsWith('.txt')
-      ? 'FIXED_WIDTH'
-      : name.endsWith('.xlsx')
-        ? 'XLSX'
-        : 'CSV'
+    mapping?.preset === 'LISAKT' ? 'FIXED_WIDTH' : name.endsWith('.xlsx') ? 'XLSX' : 'CSV'
   const raw =
     format === 'FIXED_WIDTH'
       ? lisaktRows(text)
