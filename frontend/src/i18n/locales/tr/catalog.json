@@ -6,7 +6,7 @@
     "col": {
       "part": "Parça",
       "description": "Açıklama",
-      "codes": "OEM / alt.",
+      "codes": "OEM / alternatif",
       "brand": "Marka",
       "depot": "Dp {{code}}",
       "price": "Liste fiyatı"

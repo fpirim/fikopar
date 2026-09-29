@@ -281,7 +281,7 @@ function Parts({ orgId }: Readonly<{ orgId: number }>) {
           <Link to={withDepot('/parts/import', depotId)}>{t('importPriceList')}</Link>
         </Button>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Segmented
           label={t('stockFilter')}
           size="sm"

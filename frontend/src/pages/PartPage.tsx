@@ -104,8 +104,8 @@ function PartView({ orgId, partId }: Readonly<{ orgId: number; partId: number }>
           </Button>
         </div>
       )}
-      <div className="flex items-start gap-4">
-        <Panel className="min-w-0 flex-1 overflow-hidden">
+      <div className="flex flex-wrap items-start gap-4">
+        <Panel className="min-w-fit flex-1 overflow-hidden">
           <DepotTable
             levels={stock.data?.depots ?? []}
             total={stock.data?.total ?? null}
@@ -113,7 +113,7 @@ function PartView({ orgId, partId }: Readonly<{ orgId: number; partId: number }>
             onEdit={(level) => setDialog({ kind: 'settings', level })}
           />
         </Panel>
-        <div className="flex w-[380px] shrink-0 flex-col gap-4">
+        <div className="flex w-fit min-w-[380px] shrink-0 flex-col gap-4">
           <Panel className="overflow-hidden">
             <PriceTable prices={prices.data ?? []} next={p.nextPrice ?? null} />
           </Panel>
