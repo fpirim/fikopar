@@ -31,6 +31,7 @@ type Handlers struct {
 	Stock   *handlers.StockHandler
 	Import  *handlers.PriceImportHandler
 	Count   *handlers.StockCountHandler
+	Doc     *handlers.DocumentHandler
 }
 
 type Services struct {
@@ -185,6 +186,16 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.PATCH(countPath+"/lines/:lineId", h.Count.SetLine)
 	org.POST(countPath+"/finalize", h.Count.Finalize)
 	org.POST(countPath+"/cancel", h.Count.Cancel)
+
+	const docPath = "/documents/:documentId"
+	org.GET("/members", h.Doc.Members)
+	org.POST("/documents/grid", h.Doc.Grid)
+	org.POST("/documents", h.Doc.Create)
+	org.GET(docPath, h.Doc.Get)
+	org.PUT(docPath, h.Doc.Update)
+	org.DELETE(docPath, h.Doc.Delete)
+	org.POST(docPath+"/post", h.Doc.Post)
+	org.POST(docPath+"/cancel", h.Doc.Cancel)
 
 	// Admin only
 	admin := api.Group("/admin")

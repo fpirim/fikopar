@@ -24,13 +24,14 @@ const entrySelect = `SELECT e.id, e.org_id, e.depot_id, e.entry_no, e.entry_date
 	e.reverses_entry_id, e.idempotency_key, e.created_by, e.created_at,
 	(SELECT o.entry_no FROM journal_entries o WHERE o.id = e.reverses_entry_id) AS reverses_entry_no,
 	rb.id AS reversed_by_entry_id, rb.entry_no AS reversed_by_entry_no,
-	coalesce(r.receipt_no, v.voucher_no) AS source_no, coalesce(r.id, v.id)::text AS owner_id
+	coalesce(r.receipt_no, v.voucher_no, doc.document_no) AS source_no, coalesce(r.id, v.id, doc.id)::text AS owner_id
 	FROM journal_entries e
 	LEFT JOIN journal_entries rb ON rb.reverses_entry_id = e.id
 	LEFT JOIN LATERAL (SELECT x.id, x.receipt_no FROM receipts x
 	  WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1) r ON true
 	LEFT JOIN LATERAL (SELECT x.id, x.voucher_no FROM cash_vouchers x
-	  WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1) v ON true`
+	  WHERE x.org_id = e.org_id AND e.id IN (x.journal_entry_id, x.voided_by_entry_id) LIMIT 1) v ON true
+	LEFT JOIN documents doc ON doc.org_id = e.org_id AND e.source_type = 'document' AND doc.id::text = e.source_id`
 
 func (q *Q) GetEntry(orgID, id uint) (*models.JournalEntry, error) {
 	e, err := first[models.JournalEntry](q.db, entrySelect+` WHERE e.org_id = ? AND e.id = ?`, orgID, id)
@@ -176,10 +177,14 @@ func (q *Q) AppendOutbox(e OutboxEvent) error {
 
 const maxOutboxAttempts = 10
 
+// PendingOutboxIDs lists unpublished events in write order; an event waits while an earlier event of the same
+// aggregate is unpublished.
 func (q *Q) PendingOutboxIDs(limit int) ([]string, error) {
 	var ids []string
-	err := q.db.Raw(`SELECT id::text FROM outbox WHERE published_at IS NULL AND attempts < ?
-		ORDER BY occurred_at, id LIMIT ?`, maxOutboxAttempts, limit).Scan(&ids).Error
+	err := q.db.Raw(`SELECT o.id::text FROM outbox o WHERE o.published_at IS NULL AND o.attempts < ?
+		  AND NOT EXISTS (SELECT 1 FROM outbox e WHERE e.published_at IS NULL AND e.org_id = o.org_id
+		                  AND e.aggregate_type = o.aggregate_type AND e.aggregate_id = o.aggregate_id AND e.seq < o.seq)
+		ORDER BY o.seq LIMIT ?`, maxOutboxAttempts, limit).Scan(&ids).Error
 	return ids, err
 }
 

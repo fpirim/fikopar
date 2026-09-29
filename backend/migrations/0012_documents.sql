@@ -1,6 +1,6 @@
 -- Contracts v1.4 (docs/adr/0013-contracts-v1-4.md): trade documents, lines, reservations, last purchase cost.
--- Applies after the promoted migrations 0001–0011; F3 promotes it as 0012. Type → prefix, ledger and stock effect:
--- docs/domain-model.md, "Documents". Lines marked M1–M4 are mutated by check/mutations.sh.
+-- Promoted in F3 from draft 0004_documents; applies after 0001–0011. Type → prefix, ledger and stock effect:
+-- docs/domain-model.md, "Documents". Lines marked M1–M4 are mutated by draft/check/mutations.sh.
 
 ALTER TABLE account_roles
   DROP CONSTRAINT account_roles_role_check,

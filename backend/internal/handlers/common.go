@@ -27,6 +27,7 @@ func reqCtx(c echo.Context) context.Context {
 	}
 	if claims, ok := c.Get("user").(*services.Claims); ok {
 		a.UserID = claims.UserID
+		a.Admin = claims.Role == string(models.RoleAdmin)
 	}
 	return services.WithActor(c.Request().Context(), a)
 }

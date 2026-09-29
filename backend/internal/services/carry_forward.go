@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -252,8 +253,16 @@ func carryForwardChecks(q *repository.Q, orgID uint, closeDate models.Date, post
 	if !yearEnd.OK {
 		yearEnd.Detail = "depots " + strings.Join(uncounted, ", ")
 	}
+	drafts, err := q.DraftDocumentsThrough(orgID, closeDate)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(drafts))
+	for i, id := range drafts {
+		ids[i] = strconv.FormatUint(uint64(id), 10)
+	}
 	return []CFCheck{
-		{Code: "NO_DRAFT_DOCUMENTS", OK: true, Blocking: true},
+		{Code: "NO_DRAFT_DOCUMENTS", OK: len(drafts) == 0, Blocking: true, Detail: strings.Join(ids, ", ")},
 		counts,
 		yearEnd,
 		balanced,

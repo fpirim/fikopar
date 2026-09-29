@@ -62,11 +62,15 @@ type Activity struct {
 	CreatedAt time.Time    `json:"-" gorm:"column:created_at"`
 }
 
-// LatestActivity lists receipts, instruments and cash vouchers dated up to the date, newest first.
+// LatestActivity lists posted and cancelled documents, receipts, instruments and cash vouchers dated up to the date,
+// newest first.
 func (q *Q) LatestActivity(orgID uint, on models.Date, depotID *uint, limit int) ([]Activity, error) {
 	return list[Activity](q.db, `SELECT * FROM (
-		SELECT 'RECEIPT' AS kind, r.id, r.receipt_no AS number, r.kind AS subtype, r.sicil_id, s.hesap_adi AS sicil_name,
-		       r.receipt_date AS date, r.depot_id, r.amount, r.created_at
+		SELECT 'DOCUMENT' AS kind, d.id, d.document_no AS number, d.type AS subtype, d.sicil_id, s.hesap_adi AS sicil_name,
+		       d.document_date AS date, d.depot_id, d.grand_total AS amount, d.posted_at AS created_at
+		FROM documents d JOIN sicils s ON s.id = d.sicil_id WHERE d.org_id = ? AND d.status <> 'DRAFT'
+		UNION ALL
+		SELECT 'RECEIPT', r.id, r.receipt_no, r.kind, r.sicil_id, s.hesap_adi, r.receipt_date, r.depot_id, r.amount, r.created_at
 		FROM receipts r JOIN sicils s ON s.id = r.sicil_id WHERE r.org_id = ?
 		UNION ALL
 		SELECT 'INSTRUMENT', i.id, i.instrument_no, i.type, i.sicil_id, s.hesap_adi, i.issue_date, i.depot_id, i.amount, i.created_at
@@ -75,7 +79,7 @@ func (q *Q) LatestActivity(orgID uint, on models.Date, depotID *uint, limit int)
 		SELECT 'CASH_VOUCHER', v.id, v.voucher_no, v.kind, NULL, NULL, v.voucher_date, v.depot_id, v.amount, v.created_at
 		FROM cash_vouchers v WHERE v.org_id = ?) a
 		WHERE a.date <= ? AND (?::bigint IS NULL OR a.depot_id = ?)
-		ORDER BY a.date DESC, a.created_at DESC, a.id DESC LIMIT ?`, orgID, orgID, orgID, on, depotID, depotID, limit)
+		ORDER BY a.date DESC, a.created_at DESC, a.id DESC LIMIT ?`, orgID, orgID, orgID, orgID, on, depotID, depotID, limit)
 }
 
 type LedgerCheckRow struct {
