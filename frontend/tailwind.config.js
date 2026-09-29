@@ -1,12 +1,17 @@
+import animate from 'tailwindcss-animate'
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--fk-font-sans)'],
+        mono: ['var(--fk-font-mono)'],
+      },
       colors: {
         primary: 'hsl(var(--primary))',
         'primary-foreground': 'hsl(var(--primary-foreground))',
@@ -35,5 +40,5 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [animate],
 }

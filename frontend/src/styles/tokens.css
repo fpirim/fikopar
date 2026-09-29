@@ -1,4 +1,7 @@
-/* Design tokens from the approved mockups. Screens adopt them when they are rebuilt. */
+/*
+ * Design tokens from the approved mockups. Light theme only; components read variables, never
+ * literal colours, so a dark theme is one more block that overrides this set under a selector.
+ */
 :root {
   --fk-bg: #f6f5f1;
   --fk-surface: #ffffff;
@@ -64,6 +67,30 @@
   --fk-grid-row-h: 34px;
   --fk-chip-h: 20px;
   --fk-sidebar-w: 240px;
+}
+
+/* shadcn/ui semantic colours: the --fk-* values above as HSL channels (Tailwind opacity modifiers). */
+:root {
+  --background: 48 21.7% 95.5%; /* bg */
+  --foreground: 223 13.7% 10%; /* text */
+  --card: 0 0% 100%; /* surface */
+  --card-foreground: 223 13.7% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 223 13.7% 10%;
+  --primary: 204 63.5% 33.3%; /* accent */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 33.3% 97.6%; /* surface-sunken */
+  --secondary-foreground: 223 13.7% 10%;
+  --muted: 43 22.6% 93.9%; /* divider-soft */
+  --muted-foreground: 221 8.1% 38.8%; /* text-muted */
+  --accent: 210 41.7% 95.3%; /* row-selected */
+  --accent-foreground: 223 13.7% 10%;
+  --destructive: 9 61.4% 34.5%; /* negative */
+  --destructive-foreground: 0 0% 100%;
+  --border: 47 13.8% 87.3%; /* border */
+  --input: 45 12.5% 81.2%; /* border-input */
+  --ring: 204 63.5% 33.3%; /* accent */
+  --radius: var(--fk-radius-md);
 }
 
 .fk-wordmark {

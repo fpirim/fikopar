@@ -1,3 +1,8 @@
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
 @import './styles/tokens.css';
 
 @tailwind base;
@@ -5,127 +10,12 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 210 40% 98%;
-    --foreground: 222.2 47.4% 11.2%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221 83% 53%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 6%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 25%;
-    --input: 217 33% 25%;
-    --ring: 217 91% 60%;
-  }
-
-  .dark .ag-theme-alpine {
-    --ag-background-color: hsl(217 33% 17%);
-    --ag-foreground-color: hsl(210 40% 98%);
-    --ag-border-color: hsl(217 33% 25%);
-    --ag-secondary-border-color: hsl(217 33% 22%);
-    --ag-header-background-color: hsl(222 47% 10%);
-    --ag-tooltip-background-color: hsl(217 33% 12%);
-    --ag-odd-row-background-color: hsl(217 33% 15%);
-    --ag-control-panel-background-color: hsl(222 47% 10%);
-    --ag-subheader-background-color: hsl(217 33% 14%);
-    --ag-input-border-color: hsl(217 33% 25%);
-    --ag-input-background-color: hsl(222 47% 8%);
-    --ag-input-focus-border-color: hsl(217 91% 60%);
-    --ag-selected-row-background-color: hsl(217 91% 60% / 0.15);
-    --ag-row-hover-color: hsl(217 91% 60% / 0.08);
-    --ag-column-hover-color: hsl(217 91% 60% / 0.05);
-    --ag-chip-background-color: hsl(217 33% 22%);
-    --ag-disabled-foreground-color: hsl(215 20% 65%);
-    --ag-modal-overlay-background-color: hsl(222 47% 6% / 0.8);
-  }
-
-  .dark .ag-theme-alpine ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  .dark .ag-theme-alpine ::-webkit-scrollbar-track {
-    background: hsl(222 47% 8%);
-  }
-
-  .dark .ag-theme-alpine ::-webkit-scrollbar-thumb {
-    background: hsl(217 33% 25%);
-    border-radius: 4px;
-  }
-
-  .dark .ag-theme-alpine ::-webkit-scrollbar-thumb:hover {
-    background: hsl(217 33% 35%);
-  }
-
-  .dark .ag-theme-alpine ::-webkit-scrollbar-corner {
-    background: hsl(222 47% 8%);
-  }
-
-  /* Dark-theme general scrollbar (modal/long form content etc.) */
-  .dark ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  .dark ::-webkit-scrollbar-track {
-    background: hsl(222 47% 8%);
-  }
-
-  .dark ::-webkit-scrollbar-thumb {
-    background: hsl(217 33% 25%);
-    border-radius: 4px;
-  }
-
-  .dark ::-webkit-scrollbar-thumb:hover {
-    background: hsl(217 33% 35%);
-  }
-
-  .dark ::-webkit-scrollbar-corner {
-    background: hsl(222 47% 8%);
-  }
-
-  .dark * {
-    scrollbar-color: hsl(217 33% 25%) hsl(222 47% 8%);
-  }
-
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
   }
 }
 

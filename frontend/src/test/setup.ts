@@ -13,7 +13,7 @@ afterEach(() => {
   localStorage.clear()
 })
 
-// ThemeContext reads window.matchMedia for the initial theme; jsdom lacks it.
+// jsdom lacks window.matchMedia.
 if (!window.matchMedia) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: false,
@@ -26,3 +26,13 @@ if (!window.matchMedia) {
     dispatchEvent: vi.fn(),
   }))
 }
+
+// cmdk and Radix measure and scroll elements; jsdom has neither API.
+if (!window.ResizeObserver) {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
+window.HTMLElement.prototype.scrollIntoView ??= vi.fn()

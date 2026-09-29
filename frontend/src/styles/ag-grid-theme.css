@@ -1,0 +1,74 @@
+/* AG Grid Community (alpine) mapped to the design tokens. */
+.ag-theme-alpine {
+  --ag-font-family: var(--fk-font-sans);
+  --ag-font-size: var(--fk-text-grid);
+  --ag-row-height: var(--fk-grid-row-h);
+  --ag-header-height: var(--fk-grid-header-h);
+  --ag-list-item-height: 28px;
+  --ag-grid-size: 5px;
+  --ag-cell-horizontal-padding: 10px;
+  --ag-border-radius: var(--fk-radius-sm);
+
+  --ag-alpine-active-color: var(--fk-accent);
+  --ag-background-color: var(--fk-surface);
+  --ag-foreground-color: var(--fk-text);
+  --ag-secondary-foreground-color: var(--fk-text-muted);
+  --ag-data-color: var(--fk-text);
+  --ag-header-background-color: var(--fk-surface-sunken);
+  --ag-header-foreground-color: var(--fk-text-muted);
+  --ag-subheader-background-color: var(--fk-surface-sunken);
+  --ag-control-panel-background-color: var(--fk-surface);
+  --ag-tooltip-background-color: var(--fk-surface);
+  --ag-odd-row-background-color: var(--fk-surface);
+  --ag-row-hover-color: var(--fk-row-hover);
+  --ag-column-hover-color: transparent;
+  --ag-selected-row-background-color: var(--fk-row-selected);
+  --ag-modal-overlay-background-color: rgb(246 245 241 / 0.66);
+
+  --ag-border-color: var(--fk-border);
+  --ag-secondary-border-color: var(--fk-divider);
+  --ag-row-border-color: var(--fk-divider);
+  --ag-input-border-color: var(--fk-border-input);
+  --ag-input-focus-border-color: var(--fk-accent);
+  --ag-input-focus-box-shadow: 0 0 0 1px var(--fk-accent);
+  --ag-range-selection-border-color: var(--fk-accent);
+  --ag-range-selection-background-color: rgb(31 95 139 / 0.08);
+  --ag-checkbox-checked-color: var(--fk-accent);
+  --ag-checkbox-unchecked-color: var(--fk-text-faint);
+  --ag-chip-background-color: var(--fk-chip-grey-bg);
+  --ag-disabled-foreground-color: var(--fk-text-faint);
+  --ag-invalid-color: var(--fk-negative);
+}
+
+.ag-theme-alpine .ag-header-cell-text {
+  font-size: var(--fk-text-sm);
+  font-weight: 600;
+}
+
+.ag-theme-alpine .ag-floating-filter-input input {
+  height: 26px;
+}
+
+.ag-theme-alpine .ag-cell-focus:not(.ag-cell-range-selected):focus-within,
+.ag-theme-alpine .ag-cell.ag-cell-focus {
+  border-color: var(--fk-accent);
+}
+
+.ag-theme-alpine .ag-cell-inline-editing {
+  border: 1px solid var(--fk-accent);
+  border-radius: 0;
+  box-shadow: 0 0 0 1px var(--fk-accent);
+  background-color: var(--fk-surface);
+}
+
+.ag-theme-alpine .ag-right-aligned-cell,
+.ag-theme-alpine .ag-cell.fk-num {
+  font-family: var(--fk-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-theme-alpine .ag-floating-bottom .ag-row,
+.ag-theme-alpine .ag-row-pinned {
+  background-color: var(--fk-surface-sunken);
+  font-weight: 600;
+}
