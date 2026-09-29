@@ -16,6 +16,7 @@ type App struct {
 	Echo        *echo.Echo
 	UserService *services.UserService
 	Relay       *services.OutboxRelay
+	Sweeper     *services.ReservationSweeper
 }
 
 func New(db *gorm.DB, cfg *config.Config) *App {
@@ -47,5 +48,6 @@ func New(db *gorm.DB, cfg *config.Config) *App {
 		Import:  handlers.NewPriceImportHandler(services.NewPriceImportService(store), idem),
 		Count:   handlers.NewStockCountHandler(services.NewStockCountService(store), idem),
 	}, router.Services{Auth: authService, Membership: services.NewMembershipService(orgRepo)}, cfg)
-	return &App{Echo: e, UserService: userService, Relay: services.NewOutboxRelay(store, services.LedgerCheck{})}
+	return &App{Echo: e, UserService: userService, Relay: services.NewOutboxRelay(store, services.LedgerCheck{}),
+		Sweeper: services.NewReservationSweeper(store)}
 }

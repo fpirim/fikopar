@@ -283,6 +283,6 @@ func TestV13_StockLevelsGuardRefusesAForgedProjection(t *testing.T) {
 		return tx.Exec(`SELECT pg_temp.apply_stock_movement()`).Error
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "movement projection only")
+	assert.Contains(t, err.Error(), "stock_levels is written by the movement and reservation projections only")
 	assert.Equal(t, "0", onHand(t, f.part, f.depot))
 }
