@@ -430,3 +430,33 @@ func (q *Q) OrgName(orgID uint) (string, error) {
 	}
 	return names[0], nil
 }
+
+// StockKey is a (part, depot) stock level.
+type StockKey struct {
+	PartID  uint `gorm:"column:part_id"`
+	DepotID uint `gorm:"column:depot_id"`
+}
+
+// LockStockLevels locks the existing levels in (part, depot) order before a document touches any of them.
+func (q *Q) LockStockLevels(keys []StockKey) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	parts, depots := make([]uint, len(keys)), make([]uint, len(keys))
+	for i, k := range keys {
+		parts[i], depots[i] = k.PartID, k.DepotID
+	}
+	return q.db.Exec(`SELECT lock_stock_levels(?::bigint[], ?::bigint[])`, uintArray(parts), uintArray(depots)).Error
+}
+
+// ExpiredReservationKeys are the levels the next sweep will release, in lock order.
+func (q *Q) ExpiredReservationKeys(now time.Time, limit int) ([]StockKey, error) {
+	return list[StockKey](q.db, `SELECT DISTINCT part_id, depot_id FROM (SELECT part_id, depot_id FROM stock_reservations
+		WHERE expires_at <= ? ORDER BY expires_at, id LIMIT ?) x ORDER BY part_id, depot_id`, now, limit)
+}
+
+// ReservationKeys are the levels the document's reservations hold.
+func (q *Q) ReservationKeys(orgID, documentID uint) ([]StockKey, error) {
+	return list[StockKey](q.db, `SELECT DISTINCT part_id, depot_id FROM stock_reservations WHERE org_id = ? AND document_id = ?`,
+		orgID, documentID)
+}

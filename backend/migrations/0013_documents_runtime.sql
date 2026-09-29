@@ -18,3 +18,17 @@ CREATE TRIGGER stock_reservations_no_truncate BEFORE TRUNCATE ON stock_reservati
 REVOKE UPDATE ON stock_reservations FROM fikopar_app;
 GRANT UPDATE (expires_at) ON stock_reservations TO fikopar_app;
 GRANT USAGE, SELECT ON SEQUENCE outbox_seq_seq TO fikopar_app;
+
+-- Document operations touch several stock levels (reservations released, then movements). They lock the rows first,
+-- in the (part, depot) order movements use, so two documents, a document and a transfer, or a post and the sweeper
+-- never wait on each other in a cycle. The app role cannot lock stock_levels itself (no UPDATE).
+CREATE FUNCTION lock_stock_levels(p_parts bigint[], p_depots bigint[]) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  PERFORM 1 FROM stock_levels l
+    JOIN unnest(p_parts, p_depots) AS k(part_id, depot_id) ON k.part_id = l.part_id AND k.depot_id = l.depot_id
+   ORDER BY l.part_id, l.depot_id
+     FOR UPDATE OF l;
+END $$;
+REVOKE ALL ON FUNCTION lock_stock_levels(bigint[], bigint[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION lock_stock_levels(bigint[], bigint[]) TO fikopar_app;

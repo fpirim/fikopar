@@ -148,6 +148,9 @@ func (s *DocumentService) Create(ctx context.Context, orgID uint, in DocumentWri
 		if err != nil {
 			return err
 		}
+		if err := lockLevels(q, orgID, 0, d.row.DepotID, d.lines); err != nil {
+			return err
+		}
 		if err := q.InsertDocument(&d.row, actorFrom(ctx).userID()); err != nil {
 			return documentErr(err, nil)
 		}
@@ -181,6 +184,9 @@ func (s *DocumentService) Update(ctx context.Context, orgID, id uint, version in
 		if err != nil {
 			return err
 		}
+		if err := lockLevels(q, orgID, id, d.row.DepotID, d.lines); err != nil {
+			return err
+		}
 		if err := release(ctx, q, cur, "UPDATED"); err != nil {
 			return err
 		}
@@ -211,6 +217,9 @@ func (s *DocumentService) Delete(ctx context.Context, orgID, id uint, version in
 		}
 		before, err := s.read(q, orgID, id)
 		if err != nil {
+			return err
+		}
+		if err := lockLevels(q, orgID, id, cur.DepotID, nil); err != nil {
 			return err
 		}
 		if err := release(ctx, q, cur, "DELETED"); err != nil {
@@ -581,6 +590,25 @@ func reserveLine(q *repository.Q, r repository.ReservationRow) (models.Dec4, mod
 			return r.Qty, avail - r.Qty, err
 		}
 	}
+}
+
+// lockLevels locks, in (part, depot) order, the levels the document holds and the ones its lines will touch, before
+// any of them is written: reservations released, reserved or moved in one transaction never wait in a cycle.
+func lockLevels(q *repository.Q, orgID, documentID, depotID uint, lines []repository.LineRow) error {
+	var keys []repository.StockKey
+	if documentID != 0 {
+		held, err := q.ReservationKeys(orgID, documentID)
+		if err != nil {
+			return err
+		}
+		keys = held
+	}
+	for _, l := range lines {
+		if l.PartID != nil {
+			keys = append(keys, repository.StockKey{PartID: *l.PartID, DepotID: depotID})
+		}
+	}
+	return q.LockStockLevels(keys)
 }
 
 // release deletes the draft's reservations and emits one StockReleased with the reason.

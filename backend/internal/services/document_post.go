@@ -49,6 +49,11 @@ func (s *DocumentService) Post(ctx context.Context, orgID, id uint, version int,
 		if err != nil {
 			return err
 		}
+		if row.LinkedDocumentID != nil {
+			if _, err := q.LockDocument(orgID, *row.LinkedDocumentID); err != nil {
+				return err
+			}
+		}
 		if err := q.LockLedger(orgID, false); err != nil {
 			return err
 		}
@@ -61,6 +66,9 @@ func (s *DocumentService) Post(ctx context.Context, orgID, id uint, version int,
 		}
 		if len(lines) == 0 {
 			return apierror.DocumentEmpty
+		}
+		if err := lockLevels(q, orgID, id, row.DepotID, lines); err != nil {
+			return err
 		}
 		if err := activeDocumentParts(q, orgID, lines); err != nil {
 			return err
@@ -251,6 +259,9 @@ func (s *DocumentService) Cancel(ctx context.Context, orgID, id uint, version in
 		}
 		lines, err := q.DocumentLines(orgID, id)
 		if err != nil {
+			return err
+		}
+		if err := lockLevels(q, orgID, 0, row.DepotID, lines); err != nil {
 			return err
 		}
 		if err := q.CancelDocument(orgID, id, actorFrom(ctx).userID(), date, reason); err != nil {

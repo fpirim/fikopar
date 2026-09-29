@@ -24,6 +24,13 @@ func NewReservationSweeper(store *repository.Store) *ReservationSweeper {
 func (s *ReservationSweeper) Sweep(ctx context.Context, now time.Time) (int, error) {
 	var n int
 	err := s.store.InTx(ctx, func(q *repository.Q) error {
+		keys, err := q.ExpiredReservationKeys(now, sweepBatch)
+		if err != nil {
+			return err
+		}
+		if err := q.LockStockLevels(keys); err != nil {
+			return err
+		}
 		rows, err := q.ReleaseExpiredReservations(now, sweepBatch)
 		if err != nil {
 			return err
