@@ -20,7 +20,7 @@ describe('ReceiptPage', () => {
     expect(await screen.findByText('TAH-2026-1-000234')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Tediye' }))
     expect(await screen.findByText('TED-2026-1-000064')).toBeInTheDocument()
-    await userEvent.selectOptions(screen.getByLabelText('Depo'), '2')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Depo' }), '2')
     expect(await screen.findByText('TED-2026-2-000065')).toBeInTheDocument()
   })
 
@@ -36,7 +36,7 @@ describe('ReceiptPage', () => {
   it('shows the balance before and after the receipt', async () => {
     renderApp('/receipts')
     await pickKaya()
-    await waitFor(() => expect(within(aside()).getByText('94.000,00 B')).toBeInTheDocument())
+    await waitFor(() => expect(within(aside()).getAllByText('94.000,00 B')).toHaveLength(2))
     expect(within(aside()).getByText('24.000,00')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Tutar'), '15000')
     expect(within(aside()).getByText('79.000,00 B')).toBeInTheDocument()
@@ -74,7 +74,6 @@ describe('ReceiptPage', () => {
   })
 
   it('reuses the key when the same receipt is retried', async () => {
-    const posts = capture('post', '/api/orgs/:orgId/receipts')
     let first = true
     server.use(
       http.post('/api/orgs/:orgId/receipts', () => {
@@ -83,6 +82,7 @@ describe('ReceiptPage', () => {
         return HttpResponse.json({ code: 'ERR_INTERNAL' }, { status: 503 })
       }),
     )
+    const posts = capture('post', '/api/orgs/:orgId/receipts')
     captureDownloads()
     renderApp('/receipts')
     await pickKaya()

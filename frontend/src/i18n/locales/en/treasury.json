@@ -48,7 +48,8 @@
     "chip": {
       "COLLECTION": "COLLECTION",
       "PAYMENT": "PAYMENT"
-    }
+    },
+    "summary": "Account summary"
   },
   "cash": {
     "title": "Cash book",

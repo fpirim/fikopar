@@ -48,7 +48,8 @@
     "chip": {
       "COLLECTION": "TAHSİLAT",
       "PAYMENT": "TEDİYE"
-    }
+    },
+    "summary": "Hesap özeti"
   },
   "cash": {
     "title": "Kasa defteri",
