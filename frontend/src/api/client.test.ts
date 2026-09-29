@@ -21,7 +21,7 @@ afterEach(() => {
 })
 
 function lastCall() {
-  const [url, init] = fetchMock.mock.calls.at(-1)!
+  const [url, init] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
   return { url: String(url), init: init as RequestInit, headers: new Headers(init.headers) }
 }
 
@@ -49,7 +49,7 @@ describe('apiRequest', () => {
   })
 
   it('adds an Idempotency-Key to unsafe POSTs and keeps a caller key', async () => {
-    fetchMock.mockResolvedValue(json({}, { status: 201 }))
+    fetchMock.mockImplementation(async () => json({}, { status: 201 }))
     await apiRequest('POST', '/api/x', { body: {} })
     const generated = lastCall().headers.get('Idempotency-Key')
     expect(generated).toMatch(/^[0-9a-f-]{36}$/)
@@ -105,7 +105,9 @@ describe('apiRequest', () => {
 
 describe('apiBlob', () => {
   it('asks for the media type and returns the blob', async () => {
-    fetchMock.mockResolvedValue(new Response('%PDF', { headers: { 'Content-Type': 'application/pdf' } }))
+    fetchMock.mockResolvedValue(
+      new Response('%PDF', { headers: { 'Content-Type': 'application/pdf' } }),
+    )
     const blob = await apiBlob('GET', '/api/r', 'application/pdf')
     expect(lastCall().headers.get('Accept')).toBe('application/pdf')
     expect(await blob.text()).toBe('%PDF')
