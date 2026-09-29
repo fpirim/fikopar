@@ -251,3 +251,17 @@ func TestPartsGrid_FiltersSortDepotScopeAndExcel(t *testing.T) {
 	assert.Contains(t, sheet, "Alpha twin")
 	assert.Contains(t, sheet, "77.01-X")
 }
+
+func TestGlobalSearch_IncludesParts(t *testing.T) {
+	f := newStock(t)
+	f.part(t, "GS-100", "Global", `,"codes":[{"kind":"OEM","code":"GS.9"}]`)
+	f.part(t, "OFF-GS", "Inactive", `,"isActive":false`)
+	rec := f.do(t, http.MethodGet, f.path("/search?q=gs"), f.token, "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	res := decode[struct {
+		Parts []hitJSON `json:"parts"`
+	}](t, rec)
+	require.Len(t, res.Parts, 1)
+	assert.Equal(t, "GS-100", res.Parts[0].StockNo)
+	assert.Len(t, res.Parts[0].Stock, 2)
+}
