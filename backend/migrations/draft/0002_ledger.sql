@@ -7,14 +7,15 @@ CREATE TABLE accounts (
   name        text      NOT NULL,
   type        text      NOT NULL CHECK (type IN ('ASSET','LIABILITY','EQUITY','INCOME','EXPENSE')),
   normal_side text      NOT NULL CHECK (normal_side IN ('DEBIT','CREDIT')),
-  sicil_id    bigint    REFERENCES sicils(id),
+  sicil_id    bigint,
   currency    char(3)   NOT NULL DEFAULT 'TRY',
   is_active   boolean   NOT NULL DEFAULT true,
   version     int       NOT NULL DEFAULT 1,
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (org_id, code),
-  UNIQUE (org_id, id)
+  UNIQUE (org_id, id),
+  FOREIGN KEY (org_id, sicil_id) REFERENCES sicils (organization_id, id)
 );
 CREATE INDEX accounts_sicil_idx ON accounts (org_id, sicil_id) WHERE sicil_id IS NOT NULL;
 
@@ -26,10 +27,10 @@ CREATE TABLE journal_entries (
   entry_date        date        NOT NULL,
   description       text        NOT NULL,
   source_type       text        NOT NULL
-                    CHECK (source_type IN ('manual','document','receipt','instrument','opening','reversal','legacy_import')),
+                    CHECK (source_type IN ('manual','document','receipt','instrument','cash_voucher','cash_count','opening','reversal','legacy_import')),
   source_id         text,
   reverses_entry_id bigint      REFERENCES journal_entries(id),
-  idempotency_key   uuid,
+  idempotency_key   text,
   created_by        bigint      REFERENCES users(id),
   created_at        timestamptz NOT NULL DEFAULT now(),
   UNIQUE (org_id, entry_no),
@@ -42,6 +43,7 @@ CREATE TABLE journal_entries (
   CHECK (reverses_entry_id IS NULL OR reverses_entry_id <> id)
 );
 -- Consumer idempotency: a redelivered DocumentPosted cannot post twice.
+-- Opening entries use source_id '<year>:<account>:<depot>'.
 CREATE UNIQUE INDEX journal_entries_source_uq
   ON journal_entries (org_id, source_type, source_id)
   WHERE source_id IS NOT NULL AND source_type <> 'manual';
@@ -130,6 +132,38 @@ CREATE TABLE opening_balances (
   FOREIGN KEY (org_id, depot_id)         REFERENCES depots (org_id, id),
   FOREIGN KEY (org_id, journal_entry_id) REFERENCES journal_entries (org_id, id)
 );
+
+-- Edited rows of a carry-forward preview; applied when the year is posted.
+CREATE TABLE carry_forward_overrides (
+  org_id     bigint        NOT NULL,
+  year       int           NOT NULL CHECK (year BETWEEN 2000 AND 2999),
+  account_id bigint        NOT NULL,
+  depot_id   bigint        NOT NULL,
+  debit      numeric(18,2) NOT NULL DEFAULT 0 CHECK (debit >= 0),
+  credit     numeric(18,2) NOT NULL DEFAULT 0 CHECK (credit >= 0),
+  reason     text          NOT NULL CHECK (length(reason) >= 3),
+  created_by bigint        REFERENCES users(id),
+  created_at timestamptz   NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, year, account_id, depot_id),
+  FOREIGN KEY (org_id, account_id) REFERENCES accounts (org_id, id),
+  FOREIGN KEY (org_id, depot_id)   REFERENCES depots (org_id, id),
+  CHECK (debit = 0 OR credit = 0)
+);
+
+-- Which account a posting rule uses. depot_id NULL = company default; a depot row overrides it.
+CREATE TABLE account_roles (
+  id         bigserial PRIMARY KEY,
+  org_id     bigint    NOT NULL,
+  role       text      NOT NULL CHECK (role IN (
+               'CASH','SALES','SALES_RETURNS','PURCHASES','PURCHASE_RETURNS','PRICE_DIFFERENCE',
+               'OUTPUT_VAT','INPUT_VAT','RECEIVABLE_CHEQUES','RECEIVABLE_NOTES','CHEQUES_AT_BANK',
+               'PAYABLE_CHEQUES','PAYABLE_NOTES','OPENING','CASH_OVER_SHORT')),
+  depot_id   bigint,
+  account_id bigint    NOT NULL,
+  FOREIGN KEY (org_id, depot_id)   REFERENCES depots (org_id, id),
+  FOREIGN KEY (org_id, account_id) REFERENCES accounts (org_id, id)
+);
+CREATE UNIQUE INDEX account_roles_uq ON account_roles (org_id, role, coalesce(depot_id, 0));
 
 -- Projection maintained in the posting transaction; rebuildable from postings.
 CREATE TABLE account_balances (

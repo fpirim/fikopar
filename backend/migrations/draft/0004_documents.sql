@@ -1,4 +1,6 @@
 -- Trade documents (invoices, waybills, returns, price differences). Posting emits DocumentPosted via outbox.
+-- Number prefixes: SF sales invoice (with or without waybill), SIR sales waybill, SI sales return,
+-- AF purchase invoice, AIR purchase waybill, AI purchase return, FF price difference.
 
 CREATE TABLE documents (
   id                 bigserial     PRIMARY KEY,
@@ -6,18 +8,20 @@ CREATE TABLE documents (
   depot_id           bigint        NOT NULL,
   document_no        text,                          -- allocated from number_series on post
   type               text          NOT NULL CHECK (type IN (
-                       'SALES_INVOICE','SALES_INVOICE_WITH_WAYBILL','SALES_WAYBILL',
-                       'PURCHASE_INVOICE','PURCHASE_INVOICE_WITH_WAYBILL','PURCHASE_WAYBILL',
-                       'SALES_RETURN_INVOICE','SALES_RETURN_WAYBILL','PURCHASE_RETURN_INVOICE','PURCHASE_RETURN_WAYBILL',
-                       'SALES_PRICE_DIFFERENCE','PURCHASE_PRICE_DIFFERENCE')),
+                       'SALES_INVOICE_WITH_WAYBILL','SALES_INVOICE','SALES_WAYBILL','SALES_RETURN',
+                       'PURCHASE_INVOICE_WITH_WAYBILL','PURCHASE_INVOICE','PURCHASE_WAYBILL','PURCHASE_RETURN',
+                       'PRICE_DIFFERENCE')),
   status             text          NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','POSTED','CANCELLED')),
-  sicil_id           bigint        NOT NULL REFERENCES sicils(id),
+  sicil_id           bigint        NOT NULL,
   document_date      date          NOT NULL,
+  ship_date          date,
   due_date           date,
+  sales_rep_user_id  bigint        REFERENCES users(id),
   linked_document_id bigint,
   currency           char(3)       NOT NULL DEFAULT 'TRY',
-  subtotal           numeric(18,2) NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
+  gross_total        numeric(18,2) NOT NULL DEFAULT 0 CHECK (gross_total >= 0),
   discount_total     numeric(18,2) NOT NULL DEFAULT 0 CHECK (discount_total >= 0),
+  net_total          numeric(18,2) NOT NULL DEFAULT 0 CHECK (net_total >= 0),
   vat_total          numeric(18,2) NOT NULL DEFAULT 0 CHECK (vat_total >= 0),
   grand_total        numeric(18,2) NOT NULL DEFAULT 0 CHECK (grand_total >= 0),
   description        text,
@@ -32,13 +36,15 @@ CREATE TABLE documents (
   UNIQUE (org_id, document_no),
   UNIQUE (org_id, id),
   FOREIGN KEY (org_id, depot_id)           REFERENCES depots (org_id, id),
+  FOREIGN KEY (org_id, sicil_id)           REFERENCES sicils (organization_id, id),
   FOREIGN KEY (org_id, linked_document_id) REFERENCES documents (org_id, id),
-  CHECK (grand_total = subtotal - discount_total + vat_total),
+  CHECK (net_total = gross_total - discount_total),
+  CHECK (grand_total = net_total + vat_total),
   CHECK (due_date IS NULL OR due_date >= document_date),
   CHECK ((status = 'DRAFT') = (document_no IS NULL)),
   CHECK ((status = 'DRAFT') = (posted_at IS NULL) OR status = 'CANCELLED'),
   CHECK ((status = 'CANCELLED') = (cancelled_at IS NOT NULL)),
-  CHECK (type NOT LIKE '%PRICE_DIFFERENCE' OR linked_document_id IS NOT NULL)
+  CHECK (type <> 'PRICE_DIFFERENCE' OR linked_document_id IS NOT NULL)
 );
 CREATE INDEX documents_sicil_idx ON documents (org_id, sicil_id, document_date DESC);
 CREATE INDEX documents_depot_idx ON documents (org_id, depot_id, status, document_date DESC);
@@ -63,7 +69,7 @@ CREATE TABLE document_lines (
 
 CREATE OR REPLACE FUNCTION is_waybill(p_type text) RETURNS boolean
 LANGUAGE sql IMMUTABLE AS $$
-  SELECT p_type IN ('SALES_WAYBILL','PURCHASE_WAYBILL','SALES_RETURN_WAYBILL','PURCHASE_RETURN_WAYBILL')
+  SELECT p_type IN ('SALES_WAYBILL','PURCHASE_WAYBILL')
 $$;
 
 CREATE OR REPLACE FUNCTION check_document_transition() RETURNS trigger

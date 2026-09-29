@@ -1,4 +1,4 @@
--- Shared: depots, number series, idempotency, outbox, audit.
+-- Shared: account card extensions, depots, number series, idempotency, outbox, audit.
 
 CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -6,6 +6,15 @@ BEGIN
   RAISE EXCEPTION '% on % is not allowed (append-only)', TG_OP, TG_TABLE_NAME
     USING ERRCODE = 'restrict_violation';
 END $$;
+
+-- sicils is created by the app today (GORM); these columns back the account card and credit panel.
+ALTER TABLE sicils
+  ADD COLUMN credit_limit      numeric(18,2) CHECK (credit_limit IS NULL OR credit_limit >= 0),
+  ADD COLUMN iskonto2          numeric(7,4)  NOT NULL DEFAULT 0 CHECK (iskonto2 BETWEEN 0 AND 100),
+  ADD COLUMN sales_rep_user_id bigint        REFERENCES users(id),
+  ADD COLUMN contacts          jsonb         NOT NULL DEFAULT '[]',
+  ADD COLUMN emails            text[]        NOT NULL DEFAULT '{}',
+  ADD CONSTRAINT sicils_org_id_uq UNIQUE (organization_id, id);
 
 CREATE TABLE depots (
   id                   bigserial    PRIMARY KEY,
@@ -19,19 +28,18 @@ CREATE TABLE depots (
   UNIQUE (org_id, id)
 );
 
+-- One counter per (company, depot, prefix, year). Several document types may share a prefix
+-- (SF: sales invoice with or without waybill). Rendered as SF-2026-1-000418.
 CREATE TABLE number_series (
   id         bigserial PRIMARY KEY,
   org_id     bigint    NOT NULL,
   depot_id   bigint    NOT NULL,
-  kind       text      NOT NULL
-             CHECK (kind IN ('DOCUMENT','COLLECTION_RECEIPT','PAYMENT_RECEIPT','RECEIVABLE_CHEQUE','RECEIVABLE_NOTE',
-                             'PAYABLE_CHEQUE','PAYABLE_NOTE','STOCK_COUNT','JOURNAL')),
-  year       int       NOT NULL CHECK (year BETWEEN 2000 AND 2999),
   prefix     text      NOT NULL CHECK (prefix ~ '^[A-Z]{1,4}$'),
+  year       int       NOT NULL CHECK (year BETWEEN 2000 AND 2999),
   width      int       NOT NULL DEFAULT 6 CHECK (width BETWEEN 4 AND 10),
   next_value bigint    NOT NULL DEFAULT 1 CHECK (next_value > 0),
   version    int       NOT NULL DEFAULT 1,
-  UNIQUE (org_id, depot_id, kind, year),
+  UNIQUE (org_id, depot_id, prefix, year),
   FOREIGN KEY (org_id, depot_id) REFERENCES depots (org_id, id)
 );
 
@@ -49,21 +57,20 @@ CREATE TRIGGER number_series_forward
   FOR EACH ROW EXECUTE FUNCTION number_series_forward_only();
 
 -- Row lock on the counter serialises concurrent callers; no max()+1, no string slicing.
-CREATE OR REPLACE FUNCTION next_number(p_org bigint, p_depot bigint, p_kind text, p_year int, p_prefix text)
+CREATE OR REPLACE FUNCTION next_number(p_org bigint, p_depot bigint, p_prefix text, p_year int)
 RETURNS text LANGUAGE plpgsql AS $$
 DECLARE
   v_value bigint;
-  v_prefix text;
   v_width int;
   v_depot text;
 BEGIN
-  INSERT INTO number_series (org_id, depot_id, kind, year, prefix, next_value)
-  VALUES (p_org, p_depot, p_kind, p_year, p_prefix, 2)
-  ON CONFLICT (org_id, depot_id, kind, year)
+  INSERT INTO number_series (org_id, depot_id, prefix, year, next_value)
+  VALUES (p_org, p_depot, p_prefix, p_year, 2)
+  ON CONFLICT (org_id, depot_id, prefix, year)
   DO UPDATE SET next_value = number_series.next_value + 1, version = number_series.version + 1
-  RETURNING next_value - 1, prefix, width INTO v_value, v_prefix, v_width;
-  SELECT code INTO v_depot FROM depots WHERE id = p_depot;
-  RETURN v_prefix || p_year || v_depot || lpad(v_value::text, v_width, '0');
+  RETURNING next_value - 1, width INTO v_value, v_width;
+  SELECT code INTO v_depot FROM depots WHERE org_id = p_org AND id = p_depot;
+  RETURN p_prefix || '-' || p_year || '-' || v_depot || '-' || lpad(v_value::text, v_width, '0');
 END $$;
 
 CREATE TABLE idempotency_keys (
