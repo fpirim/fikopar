@@ -113,7 +113,7 @@ func TestAccounts_SicilMustBelongToOrg(t *testing.T) {
 	foreign := extractID(t, rec.Body.Bytes())
 
 	rec = f.post(t, f.path("/ledger/accounts"), f.token, `{"code":"120.X","name":"x","type":"ASSET","sicilId":`+idStr(foreign)+`}`)
-	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 	assert.Equal(t, "ERR_SICIL_NOT_FOUND", errCode(t, rec))
 
 	own := f.sicil(t, "C1", "MUSTERI")

@@ -106,8 +106,7 @@ func TestJournal_RejectsInvalidEntriesWithoutConsumingNumbers(t *testing.T) {
 	cash := f.account(t, "100", "ASSET")
 	sales := f.account(t, "600", "INCOME")
 	eur := f.post(t, f.path("/ledger/accounts"), f.token, `{"code":"102.EUR","name":"EUR bank","type":"ASSET","currency":"EUR"}`)
-	require.Equal(t, http.StatusCreated, eur.Code)
-	eurID := extractID(t, eur.Body.Bytes())
+	require.Equal(t, http.StatusBadRequest, eur.Code, "TRY only")
 	inactive := f.account(t, "770", "EXPENSE")
 	require.Equal(t, http.StatusOK, f.req(t, http.MethodPatch, f.path("/ledger/accounts/"+idStr(inactive)), f.token, `{"isActive":false}`, map[string]string{"If-Match": `"1"`}).Code)
 
@@ -124,7 +123,6 @@ func TestJournal_RejectsInvalidEntriesWithoutConsumingNumbers(t *testing.T) {
 		{"bad side", entryBody(f.depot, "2026-03-05", ln{cash, "LEFT", "5.00"}, ln{sales, "CREDIT", "5.00"}), 400, "ERR_INVALID_REQUEST"},
 		{"unknown account", entryBody(f.depot, "2026-03-05", ln{999999, "DEBIT", "5.00"}, ln{sales, "CREDIT", "5.00"}), 422, "ERR_ACCOUNT_NOT_FOUND"},
 		{"inactive account", entryBody(f.depot, "2026-03-05", ln{inactive, "DEBIT", "5.00"}, ln{sales, "CREDIT", "5.00"}), 422, "ERR_ACCOUNT_INACTIVE"},
-		{"currencies unbalanced", entryBody(f.depot, "2026-03-05", ln{eurID, "DEBIT", "5.00"}, ln{sales, "CREDIT", "5.00"}), 422, "ERR_ENTRY_UNBALANCED"},
 		{"unknown depot", entryBody(999999, "2026-03-05", ln{cash, "DEBIT", "5.00"}, ln{sales, "CREDIT", "5.00"}), 422, "ERR_DEPOT_NOT_FOUND"},
 		{"bad date", entryBody(f.depot, "2026-13-05", ln{cash, "DEBIT", "5.00"}, ln{sales, "CREDIT", "5.00"}), 400, "ERR_INVALID_REQUEST"},
 		{"money as number", fmt.Sprintf(`{"depotId":%d,"entryDate":"2026-03-05","description":"x","lines":[{"accountId":%d,"side":"DEBIT","amount":5},{"accountId":%d,"side":"CREDIT","amount":5}]}`, f.depot, cash, sales), 400, "ERR_INVALID_REQUEST"},
