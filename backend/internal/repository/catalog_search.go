@@ -59,7 +59,7 @@ func searchCandidates(orgID uint, sq SearchQuery) (string, []any) {
 				args = append(args, "%"+n+"%", orgID, "%"+n+"%")
 			}
 		}
-		parts = append(parts, `SELECT p.id, 4, 9, 'NAME', NULL FROM parts p WHERE p.org_id = ? AND `+strings.Join(cond, " AND "))
+		parts = append(parts, `SELECT p.id AS part_id, 4 AS rank, 9 AS kind_order, 'NAME' AS match_kind, NULL AS matched_code FROM parts p WHERE p.org_id = ? AND `+strings.Join(cond, " AND "))
 	}
 	return strings.Join(parts, " UNION ALL "), args
 }
