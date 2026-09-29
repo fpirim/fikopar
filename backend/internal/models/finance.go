@@ -164,3 +164,13 @@ type CashCount struct {
 	JournalEntryID *uint     `json:"journalEntryId" gorm:"column:journal_entry_id"`
 	CountedBy      *uint     `json:"countedBy" gorm:"column:counted_by"`
 }
+
+type OpeningBalance struct {
+	AccountID      uint   `json:"accountId" gorm:"column:account_id"`
+	DepotID        uint   `json:"depotId" gorm:"column:depot_id"`
+	Year           int    `json:"year" gorm:"column:year"`
+	Debit          Money  `json:"debit" gorm:"column:debit"`
+	Credit         Money  `json:"credit" gorm:"column:credit"`
+	JournalEntryID uint   `json:"journalEntryId" gorm:"column:journal_entry_id"`
+	Source         string `json:"source" gorm:"column:source"`
+}

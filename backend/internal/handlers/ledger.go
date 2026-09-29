@@ -222,3 +222,101 @@ func (h *LedgerHandler) ListEntries(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, page)
 }
+
+func pathYear(c echo.Context) (int, error) {
+	y, err := strconv.Atoi(c.Param("year"))
+	if err != nil || y < 2000 || y > 2999 {
+		return 0, apierror.WithField(apierror.InvalidRequest, "year")
+	}
+	return y, nil
+}
+
+func optionalDepot(c echo.Context) (*uint, error) {
+	d, err := queryUint(c, "depotId")
+	if err != nil || d == 0 {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func (h *LedgerHandler) GetCarryForward(c echo.Context) error {
+	year, err := pathYear(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	depot, err := optionalDepot(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	cf, err := h.ledger.CarryForward(c.Request().Context(), orgID(c), year, depot)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	if accepts(c, mimePDF) {
+		return carryForwardPDF(c, cf)
+	}
+	return c.JSON(http.StatusOK, cf)
+}
+
+func (h *LedgerHandler) SetCarryForwardOverride(c echo.Context) error {
+	year, err := pathYear(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	var in services.OverrideInput
+	if err := bindJSON(c, &in); err != nil {
+		return apierror.Respond(c, err)
+	}
+	cf, err := h.ledger.SetOverride(reqCtx(c), orgID(c), year, in)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, cf)
+}
+
+func (h *LedgerHandler) DeleteCarryForwardOverride(c echo.Context) error {
+	year, err := pathYear(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	accountID, err := queryUint(c, "accountId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	depotID, err := queryUint(c, "depotId")
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	cf, err := h.ledger.DeleteOverride(reqCtx(c), orgID(c), year, accountID, depotID)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, cf)
+}
+
+func (h *LedgerHandler) PostCarryForward(c echo.Context) error {
+	year, err := pathYear(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	org := orgID(c)
+	return idempotent(c, h.idem, func(ctx context.Context, _ []byte) (int, any, error) {
+		return created(h.ledger.PostCarryForward(ctx, org, year))
+	})
+}
+
+func (h *LedgerHandler) ListOpeningBalances(c echo.Context) error {
+	year, err := strconv.Atoi(c.QueryParam("year"))
+	if err != nil {
+		return apierror.Respond(c, apierror.WithField(apierror.InvalidRequest, "year"))
+	}
+	depot, err := optionalDepot(c)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	out, err := h.ledger.OpeningBalances(c.Request().Context(), orgID(c), year, depot)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
+}

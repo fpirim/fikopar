@@ -107,6 +107,13 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.GET("/ledger/account-roles", h.Ledger.ListAccountRoles)
 	org.PUT("/ledger/account-roles", h.Ledger.SetAccountRoles, orgAdmin)
 
+	const cfPath = "/ledger/carry-forwards/:year"
+	org.GET("/ledger/opening-balances", h.Ledger.ListOpeningBalances)
+	org.GET(cfPath, h.Ledger.GetCarryForward)
+	org.PUT(cfPath+"/overrides", h.Ledger.SetCarryForwardOverride, orgAdmin)
+	org.DELETE(cfPath+"/overrides", h.Ledger.DeleteCarryForwardOverride, orgAdmin)
+	org.POST(cfPath+"/post", h.Ledger.PostCarryForward, orgAdmin)
+
 	const entryPath = "/ledger/entries/:entryId"
 	org.GET("/ledger/entries", h.Ledger.ListEntries)
 	org.POST("/ledger/entries", h.Ledger.PostEntry)

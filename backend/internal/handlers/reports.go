@@ -209,3 +209,27 @@ func (h *ReportHandler) SicilGridXLSX(c echo.Context, req repository.GridRequest
 	data, err := export.XLSX("Accounts", t)
 	return sendFile(c, mimeXLSX, "sicils.xlsx", data, err)
 }
+
+func carryForwardPDF(c echo.Context, cf *services.CarryForward) error {
+	checks := export.Table{Heading: "Checks", Columns: []export.Column{{Title: "Check", Kind: export.Text}, {Title: "Result", Kind: export.Text}, {Title: "Detail", Kind: export.Text}}}
+	for _, ch := range cf.Checks {
+		res := "OK"
+		if !ch.OK {
+			res = "FAILED"
+		}
+		checks.Rows = append(checks.Rows, []any{ch.Code, res, ch.Detail})
+	}
+	rows := export.Table{Heading: "Opening entries", Columns: []export.Column{{Title: "Account", Kind: export.Text}, {Title: "Name", Kind: export.Text},
+		{Title: "Depot", Kind: export.Int}, {Title: "Closing", Kind: export.MoneyCol}, {Title: "Debit", Kind: export.MoneyCol},
+		{Title: "Credit", Kind: export.MoneyCol}, {Title: "Status", Kind: export.Text}}}
+	for _, r := range cf.Rows {
+		rows.Rows = append(rows.Rows, []any{r.AccountCode, r.AccountName, r.DepotID, r.ClosingBalance, r.OpeningDebit, r.OpeningCredit, r.Status})
+	}
+	rows.Totals = []any{"Total", nil, nil, nil, cf.TotalDebit, cf.TotalCredit, nil}
+	data, err := export.PDF(export.Document{
+		Title:  fmt.Sprintf("Carry forward %d (%s)", cf.Year, cf.Status),
+		Meta:   [][2]string{{"Entries", fmt.Sprint(cf.EntryCount)}, {"Accounts", fmt.Sprint(cf.AccountCount)}},
+		Tables: []export.Table{checks, rows}, Footer: "fikopar", Landscape: true,
+	})
+	return sendFile(c, mimePDF, fmt.Sprintf("carry-forward-%d.pdf", cf.Year), data, err)
+}
