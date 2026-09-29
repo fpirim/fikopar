@@ -99,6 +99,8 @@ export default function CrudGridPage<T extends { id: number }>({
         getRowId={grid.getRowId}
         onGridReady={grid.onGridReady}
         onSelectionChanged={grid.onSelectionChanged}
+        getSelectAllState={grid.getSelectAllState}
+        onSelectAllToggle={grid.toggleSelectAll}
         onRowDoubleClicked={onRowDoubleClicked}
         localeText={gridLocale}
       />

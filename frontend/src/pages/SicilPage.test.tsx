@@ -64,11 +64,14 @@ describe('SicilPage', () => {
     await act(async () => {
       h.props.onGridReady({
         api: {
-          setServerSideDatasource: (ds: any) =>
+          setDatasource: (ds: any) =>
             ds.getRows({
-              request: { startRow: 0, endRow: 50, sortModel: [], filterModel: {} },
-              success: vi.fn(),
-              fail: vi.fn(),
+              startRow: 0,
+              endRow: 50,
+              sortModel: [],
+              filterModel: {},
+              successCallback: vi.fn(),
+              failCallback: vi.fn(),
             }),
         },
       })

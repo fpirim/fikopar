@@ -49,16 +49,15 @@ function renderPage() {
   )
 }
 
-function selApi(opts: { rows?: any[]; selectAll?: boolean; toggled?: string[] }) {
-  const nodes = (opts.rows || []).map((r) => ({ data: r, isSelected: () => true }))
+function selApi(opts: { rows?: any[]; unselected?: any[] }) {
+  const nodes = [
+    ...(opts.rows || []).map((r) => ({ data: r, isSelected: () => true })),
+    ...(opts.unselected || []).map((r) => ({ data: r, isSelected: () => false })),
+  ]
   return {
     forEachNode: (cb: any) => nodes.forEach(cb),
-    getServerSideSelectionState: () => ({
-      selectAll: !!opts.selectAll,
-      toggledNodes: opts.toggled || [],
-    }),
     deselectAll: vi.fn(),
-    refreshServerSide: vi.fn(),
+    purgeInfiniteCache: vi.fn(),
     getFilterModel: () => ({}),
   }
 }
@@ -86,7 +85,7 @@ describe('AdminOrganizationsPage', () => {
     renderPage()
     act(() => {
       h.props.onSelectionChanged({
-        api: selApi({ rows: [{ id: 7, name: 'Org', slug: 'org' }], toggled: ['7'] }),
+        api: selApi({ rows: [{ id: 7, name: 'Org', slug: 'org' }] }),
       })
     })
     const del = await screen.findByRole('button', { name: 'Sil (1)' })
@@ -114,11 +113,14 @@ describe('AdminOrganizationsPage', () => {
     await act(async () => {
       h.props.onGridReady({
         api: {
-          setServerSideDatasource: (ds: any) =>
+          setDatasource: (ds: any) =>
             ds.getRows({
-              request: { startRow: 0, endRow: 50, sortModel: [], filterModel: {} },
-              success: vi.fn(),
-              fail: vi.fn(),
+              startRow: 0,
+              endRow: 50,
+              sortModel: [],
+              filterModel: {},
+              successCallback: vi.fn(),
+              failCallback: vi.fn(),
             }),
         },
       })
@@ -127,7 +129,8 @@ describe('AdminOrganizationsPage', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    act(() => h.props.onSelectionChanged({ api: selApi({ rows: [rows[0]], selectAll: true }) }))
+    act(() => h.props.columnDefs[0].headerComponentParams.onToggle(true))
+    act(() => h.props.onSelectionChanged({ api: selApi({ rows: [rows[0]] }) }))
 
     await u.click(await screen.findByRole('button', { name: 'Yazdır (2)' }))
     await waitFor(() => expect(openSpy).toHaveBeenCalled())

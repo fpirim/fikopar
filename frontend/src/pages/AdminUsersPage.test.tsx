@@ -45,16 +45,15 @@ function renderPage() {
 }
 
 // Fake grid api for onSelectionChanged.
-function selApi(opts: { rows?: any[]; selectAll?: boolean; toggled?: string[] }) {
-  const nodes = (opts.rows || []).map((r) => ({ data: r, isSelected: () => true }))
+function selApi(opts: { rows?: any[]; unselected?: any[] }) {
+  const nodes = [
+    ...(opts.rows || []).map((r) => ({ data: r, isSelected: () => true })),
+    ...(opts.unselected || []).map((r) => ({ data: r, isSelected: () => false })),
+  ]
   return {
     forEachNode: (cb: any) => nodes.forEach(cb),
-    getServerSideSelectionState: () => ({
-      selectAll: !!opts.selectAll,
-      toggledNodes: opts.toggled || [],
-    }),
     deselectAll: vi.fn(),
-    refreshServerSide: vi.fn(),
+    purgeInfiniteCache: vi.fn(),
     getFilterModel: () => ({}),
   }
 }
@@ -104,7 +103,7 @@ describe('AdminUsersPage', () => {
     renderPage()
     act(() => {
       h.props.onSelectionChanged({
-        api: selApi({ rows: [{ id: 5, name: 'X', email: 'x@x', role: 'user' }], toggled: ['5'] }),
+        api: selApi({ rows: [{ id: 5, name: 'X', email: 'x@x', role: 'user' }] }),
       })
     })
     const del = await screen.findByRole('button', { name: 'Sil (1)' })
@@ -134,11 +133,14 @@ describe('AdminUsersPage', () => {
     await act(async () => {
       h.props.onGridReady({
         api: {
-          setServerSideDatasource: (ds: any) =>
+          setDatasource: (ds: any) =>
             ds.getRows({
-              request: { startRow: 0, endRow: 50, sortModel: [], filterModel: {} },
-              success: vi.fn(),
-              fail: vi.fn(),
+              startRow: 0,
+              endRow: 50,
+              sortModel: [],
+              filterModel: {},
+              successCallback: vi.fn(),
+              failCallback: vi.fn(),
             }),
         },
       })
@@ -147,10 +149,51 @@ describe('AdminUsersPage', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    act(() => h.props.onSelectionChanged({ api: selApi({ rows: [rows[0]], selectAll: true }) }))
+    act(() => h.props.columnDefs[0].headerComponentParams.onToggle(true))
+    act(() => h.props.onSelectionChanged({ api: selApi({ rows: [rows[0]] }) }))
 
     await u.click(await screen.findByRole('button', { name: 'Yazdır (3)' }))
     await waitFor(() => expect(openSpy).toHaveBeenCalled())
+  })
+
+  it('select-all minus a deselected row deletes the rest', async () => {
+    const u = userEvent.setup()
+    const rows = [
+      { id: 1, name: 'A', email: 'a@x', role: 'user', organizations: [] },
+      { id: 2, name: 'B', email: 'b@x', role: 'admin', organizations: [] },
+      { id: 3, name: 'C', email: 'c@x', role: 'user', organizations: [] },
+    ]
+    ;(api.post as any).mockResolvedValue({ data: { rows, totalCount: 3 } })
+    renderPage()
+    await act(async () => {
+      h.props.onGridReady({
+        api: {
+          setDatasource: (ds: any) =>
+            ds.getRows({
+              startRow: 0,
+              endRow: 50,
+              sortModel: [],
+              filterModel: {},
+              successCallback: vi.fn(),
+              failCallback: vi.fn(),
+            }),
+        },
+      })
+    })
+    const header = h.props.columnDefs[0].headerComponentParams
+    act(() => header.onToggle(true))
+    expect(header.getState()).toBe('all')
+    act(() =>
+      h.props.onSelectionChanged({ api: selApi({ rows: [rows[0]], unselected: [rows[1]] }) }),
+    )
+    expect(header.getState()).toBe('some')
+
+    await u.click(await screen.findByRole('button', { name: 'Sil (2)' }))
+    await u.click(screen.getByRole('button', { name: /^Sil$/ }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledTimes(2))
+    expect(api.delete).toHaveBeenCalledWith('/admin/users/1')
+    expect(api.delete).toHaveBeenCalledWith('/admin/users/3')
+    expect(api.delete).not.toHaveBeenCalledWith('/admin/users/2')
   })
 
   it('creates a user and shows a success toast', async () => {

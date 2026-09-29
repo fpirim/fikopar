@@ -2,16 +2,7 @@ import { useMemo } from 'react'
 import type { RefObject } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef } from 'ag-grid-community'
-
-const CHECKBOX_COL: ColDef = {
-  headerName: '',
-  colId: 'checkbox',
-  width: 50,
-  checkboxSelection: true,
-  headerCheckboxSelection: true,
-  sortable: false,
-  resizable: false,
-}
+import SelectAllHeader, { type SelectAllState } from './SelectAllHeader'
 
 export default function CrudDataGrid({
   gridRef,
@@ -19,6 +10,8 @@ export default function CrudDataGrid({
   getRowId,
   onGridReady,
   onSelectionChanged,
+  getSelectAllState,
+  onSelectAllToggle,
   onRowDoubleClicked,
   localeText,
 }: Readonly<{
@@ -27,11 +20,30 @@ export default function CrudDataGrid({
   getRowId: (params: any) => string
   onGridReady: (params: any) => void
   onSelectionChanged: (e: any) => void
+  getSelectAllState: () => SelectAllState
+  onSelectAllToggle: (checked: boolean) => void
   onRowDoubleClicked: (e: any) => void
   localeText: Record<string, string>
 }>) {
   const defaultColDef = useMemo<ColDef>(() => ({ sortable: true, resizable: true }), [])
-  const cols = useMemo(() => [CHECKBOX_COL, ...columnDefs], [columnDefs])
+  const checkboxCol = useMemo<ColDef>(
+    () => ({
+      headerName: '',
+      colId: 'checkbox',
+      width: 50,
+      checkboxSelection: true,
+      headerComponent: SelectAllHeader,
+      headerComponentParams: {
+        getState: getSelectAllState,
+        onToggle: onSelectAllToggle,
+        ariaLabel: localeText.selectAll,
+      },
+      sortable: false,
+      resizable: false,
+    }),
+    [getSelectAllState, onSelectAllToggle, localeText.selectAll],
+  )
+  const cols = useMemo(() => [checkboxCol, ...columnDefs], [checkboxCol, columnDefs])
 
   return (
     <div className="ag-theme-alpine min-h-0 flex-1 w-full">
@@ -39,7 +51,7 @@ export default function CrudDataGrid({
         ref={gridRef}
         columnDefs={cols}
         defaultColDef={defaultColDef}
-        rowModelType="serverSide"
+        rowModelType="infinite"
         getRowId={getRowId}
         onGridReady={onGridReady}
         onSelectionChanged={onSelectionChanged}

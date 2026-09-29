@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgGridReact } from 'ag-grid-react'
-import type { IServerSideDatasource, IServerSideGetRowsParams } from 'ag-grid-community'
+import type { GridApi, IDatasource, IGetRowsParams } from 'ag-grid-community'
 import api from '../lib/api'
+import type { SelectAllState } from '../components/ui/SelectAllHeader'
 
 // extraBody is merged into grid/resolve POSTs (e.g. organization scoping).
 export function useServerSideGrid<T extends { id: number }>(opts: {
@@ -16,14 +17,17 @@ export function useServerSideGrid<T extends { id: number }>(opts: {
   const [selectedRows, setSelectedRows] = useState<T[]>([])
   const [selectedCount, setSelectedCount] = useState(0)
   const [selectAllActive, setSelectAllActive] = useState(false)
+  const selectAllRef = useRef(false)
+  const selectedCountRef = useRef(0)
   const totalCountRef = useRef(0)
-  const toggledRef = useRef<string[]>([])
+  // With select-all on: ids the user deselected. Rows not loaded yet count as selected.
+  const toggledRef = useRef(new Set<string>())
   const [search, setSearch] = useState('')
   const searchRef = useRef('')
   const isFirstRun = useRef(true)
 
   const refresh = useCallback(() => {
-    gridRef.current?.api?.refreshServerSide({ purge: true })
+    gridRef.current?.api?.purgeInfiniteCache()
   }, [])
 
   // Skip the first run: setting the datasource already fetches once.
@@ -42,23 +46,24 @@ export function useServerSideGrid<T extends { id: number }>(opts: {
 
   const getRowId = useCallback((params: { data: { id: number } }) => String(params.data.id), [])
 
-  const datasource = useMemo<IServerSideDatasource>(
+  const datasource = useMemo<IDatasource>(
     () => ({
-      getRows(params: IServerSideGetRowsParams) {
+      getRows(params: IGetRowsParams) {
         api
           .post(gridPath, {
             ...extraBody,
-            startRow: params.request.startRow,
-            endRow: params.request.endRow,
-            sortModel: params.request.sortModel,
-            filterModel: params.request.filterModel,
+            startRow: params.startRow,
+            endRow: params.endRow,
+            sortModel: params.sortModel,
+            filterModel: params.filterModel,
             search: searchRef.current,
           })
           .then((resp) => {
             totalCountRef.current = resp.data.totalCount
-            params.success({ rowData: resp.data.rows, rowCount: resp.data.totalCount })
+            params.successCallback(resp.data.rows, resp.data.totalCount)
+            if (selectAllRef.current) selectLoaded(gridRef.current?.api, toggledRef.current)
           })
-          .catch(() => params.fail())
+          .catch(() => params.failCallback())
       },
     }),
     // The datasource is not rebuilt when the content is unchanged (via extraBodyKey).
@@ -67,33 +72,57 @@ export function useServerSideGrid<T extends { id: number }>(opts: {
   )
 
   const onGridReady = useCallback(
-    (params: { api: { setServerSideDatasource: (d: IServerSideDatasource) => void } }) => {
-      params.api.setServerSideDatasource(datasource)
+    (params: { api: { setDatasource: (d: IDatasource) => void } }) => {
+      params.api.setDatasource(datasource)
     },
     [datasource],
   )
 
-  const onSelectionChanged = useCallback((e: any) => {
+  const syncSelection = useCallback((gridApi: GridApi) => {
     // Collect the loaded selected rows (for immediate data).
     const rows: T[] = []
-    e.api.forEachNode((n: any) => {
-      if (n.isSelected() && n.data) rows.push(n.data)
+    const toggled = toggledRef.current
+    gridApi.forEachNode((n) => {
+      if (!n.data) return
+      if (n.isSelected()) {
+        rows.push(n.data)
+        toggled.delete(String(n.data.id))
+      } else if (selectAllRef.current) {
+        toggled.add(String(n.data.id))
+      }
     })
     setSelectedRows(rows)
-    // SSRM selection state: the selectAll flag covers ALL (filtered) rows ON THE SERVER.
-    const st = e.api.getServerSideSelectionState?.()
-    if (st && typeof st.selectAll === 'boolean') {
-      const toggled: string[] = st.toggledNodes || []
-      toggledRef.current = toggled
-      setSelectAllActive(st.selectAll)
-      setSelectedCount(
-        st.selectAll ? Math.max(0, totalCountRef.current - toggled.length) : toggled.length,
-      )
-    } else {
-      setSelectAllActive(false)
-      setSelectedCount(rows.length)
-    }
+    const count = selectAllRef.current
+      ? Math.max(0, totalCountRef.current - toggled.size)
+      : rows.length
+    selectedCountRef.current = count
+    setSelectedCount(count)
   }, [])
+
+  const onSelectionChanged = useCallback(
+    (e: { api: GridApi }) => syncSelection(e.api),
+    [syncSelection],
+  )
+
+  const getSelectAllState = useCallback((): SelectAllState => {
+    if (selectAllRef.current && toggledRef.current.size === 0) return 'all'
+    return selectedCountRef.current > 0 ? 'some' : 'none'
+  }, [])
+
+  // selectAll covers ALL (filtered) rows ON THE SERVER; loaded rows are selected as well.
+  const toggleSelectAll = useCallback(
+    (checked: boolean) => {
+      const gridApi = gridRef.current?.api
+      selectAllRef.current = checked
+      toggledRef.current = new Set()
+      setSelectAllActive(checked)
+      if (!gridApi) return
+      if (checked) selectLoaded(gridApi, toggledRef.current)
+      else gridApi.deselectAll()
+      syncSelection(gridApi)
+    },
+    [syncSelection],
+  )
 
   // selectAll spans every filtered row on the server, not just the loaded ones.
   const resolveSelectedRows = useCallback(async (): Promise<T[]> => {
@@ -107,8 +136,8 @@ export function useServerSideGrid<T extends { id: number }>(opts: {
       search: searchRef.current,
     })
     let rows: T[] = resp.data.rows || []
-    const excluded = new Set(toggledRef.current.map(Number))
-    if (excluded.size) rows = rows.filter((r) => !excluded.has(r.id))
+    const excluded = toggledRef.current
+    if (excluded.size) rows = rows.filter((r) => !excluded.has(String(r.id)))
     return rows
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectAllActive, selectedRows, gridPath, extraBodyKey])
@@ -134,6 +163,9 @@ export function useServerSideGrid<T extends { id: number }>(opts: {
     refresh()
     setSelectedRows([])
     setSelectedCount(0)
+    selectedCountRef.current = 0
+    selectAllRef.current = false
+    toggledRef.current = new Set()
     setSelectAllActive(false)
     return { ok, failed }
   }, [resolveSelectedRows, deletePath, refresh])
@@ -146,8 +178,20 @@ export function useServerSideGrid<T extends { id: number }>(opts: {
     getRowId,
     onGridReady,
     onSelectionChanged,
+    getSelectAllState,
+    toggleSelectAll,
     resolveSelectedRows,
     deleteSelected,
     refresh,
   }
+}
+
+// Selects loaded rows that the user has not explicitly deselected.
+function selectLoaded(gridApi: GridApi | undefined, excluded: Set<string>) {
+  if (!gridApi) return
+  const toSelect: { setSelected: (v: boolean) => void }[] = []
+  gridApi.forEachNode((n) => {
+    if (n.data && !n.isSelected() && !excluded.has(String(n.data.id))) toSelect.push(n)
+  })
+  toSelect.forEach((n) => n.setSelected(true))
 }
