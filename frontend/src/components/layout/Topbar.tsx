@@ -6,6 +6,7 @@ import { useDepot } from '../../hooks/useDepot'
 import { useDepots } from '../../hooks/useDepots'
 import { Chip } from '../ui/chip'
 import { Segmented } from '../ui/segmented'
+import FindPart from '../catalog/FindPart'
 import AccountMenu from './AccountMenu'
 import GlobalSearch from './GlobalSearch'
 import { locate } from './nav'
@@ -29,7 +30,9 @@ export default function Topbar() {
     <header className="flex h-16 shrink-0 items-center gap-3.5 border-b border-fk-border bg-fk-surface px-8">
       <div className="whitespace-nowrap text-sm text-fk-muted">{crumb}</div>
       <div className="flex-1" />
-      <GlobalSearch />
+      <FindPart>
+        <GlobalSearch />
+      </FindPart>
       <Segmented
         label={t('depot')}
         size="sm"

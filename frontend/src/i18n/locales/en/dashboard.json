@@ -1,9 +1,43 @@
 {
-  "title": "Dashboard",
-  "welcome": "Welcome to fikopar.",
-  "greeting": "Welcome",
-  "status": "Status",
-  "yourOrganizations": "Your organizations",
-  "adminPanel": "Admin Panel",
-  "adminPanelDesc": "You can manage all organizations and users."
+  "title": "Today",
+  "dateLine": "{{date}} · TRY",
+  "newReceipt": "New receipt",
+  "newInvoice": "New invoice",
+  "receivables": "Receivables",
+  "receivablesSub_one": "{{count}} account",
+  "receivablesSub_other": "{{count}} accounts",
+  "payables": "Payables",
+  "payablesSub_one": "{{count}} supplier",
+  "payablesSub_other": "{{count}} suppliers",
+  "cash": "Cash on hand",
+  "cheques": "Cheques due · 30 days",
+  "overdue_one": "{{count}} overdue",
+  "overdue_other": "{{count}} overdue",
+  "noOverdue": "None overdue",
+  "latest": "Latest documents",
+  "all": "All",
+  "col": {
+    "number": "No.",
+    "type": "Type",
+    "account": "Account",
+    "depot": "Depot",
+    "amount": "Amount"
+  },
+  "kind": {
+    "CASH_VOUCHER": "CASH VOUCHER"
+  },
+  "noLatest": "No documents yet",
+  "due": "Due this week",
+  "days": "{{days}} D",
+  "noDue": "Nothing due this week",
+  "belowMin": "Below minimum / negative",
+  "belowMinCounts": "{{below}} below minimum · {{negative}} negative",
+  "noBelowMin": "No parts below minimum",
+  "ledgerCheck": "Ledger check {{time}}",
+  "check": {
+    "BALANCED": "BALANCED",
+    "DRIFT": "DRIFT",
+    "NOT_RUN": "NOT RUN"
+  },
+  "depotShort": "Dp {{code}}"
 }

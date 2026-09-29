@@ -962,7 +962,8 @@ export interface paths {
     put?: never
     /**
      * DRAFT → POSTED; allocates the number, emits DocumentPosted (ledger entry and stock movements follow)
-     * @description 422 ERR_INSUFFICIENT_STOCK unless the depot allows negative stock; 422 ERR_CREDIT_LIMIT_EXCEEDED over the card's limit;
+     * @description Negative stock never blocks: `warnings` lists NEGATIVE_STOCK per (part, depot). 422 ERR_CREDIT_LIMIT_EXCEEDED over the card's limit;
+     *     422 ERR_PART_INACTIVE for a line with an inactive part;
      *     422 ERR_WAYBILL_INVALID when `waybillDocumentId` is not a POSTED, unbilled waybill of the matching type, sicil and depot.
      */
     post: operations['postDocument']
@@ -987,7 +988,8 @@ export interface paths {
     put?: never
     /**
      * Cancel; a POSTED document is cancelled by reversal entries and opposite stock movements
-     * @description 409 ERR_WAYBILL_BILLED for a waybill billed by a document that is not cancelled.
+     * @description 409 ERR_WAYBILL_BILLED for a waybill billed by a document that is not cancelled. Opposite movements may take
+     *     stock negative: `warnings` NEGATIVE_STOCK.
      */
     post: operations['cancelDocument']
     delete?: never
@@ -1098,6 +1100,9 @@ export interface paths {
      * Cash book (kasa defteri) of one depot with opening row, in/out totals and running balance
      * @description One till per depot, so `depotId` is required; there is no combined book. With "All depots" in the top bar
      *     the client asks the user to pick a depot. Missing `depotId` answers 400 ERR_DEPOT_REQUIRED.
+     *     Across a carried year (as statements, L8): the CASH opening entry of the active run is an OPENING line on
+     *     1 January with `resetsBalance`; lines after it run from the carried opening. Voided opening entries and their
+     *     reversals are left out.
      */
     get: operations['getCashBook']
     put?: never
@@ -1298,6 +1303,79 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/orgs/{orgId}/catalog/catalogs': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    /** Catalogs (price lists), by code */
+    get: operations['listCatalogs']
+    put?: never
+    /**
+     * Create catalog
+     * @description 409 ERR_CATALOG_CODE_EXISTS; 422 ERR_SICIL_NOT_FOUND (`supplierSicilId`).
+     */
+    post: operations['createCatalog']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/orgs/{orgId}/catalog/catalogs/{catalogId}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        catalogId: components['parameters']['CatalogId']
+      }
+      cookie?: never
+    }
+    /** Get catalog */
+    get: operations['getCatalog']
+    /** Update name, supplier and active flag; `code` is fixed (422 ERR_CATALOG_CODE_IMMUTABLE) */
+    put: operations['updateCatalog']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/orgs/{orgId}/catalog/catalogs/{catalogId}/prices': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        catalogId: components['parameters']['CatalogId']
+      }
+      cookie?: never
+    }
+    /** The catalog as a price list on a date (one row per active part, by stock no) */
+    get: operations['listPrices']
+    put?: never
+    /**
+     * New list prices for several parts of this catalog from one date; earlier prices stay in history
+     * @description All or nothing. Same rules as `setPartPrice` per item. 422 ERR_PART_NOT_IN_CATALOG (`items[i].partId`),
+     *     409 ERR_PRICE_EXISTS when a part already has a different price on `validFrom` (an equal price is a no-op).
+     *     One `PriceChanged` per inserted price.
+     */
+    post: operations['setPrices']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/orgs/{orgId}/catalog/parts/grid': {
     parameters: {
       query?: never
@@ -1310,7 +1388,14 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Grid search; `search` matches stock no, name and any OEM/equivalent code */
+    /**
+     * Parts & stock grid (floating filters, sort, infinite paging); XLSX via Accept, CSV in the client
+     * @description Column ids and filter types: `PartColId`. `search` is OR over stockNo, name, brand and every code (normalized).
+     *     The `codes` filter matches any code of the part, normalized. Stock columns (onHand, reserved, available)
+     *     are for `depotId`, or summed over depots when it is null; minQty, maxQty and shelf need a `depotId` and are
+     *     null without one. Default sort `stockNo` asc, then `catalogCode`. `totals` has onHand, reserved and
+     *     available. XLSX carries every filtered row (at most 100 000) with the same columns.
+     */
     post: operations['gridParts']
     delete?: never
     options?: never
@@ -1329,10 +1414,18 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Part picker (F2 on an invoice line)
-     * @description Matches stock no and codes by normalized prefix/substring, name by words; exact code matches first.
-     *     Returns stock per depot and the price valid on `date`. Budget: p95 under 100 ms at 50k parts
-     *     (trigram indexes on parts and part_codes).
+     * Part picker (F2 on an invoice line, typing in a line)
+     * @description `q` is matched against stock no and every code (MANUFACTURER, OEM, ALT, EQUIVALENT) after normalization
+     *     (upper case, only 0-9 A-Z), and against the name word by word (every word must occur, case- and
+     *     Turkish-dotless-i-insensitive). Rank: 1 exact code or stock no, 2 prefix, 3 substring (normalized `q` of
+     *     3+ characters), 4 name; then stock no, then catalog code. Inactive parts are left out.
+     *     Each hit has on hand and available for every depot of the company (zero rows included) and the list price of
+     *     its catalog valid on `date`.
+     *
+     *     Paging: `limit` + opaque `cursor` over the ranked list. `total` counts matches up to 1000 (`totalCapped`).
+     *     Performance: p95 under 100 ms at 50 000 parts, 200 000 codes and 2 depots. Candidates come from the
+     *     btree prefix indexes (`parts.stock_no_norm`, `part_codes.normalized_code`, `text_pattern_ops`) and the
+     *     trigram indexes; price (`price_on`) and stock levels are joined for the page only.
      */
     get: operations['searchCatalog']
     put?: never
@@ -1355,7 +1448,10 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Resolve many codes at once (invoice CSV import); unknown or ambiguous codes are reported per row */
+    /**
+     * Resolve many codes at once (invoice CSV import); unknown or ambiguous codes are reported per row
+     * @description Exact normalized match on stock no and codes only (rank 1 of `searchCatalog`); inactive parts are left out.
+     */
     post: operations['resolvePartCodes']
     delete?: never
     options?: never
@@ -1375,7 +1471,11 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Create part */
+    /**
+     * Create part in a catalog, optionally with its first list price
+     * @description 409 ERR_PART_CODE_EXISTS when the stock no exists in the catalog; 422 ERR_CATALOG_NOT_FOUND (`catalogId`),
+     *     ERR_PART_NOT_FOUND (`codes[i].equivalentPartId`). The same stock no may exist in another catalog.
+     */
     post: operations['createPart']
     delete?: never
     options?: never
@@ -1393,7 +1493,7 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Resolve a manufacturer / OEM / equivalent code (normalized match) */
+    /** Resolve a manufacturer / OEM / ALT / equivalent code or stock no (normalized match) */
     get: operations['lookupPartByCode']
     put?: never
     post?: never
@@ -1414,9 +1514,13 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Get part */
+    /** Get part with codes, current and next list price */
     get: operations['getPart']
-    /** Update part */
+    /**
+     * Update part; `codes` replaces the code list; deactivate with `isActive` false (parts are never deleted)
+     * @description `catalogId` must stay the same (422 ERR_PART_CATALOG_IMMUTABLE); `initialPrice` is ignored, prices change
+     *     through `setPartPrice`. 409 ERR_PART_CODE_EXISTS on a stock no taken in the catalog.
+     */
     put: operations['updatePart']
     post?: never
     delete?: never
@@ -1436,7 +1540,10 @@ export interface paths {
       }
       cookie?: never
     }
-    /** On hand, reserved, available, min, max and shelf per depot, with a total row */
+    /**
+     * On hand, reserved, available, min, max and shelf for every depot, with a total row
+     * @description Every depot of the company has a row; a depot without movements or settings shows zeros, version 0.
+     */
     get: operations['getPartStock']
     put?: never
     post?: never
@@ -1459,7 +1566,11 @@ export interface paths {
       cookie?: never
     }
     get?: never
-    /** Min, max and shelf of a part in one depot */
+    /**
+     * Min, max and shelf of a part in one depot (upsert)
+     * @description `If-Match` is the `version` of that depot row in `getPartStock`; `"0"` creates it. 422 ERR_INVALID_REQUEST
+     *     (`maxQty`) when max < min.
+     */
     put: operations['setPartDepotSettings']
     post?: never
     delete?: never
@@ -1479,53 +1590,171 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Price history of a part, newest first, with change against the previous price */
+    /** List price history of a part, newest `validFrom` first, future prices included */
     get: operations['getPartPriceHistory']
+    put?: never
+    /**
+     * New list price from `validFrom` (past, today or future); history is append-only
+     * @description Price on date D = the row with the latest `validFrom` ≤ D, so periods never overlap and a future price
+     *     becomes current on its day without a job. A different price on an existing `validFrom` → 409 ERR_PRICE_EXISTS
+     *     (a correction is a new row with a later `validFrom`); the same price → 200 with the existing row.
+     *     Emits `PriceChanged`.
+     */
+    post: operations['setPartPrice']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/orgs/{orgId}/catalog/imports': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    /** Price list import jobs, newest first */
+    get: operations['listPriceImports']
+    put?: never
+    /**
+     * Upload a price list (CSV, XLSX or legacy LISAKT text) into one catalog; starts parsing
+     * @description Returns the job in PARSING, NEEDS_MAPPING, READY or FAILED; poll `getPriceImport` while PARSING.
+     *     Limits: 10 MiB, 100 000 rows (FAILED `ERR_IMPORT_TOO_MANY_ROWS`). Without `mapping` the columns are matched
+     *     by header name (`PriceImportTarget` names, Turkish aliases in `listPriceImportPresets`); if `code` or `price`
+     *     stay unmapped the job is NEEDS_MAPPING with `headers` and `sample`, and `updatePriceImport` sends the mapping.
+     *     A file whose SHA-256 was already applied to the catalog sets `duplicateOfImportId` (warning only).
+     *     400 ERR_NO_FILE_UPLOADED, ERR_FILE_TOO_LARGE; 422 ERR_CATALOG_NOT_FOUND.
+     */
+    post: operations['createPriceImport']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/orgs/{orgId}/catalog/imports/{importId}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        importId: components['parameters']['ImportId']
+      }
+      cookie?: never
+    }
+    /** Job with status, counts per change kind and, once applied, the result */
+    get: operations['getPriceImport']
     put?: never
     post?: never
     delete?: never
     options?: never
     head?: never
-    patch?: never
+    /**
+     * Change mapping or default `validFrom` and rebuild the preview; `{}` only rebuilds it
+     * @description NEEDS_MAPPING or READY → PARSING → NEEDS_MAPPING | READY; version +1. Rebuilding against the current catalog is
+     *     also how a stale preview (409 ERR_IMPORT_STALE on apply) is refreshed. 409 ERR_INVALID_STATE_TRANSITION
+     *     in any other status.
+     */
+    patch: operations['updatePriceImport']
     trace?: never
   }
-  '/api/orgs/{orgId}/catalog/price-lists': {
+  '/api/orgs/{orgId}/catalog/imports/{importId}/rows/grid': {
     parameters: {
       query?: never
       header?: never
       path: {
         /** @description Tenant. Caller must be a member (or admin). */
         orgId: components['parameters']['OrgId']
+        importId: components['parameters']['ImportId']
       }
       cookie?: never
     }
-    /** Price lists (supplier catalogues and sales lists) */
-    get: operations['listPriceLists']
+    get?: never
     put?: never
-    /** Create price list */
-    post: operations['createPriceList']
+    /**
+     * Preview diff rows (file vs catalog); XLSX via Accept
+     * @description `change` picks the tab; a row with PRICE and ATTRIBUTES shows under both. Column ids: rowNo, stockNo,
+     *     description, brand, price, currentPrice, priceChangePct, validFrom, changes, errors. Default sort rowNo, MISSING
+     *     rows (rowNo null) last by stock no. `totals` is empty.
+     */
+    post: operations['gridPriceImportRows']
     delete?: never
     options?: never
     head?: never
     patch?: never
     trace?: never
   }
-  '/api/orgs/{orgId}/catalog/price-lists/{priceListId}/prices': {
+  '/api/orgs/{orgId}/catalog/imports/{importId}/apply': {
     parameters: {
       query?: never
       header?: never
       path: {
         /** @description Tenant. Caller must be a member (or admin). */
         orgId: components['parameters']['OrgId']
-        priceListId: number
+        importId: components['parameters']['ImportId']
       }
       cookie?: never
     }
-    /** Prices valid on a date */
-    get: operations['listPrices']
+    get?: never
     put?: never
-    /** Set new prices from a date; earlier prices stay in history */
-    post: operations['setPrices']
+    /**
+     * Apply the previewed diff once, in one transaction; READY → APPLYING → APPLIED
+     * @description `If-Match` = job version (the preview the user saw). Checks: status READY (409 ERR_INVALID_STATE_TRANSITION),
+     *     catalog unchanged since the preview (`catalogVersion`, 409 ERR_IMPORT_STALE), no ERROR rows unless
+     *     `skipErrorRows` (422 ERR_IMPORT_HAS_ERRORS). Effects: NEW → part in the job's catalog with its price;
+     *     PRICE → price row (`source` IMPORT, `importId`); ATTRIBUTES → part fields and codes (if `applyAttributes`);
+     *     DELETE → deactivated; MISSING → deactivated only with `missing` DEACTIVATE. Parts are never deleted.
+     *     200 with APPLIED, or 202 with APPLYING when it runs past the request (poll `getPriceImport`); on failure
+     *     the transaction rolls back and the job returns to READY. Emits one `PriceListImported`, no `PriceChanged`.
+     *     A replay with the same `Idempotency-Key` returns the first response.
+     */
+    post: operations['applyPriceImport']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/orgs/{orgId}/catalog/imports/{importId}/discard': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        importId: components['parameters']['ImportId']
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Drop a job that was not applied (→ DISCARDED); the file is deleted */
+    post: operations['discardPriceImport']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/orgs/{orgId}/catalog/import-presets': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    /** Mapping presets (LISAKT) and the header aliases used for automatic mapping */
+    get: operations['listPriceImportPresets']
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -1542,7 +1771,11 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Quantity on hand per part and depot, derived from movements */
+    /**
+     * On hand per part and depot (projection of movements); below-minimum and negative lists
+     * @description `belowMin` = minQty > 0 and onHand < minQty; `negative` = onHand < 0. Order: onHand asc for NEGATIVE,
+     *     otherwise onHand − minQty asc, then stock no.
+     */
     get: operations['listStockLevels']
     put?: never
     post?: never
@@ -1565,8 +1798,13 @@ export interface paths {
     get?: never
     put?: never
     /**
-     * Movements with document, account and running on-hand; XLSX via Accept
-     * @description `runningOnHand` is set when `partId` is given (per depot, or over all depots when `depotId` is null).
+     * Movements ledger with document, account and running on-hand; XLSX via Accept
+     * @description Ledger order is (date, id). `runningOnHand` is the on hand after the movement in that order, per depot
+     *     (`depotId`) or over all depots (`depotId` null); it is set only when `partId` is given and the sort is `date`
+     *     (asc or desc), otherwise null. It counts every movement of the part, so column filters hide rows without
+     *     changing it. `openingOnHand` / `closingOnHand` bracket the `date` filter range (same scope).
+     *     Column ids: date, kind, label, sourceNo, sicilName, stockNo, name, depotId, qty, delta, unitCost; default sort
+     *     date desc, id desc. `totals`: qtyIn, qtyOut (Σ over filtered rows).
      */
     post: operations['gridStockMovements']
     delete?: never
@@ -1587,8 +1825,35 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Move stock between the company's depots (TRF number of the source depot, paired OUT/IN movements) */
+    /**
+     * Move stock between two depots of the company in one transaction (TRF number of the source depot)
+     * @description All lines or none: one TRF number, and per line a TRANSFER_OUT in the source and a TRANSFER_IN in the
+     *     target, same date. Negative on hand is allowed and reported in `warnings`. 422 ERR_SAME_DEPOT,
+     *     ERR_DEPOT_NOT_FOUND, ERR_PART_NOT_FOUND / ERR_PART_INACTIVE (`lines[i].partId`), ERR_DUPLICATE_LINE (a part
+     *     twice); 409 ERR_YEAR_CLOSED. Emits `StockMoved` per movement.
+     */
     post: operations['transferStock']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/orgs/{orgId}/stock/transfers/{transferId}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        transferId: number
+      }
+      cookie?: never
+    }
+    /** Transfer with its movements (`warnings` empty) */
+    get: operations['getStockTransfer']
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -1605,10 +1870,18 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Stock counts (sayım) */
+    /** Stock counts (sayım), newest first */
     get: operations['listStockCounts']
     put?: never
-    /** Open a count for a depot, year and optional shelf range; creates one line per part in range */
+    /**
+     * Open a count session for one depot; freezes the system quantity of every line
+     * @description One OPEN count per depot (409 ERR_STOCK_COUNT_OPEN_EXISTS). `startedAt` is the freeze instant: a line's
+     *     `systemQty` is the on hand of the part in the depot from movements that occurred up to then, also for lines
+     *     added later. Lines: active parts with on hand ≠ 0 in the depot or a non-empty shelf there; with a shelf range,
+     *     parts whose shelf is in [shelfFrom, shelfTo] (shelfTo also matches as a prefix: `B` includes `B-04-2`).
+     *     Number from the SAY series of the depot, year of `countDate`. 409 ERR_YEAR_CLOSED for a `countDate` in a
+     *     closed year.
+     */
     post: operations['openStockCount']
     delete?: never
     options?: never
@@ -1627,7 +1900,11 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Count header with progress and totals; count sheet PDF via Accept */
+    /**
+     * Count header with progress and totals; count sheet PDF via Accept
+     * @description The PDF sheet lists lines by shelf, then stock no: shelf, stock no, name, brand, unit, an empty counted box,
+     *     and the system quantity only with `sheet` WITH_SYSTEM. `only` NOT_COUNTED prints a recount sheet.
+     */
     get: operations['getStockCount']
     put?: never
     post?: never
@@ -1650,7 +1927,14 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Count lines (shelf, part, system, counted, difference, value, counted by) */
+    /**
+     * Count lines; XLSX via Accept
+     * @description `only`: DIFFERENCES = counted and ≠ system; NOT_COUNTED = countedQty null; COUNTED = not null. Shelf range as
+     *     in `openStockCount`. Column ids: shelf, stockNo, name, brand, systemQty, countedQty, difference,
+     *     movedSinceOpen, unitCost, costSource, value, countedBy, countedAt; default sort shelf, stockNo. While OPEN,
+     *     unitCost / costSource are `last_purchase_cost(countDate)` read live; after finalize, the snapshot.
+     *     `totals`: systemQty, countedQty, difference, value, valueIn, valueOut.
+     */
     post: operations['gridStockCountLines']
     delete?: never
     options?: never
@@ -1671,7 +1955,11 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Add a part found on a shelf that is not on the sheet */
+    /**
+     * Add a part found on a shelf that is not on the sheet (`added` true, systemQty frozen at `startedAt`)
+     * @description 409 ERR_STOCK_COUNT_LINE_EXISTS when the part already has a line (one line per part; count it there),
+     *     409 ERR_STOCK_COUNT_NOT_OPEN; 422 ERR_PART_NOT_FOUND / ERR_PART_INACTIVE.
+     */
     post: operations['addStockCountLine']
     delete?: never
     options?: never
@@ -1699,8 +1987,9 @@ export interface paths {
     head?: never
     /**
      * Autosave one counted quantity (null clears it); sets countedBy and countedAt
-     * @description Per-line optimistic lock, so several people can count one sheet. The count must be OPEN
-     *     (409 ERR_STOCK_COUNT_NOT_OPEN).
+     * @description Per-line optimistic lock: `If-Match` is the line `version` (ETag), every save moves it by one, so several
+     *     people can count one sheet and a stale save gets 412 instead of overwriting. The count must be OPEN
+     *     (409 ERR_STOCK_COUNT_NOT_OPEN). 404 ERR_STOCK_COUNT_LINE_NOT_FOUND. The count header version does not move.
      */
     patch: operations['setStockCountLine']
     trace?: never
@@ -1719,10 +2008,35 @@ export interface paths {
     get?: never
     put?: never
     /**
-     * Post differences; OPEN → FINALIZED, differences become ADJUST movements
-     * @description `uncounted` decides lines without a counted quantity: SKIP leaves stock as is, ZERO counts them as 0.
+     * Post differences; OPEN → FINALIZED, one ADJUST movement per line with a difference
+     * @description `uncounted`: SKIP leaves lines without a count as they are; ZERO treats them as counted 0.
+     *     Difference = counted − systemQty (frozen); movements after `startedAt` stay on top, so on hand after =
+     *     on hand now + difference. ADJUST_IN / ADJUST_OUT dated `countDate`, `unitCost` = snapshot of
+     *     `last_purchase_cost(countDate)` with `costSource` (ADR-0008). One transaction; negative results are allowed
+     *     and reported in `warnings`. 409 ERR_STOCK_COUNT_NOT_OPEN, ERR_YEAR_CLOSED. Emits `StockMoved` per movement.
      */
     post: operations['finalizeStockCount']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/orgs/{orgId}/stock/counts/{countId}/cancel': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        countId: components['parameters']['CountId']
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** OPEN → CANCELLED without movements; the depot can open a new count */
+    post: operations['cancelStockCount']
     delete?: never
     options?: never
     head?: never
@@ -1911,8 +2225,18 @@ export interface components {
       | 'ERR_INVALID_AMOUNT'
       | 'ERR_PART_NOT_FOUND'
       | 'ERR_PART_CODE_EXISTS'
-      | 'ERR_PRICE_LIST_NOT_FOUND'
-      | 'ERR_INSUFFICIENT_STOCK'
+      | 'ERR_PART_INACTIVE'
+      | 'ERR_PART_NOT_IN_CATALOG'
+      | 'ERR_PART_CATALOG_IMMUTABLE'
+      | 'ERR_CATALOG_NOT_FOUND'
+      | 'ERR_CATALOG_CODE_EXISTS'
+      | 'ERR_CATALOG_CODE_IMMUTABLE'
+      | 'ERR_PRICE_EXISTS'
+      | 'ERR_IMPORT_NOT_FOUND'
+      | 'ERR_IMPORT_FORMAT'
+      | 'ERR_IMPORT_TOO_MANY_ROWS'
+      | 'ERR_IMPORT_STALE'
+      | 'ERR_IMPORT_HAS_ERRORS'
       | 'ERR_STOCK_COUNT_NOT_OPEN'
       | 'ERR_DOCUMENT_NOT_FOUND'
       | 'ERR_DOCUMENT_EMPTY'
@@ -1938,6 +2262,10 @@ export interface components {
       | 'ERR_CARRY_FORWARD_BLOCKED'
       | 'ERR_STOCK_COUNT_LINE_NOT_FOUND'
       | 'ERR_STOCK_COUNT_OPEN_EXISTS'
+      | 'ERR_STOCK_COUNT_NOT_FOUND'
+      | 'ERR_STOCK_COUNT_LINE_EXISTS'
+      | 'ERR_TRANSFER_NOT_FOUND'
+      | 'ERR_DUPLICATE_LINE'
       | 'ERR_SAME_DEPOT'
       | 'ERR_CASH_VOUCHER_NOT_FOUND'
       | 'ERR_CASH_VOUCHER_ALREADY_VOIDED'
@@ -1957,6 +2285,11 @@ export interface components {
     Money4: string
     /** @example 12.5 */
     Quantity: string
+    /**
+     * @description Quantity that may be negative (on hand, available, differences)
+     * @example -3
+     */
+    SignedQuantity: string
     /** @example 18 */
     Percent: string
     /**
@@ -2208,7 +2541,12 @@ export interface components {
         daysToDue: number
         remaining: components['schemas']['Money']
       }[]
+      /** @description "Below minimum / negative" list: listStockLevels only=BELOW_MIN_OR_NEGATIVE, negative first */
       belowMin: components['schemas']['StockLevel'][]
+      /** @description (part, depot) pairs below minimum */
+      belowMinCount: number
+      /** @description (part, depot) pairs with negative on hand */
+      negativeCount: number
       ledgerCheck: {
         /** @enum {string} */
         status: 'BALANCED' | 'DRIFT' | 'NOT_RUN'
@@ -2248,8 +2586,6 @@ export interface components {
       code: string
       name: string
       vatRate?: components['schemas']['Percent']
-      /** @default false */
-      allowNegativeStock: boolean
       readonly version?: number
     }
     /** @description Rendered as PREFIX-YEAR-DEPOT-COUNTER, e.g. TAH-2026-1-000042. Allocated with an upsert … RETURNING on this row, never max()+1. */
@@ -2419,7 +2755,7 @@ export interface components {
       reopenReason?: string | null
       /**
        * @description The four steps of the screen, in order. CLOSE_DOCUMENTS ← NO_DRAFT_DOCUMENTS, STOCK_COUNTS ←
-       *     STOCK_COUNTS_POSTED, ACCOUNT_BALANCES ← LEDGER_BALANCED, OPEN_YEAR ← YEAR_NOT_OPENED and the post.
+       *     STOCK_COUNTS_POSTED and YEAR_END_COUNTS, ACCOUNT_BALANCES ← LEDGER_BALANCED, OPEN_YEAR ← YEAR_NOT_OPENED and the post.
        *     A failing blocking check makes its step BLOCKED; the first step not DONE is CURRENT; all four are
        *     DONE when status is POSTED.
        */
@@ -2431,11 +2767,19 @@ export interface components {
       }[]
       /**
        * @description Close previous-year documents, stock counts posted, balances, open the year.
-       *     NO_DRAFT_DOCUMENTS and STOCK_COUNTS_POSTED are always ok until documents (F2) and stock (F3) exist.
+       *     STOCK_COUNTS_POSTED (blocking): no stock count in status OPEN with countDate ≤ 31 December of year − 1, in any
+       *     depot (their ADJUST movements would land in the closed year); `detail` lists the count numbers.
+       *     YEAR_END_COUNTS (not blocking): every depot has a FINALIZED count dated in year − 1; `detail` lists depots
+       *     without one. NO_DRAFT_DOCUMENTS stays always ok until documents exist.
        */
       checks: {
         /** @enum {string} */
-        code: 'NO_DRAFT_DOCUMENTS' | 'STOCK_COUNTS_POSTED' | 'LEDGER_BALANCED' | 'YEAR_NOT_OPENED'
+        code:
+          | 'NO_DRAFT_DOCUMENTS'
+          | 'STOCK_COUNTS_POSTED'
+          | 'YEAR_END_COUNTS'
+          | 'LEDGER_BALANCED'
+          | 'YEAR_NOT_OPENED'
         ok: boolean
         blocking: boolean
         detail?: string
@@ -2649,9 +2993,9 @@ export interface components {
       readonly stockNo?: string
       readonly name?: string
       /** @description In the document depot, now */
-      onHand?: components['schemas']['Quantity']
+      onHand?: components['schemas']['SignedQuantity']
       /** @description onHand − reserved */
-      available?: components['schemas']['Quantity']
+      available?: components['schemas']['SignedQuantity']
       netAmount: components['schemas']['Money']
       vatAmount: components['schemas']['Money']
       lineTotal: components['schemas']['Money']
@@ -2746,13 +3090,20 @@ export interface components {
         }[]
         creditUsedPctAfter?: number | null
       }
-      /** @description Non-blocking on save, checked again on post */
+      /**
+       * @description Non-blocking. STOCK_SHORT on a draft (requested > available); NEGATIVE_STOCK in the post and cancel
+       *     responses, computed in that transaction from the stock levels and the document's movements.
+       */
       warnings?: {
         /** @enum {string} */
-        code: 'STOCK_SHORT' | 'CREDIT_LIMIT' | 'PRICE_BELOW_LIST'
+        code: 'STOCK_SHORT' | 'NEGATIVE_STOCK' | 'CREDIT_LIMIT' | 'PRICE_BELOW_LIST'
         lineNo?: number | null
+        partId?: number | null
+        depotId?: number | null
         requested?: components['schemas']['Quantity']
-        available?: components['schemas']['Quantity']
+        available?: components['schemas']['SignedQuantity']
+        /** @description NEGATIVE_STOCK */
+        onHandAfter?: components['schemas']['SignedQuantity']
       }[]
       journalEntryId?: number | null
       /** Format: date-time */
@@ -2826,7 +3177,13 @@ export interface components {
         | 'BANK_DEPOSIT'
         | 'BANK_WITHDRAWAL'
         | 'CASH_COUNT'
+        | 'OPENING'
         | 'OTHER'
+      /**
+       * @description OPENING line of a carried year (1 January, active run): runningBalance restarts at the carried opening
+       *     amount instead of adding to the previous line. income / expense show the opening; totals leave it out.
+       */
+      resetsBalance: boolean
       documentNo?: string | null
       receiptId?: number | null
       voucherId?: number | null
@@ -2847,11 +3204,14 @@ export interface components {
        * @description Inclusive
        */
       to: string
-      /** @description Balance at the end of from − 1 */
+      /** @description Balance as of from − 1 (L6: from the latest active run ≤ that day) */
       openingBalance: components['schemas']['Money']
+      /** @description Without resetsBalance lines */
       totalIn: components['schemas']['Money']
+      /** @description Without resetsBalance lines */
       totalOut: components['schemas']['Money']
       lines: components['schemas']['CashBookLine'][]
+      /** @description Balance as of `to` (L6) = runningBalance of the last line, or openingBalance without lines */
       closingBalance: components['schemas']['Money']
     }
     CashVoucherCreate: {
@@ -3013,87 +3373,551 @@ export interface components {
       actorUserId?: number
       note?: string | null
     }
-    PartCode: {
+    /** @description Non-blocking. Negative stock is allowed (v1.2); the operation succeeded. */
+    StockWarning: {
       /** @enum {string} */
-      kind: 'MANUFACTURER' | 'OEM' | 'EQUIVALENT'
+      code: 'NEGATIVE_STOCK'
+      partId: number
+      stockNo?: string
+      depotId: number
+      onHandAfter: components['schemas']['SignedQuantity']
+    }
+    CatalogWrite: {
+      /** @description Legacy KATNO; fixed after create */
+      code: number
+      name: string
+      supplierSicilId?: number | null
+      /** @default true */
+      isActive: boolean
+    }
+    Catalog: components['schemas']['CatalogWrite'] & {
+      id: number
+      supplierName?: string | null
+      currency: components['schemas']['Currency']
+      /** @description Active parts */
+      partCount: number
+      /**
+       * Format: int64
+       * @description Moves with every part or price change in the catalog
+       */
+      contentVersion: number
+      /** Format: date-time */
+      lastImportAt?: string | null
+      version: number
+    }
+    PartCode: {
+      /**
+       * @description MANUFACTURER (PRCNO), OEM (OEMNO), ALT (alternative / old code, no linked part), EQUIVALENT (muadil: links another part)
+       * @enum {string}
+       */
+      kind: 'MANUFACTURER' | 'OEM' | 'ALT' | 'EQUIVALENT'
       code: string
-      /** @description For EQUIVALENT codes (muadil) */
+      /** @description Upper case, 0-9 A-Z only; unique per part and kind */
+      readonly normalizedCode?: string
+      /** @description Required for EQUIVALENT; null otherwise */
       equivalentPartId?: number | null
     }
     PartWrite: {
-      /** @description Legacy KATNO */
-      catalogNo: number
-      /** @description Legacy STNO */
+      /** @description Fixed after create */
+      catalogId: number
+      /** @description Legacy STNO; unique per catalog */
       stockNo: string
       name: string
-      type?: string
-      brand?: string
+      type?: string | null
+      brand?: string | null
       /** @default PCS */
       unit: string
-      packageQty?: number
+      /** @default 1 */
+      packageQty: number
       vatPct?: components['schemas']['Percent']
+      /**
+       * @description Inactive parts are left out of search and new lines (422 ERR_PART_INACTIVE)
+       * @default true
+       */
+      isActive: boolean
       codes?: components['schemas']['PartCode'][]
+      /** @description createPart only */
+      initialPrice?: components['schemas']['PriceWrite']
     }
     Part: components['schemas']['PartWrite'] & {
       id: number
       orgId: number
-      isActive: boolean
-      /** @description Current price in the default sales list */
-      listPrice?: components['schemas']['Money4']
-      priceListName?: string
+      catalogCode: number
+      catalogName?: string
+      /** @description Price valid today */
+      listPrice?: components['schemas']['Money4'] | null
+      /** Format: date */
+      listPriceValidFrom?: string | null
+      /** @description Earliest future price, if any */
+      nextPrice?: null | {
+        price: components['schemas']['Money4']
+        /** Format: date */
+        validFrom: string
+      }
       /** @description Sum over depots */
-      onHand?: components['schemas']['Quantity']
+      onHand?: components['schemas']['SignedQuantity']
+      /** Format: date-time */
+      createdAt?: string
+      /** Format: date-time */
+      updatedAt?: string
+      version: number
+    }
+    /**
+     * @description gridParts column ids. text: stockNo, name, type, brand, catalogCode, codes, unit, shelf, isActive ("true" /
+     *     "false"); number: vatPct, packageQty, listPrice, onHand, reserved, available, minQty, maxQty; date:
+     *     listPriceValidFrom, updatedAt.
+     * @enum {string}
+     */
+    PartColId:
+      | 'stockNo'
+      | 'name'
+      | 'type'
+      | 'brand'
+      | 'catalogCode'
+      | 'codes'
+      | 'unit'
+      | 'vatPct'
+      | 'packageQty'
+      | 'listPrice'
+      | 'listPriceValidFrom'
+      | 'onHand'
+      | 'reserved'
+      | 'available'
+      | 'minQty'
+      | 'maxQty'
+      | 'shelf'
+      | 'isActive'
+      | 'updatedAt'
+    PartGridRequest: components['schemas']['GridRequest'] & {
+      sortModel?: {
+        colId?: components['schemas']['PartColId']
+      }[]
+      filterModel?: Record<string, never>
+      catalogId?: number | null
+      /** @description Scope of the stock columns; null = all depots */
+      depotId?: number | null
+      /**
+       * @default ALL
+       * @enum {string}
+       */
+      stock: 'ALL' | 'IN_STOCK' | 'BELOW_MIN' | 'NEGATIVE' | 'BELOW_MIN_OR_NEGATIVE'
+      /** @default false */
+      includeInactive: boolean
+      /**
+       * Format: date
+       * @description listPrice date; defaults to today
+       */
+      priceDate?: string
+    }
+    PartRow: {
+      id: number
+      catalogId: number
+      catalogCode: number
+      stockNo: string
+      name: string
+      type?: string | null
+      brand?: string | null
+      codes?: components['schemas']['PartCode'][]
+      unit: string
+      vatPct: components['schemas']['Percent']
+      packageQty: number
+      listPrice?: components['schemas']['Money4'] | null
+      /** Format: date */
+      listPriceValidFrom?: string | null
+      onHand: components['schemas']['SignedQuantity']
+      reserved: components['schemas']['Quantity']
+      available: components['schemas']['SignedQuantity']
+      minQty?: components['schemas']['Quantity'] | null
+      maxQty?: components['schemas']['Quantity'] | null
+      shelf?: string | null
+      /** @description With depotId: minQty > 0 and onHand < minQty; without: in any depot */
+      belowMin: boolean
+      /** @description With depotId: onHand < 0; without: in any depot */
+      negative: boolean
+      isActive: boolean
+      /** Format: date-time */
+      updatedAt?: string
       version: number
     }
     CatalogHit: {
       partId: number
+      catalogId: number
+      catalogCode: number
       stockNo: string
       name: string
       brand?: string | null
-      /** @description OEM and equivalent codes */
+      type?: string | null
+      /** @description MANUFACTURER, OEM, ALT and EQUIVALENT codes */
       codes?: components['schemas']['PartCode'][]
       /** @description The code that matched `q`, for highlighting */
       matchedCode?: string | null
+      /** @enum {string} */
+      matchKind: 'STOCK_NO' | 'MANUFACTURER' | 'OEM' | 'ALT' | 'EQUIVALENT' | 'NAME'
+      /** @description Parts linked by EQUIVALENT codes, either direction */
+      equivalents?: {
+        partId: number
+        stockNo: string
+        catalogCode: number
+        onHandTotal: components['schemas']['SignedQuantity']
+      }[]
+      /** @description One entry per depot of the company */
       stock: {
         depotId: number
-        onHand: components['schemas']['Quantity']
-        available: components['schemas']['Quantity']
+        onHand: components['schemas']['SignedQuantity']
+        available: components['schemas']['SignedQuantity']
       }[]
+      onHandTotal: components['schemas']['SignedQuantity']
+      /** @description Catalog price valid on `date` */
       listPrice?: components['schemas']['Money4'] | null
+      /** Format: date */
+      listPriceValidFrom?: string | null
       vatPct?: components['schemas']['Percent']
       unit?: string
+      packageQty?: number
     }
     CatalogSearchResult: {
       items: components['schemas']['CatalogHit'][]
-      /** @description All matches ("5 of 23") */
+      /** @description Matches ("5 of 23"), at most 1000 */
       total: number
-      priceList?: components['schemas']['PriceList']
+      /** @description True when there are more than 1000 ("1000+") */
+      totalCapped: boolean
+      /**
+       * Format: date
+       * @description Price date used
+       */
+      date?: string
       nextCursor?: string | null
     }
-    PriceList: {
-      readonly id?: number
-      code: string
-      name: string
-      /** @enum {string} */
-      kind: 'SALES' | 'SUPPLIER'
-      supplierSicilId?: number | null
-      currency?: components['schemas']['Currency']
-      isDefault?: boolean
-    }
-    Price: {
-      priceListId: number
-      partId: number
+    PriceWrite: {
       price: components['schemas']['Money4']
       /** Format: date */
       validFrom: string
+    }
+    /** @description One list price of a part. Valid from `validFrom` until the day before the next `validFrom`. */
+    Price: {
+      id?: number
+      partId: number
+      catalogId?: number
+      stockNo?: string
+      name?: string
+      /** @description Null only in listPrices for a part without a price on the date */
+      price?: components['schemas']['Money4'] | null
+      /** Format: date */
+      validFrom: string | null
       /**
        * Format: date
-       * @description Derived from the next price
+       * @description Next validFrom − 1 day; null = open-ended
        */
       validTo?: string | null
-      /** @description Against the previous price, e.g. "6.9" */
+      previousPrice?: components['schemas']['Money4'] | null
+      /** @description Against previousPrice, one decimal, e.g. "6.9" */
       changePct?: string | null
-      createdBy?: number
+      /** @description Valid today */
+      isCurrent: boolean
+      /** @enum {string|null} */
+      source: 'MANUAL' | 'IMPORT' | 'LEGACY' | null
+      importId?: number | null
+      /** @description User login */
+      createdBy?: string | null
+      /** Format: date-time */
+      createdAt?: string | null
+    }
+    /**
+     * @description Fields a column can be mapped to. code = stock no (required), price (required). Empty cells keep the
+     *     current value; oem / manufacturerCode / altCodes, when present, replace that kind of code on the part
+     *     (altCodes split on `listSeparator`). catalogCode, op and equivalent* are LISAKT fields.
+     * @enum {string}
+     */
+    PriceImportTarget:
+      | 'code'
+      | 'description'
+      | 'brand'
+      | 'type'
+      | 'manufacturerCode'
+      | 'oem'
+      | 'altCodes'
+      | 'price'
+      | 'validFrom'
+      | 'packQty'
+      | 'vatPct'
+      | 'catalogCode'
+      | 'op'
+      | 'equivalentCatalogCode'
+      | 'equivalentCode'
+    /**
+     * @description Source of one target. CSV / XLSX: `header` (case-insensitive, trimmed) or `index` (1-based) or `letter` (XLSX).
+     *     FIXED_WIDTH: `start` (1-based) and `length`; `scale` = implied decimals of an unsigned zoned number.
+     */
+    PriceImportColumn: {
+      header?: string
+      index?: number
+      letter?: string
+      start?: number
+      length?: number
+      /** @default 0 */
+      scale: number
+    }
+    PriceImportMapping: {
+      /**
+       * @description Fills format, encoding, dateFormat and columns; fields given here override
+       * @enum {string|null}
+       */
+      preset?: 'LISAKT' | null
+      /**
+       * @description From the extension when omitted; FIXED_WIDTH needs a preset
+       * @enum {string}
+       */
+      format?: 'CSV' | 'XLSX' | 'FIXED_WIDTH'
+      /**
+       * @description CSV and FIXED_WIDTH
+       * @default UTF-8
+       * @enum {string}
+       */
+      encoding: 'UTF-8' | 'CP857' | 'WINDOWS-1254'
+      /** @description CSV; detected from ; , or tab when omitted */
+      delimiter?: string
+      /**
+       * @default ,
+       * @enum {string}
+       */
+      decimalSeparator: ',' | '.'
+      /**
+       * @description Text dates; XLSX date cells are read as dates
+       * @default dd.mm.yyyy
+       * @enum {string}
+       */
+      dateFormat: 'dd.mm.yyyy' | 'yyyy-mm-dd' | 'yyyymmdd'
+      /** @description XLSX sheet name; first sheet when omitted */
+      sheet?: string
+      /**
+       * @description 0 = no header (CSV / XLSX); data starts on the next row
+       * @default 1
+       */
+      headerRow: number
+      /** @default | */
+      listSeparator: string
+      columns?: {
+        [key: string]: components['schemas']['PriceImportColumn']
+      }
+    }
+    /**
+     * @example {
+     *       "code": "LISAKT",
+     *       "name": "Legacy LISAKT price list (COBOL, fixed width, CP857)",
+     *       "mapping": {
+     *         "preset": "LISAKT",
+     *         "format": "FIXED_WIDTH",
+     *         "encoding": "CP857",
+     *         "dateFormat": "yyyymmdd",
+     *         "columns": {
+     *           "op": {
+     *             "start": 1,
+     *             "length": 1
+     *           },
+     *           "catalogCode": {
+     *             "start": 2,
+     *             "length": 4
+     *           },
+     *           "code": {
+     *             "start": 6,
+     *             "length": 15
+     *           },
+     *           "manufacturerCode": {
+     *             "start": 21,
+     *             "length": 30
+     *           },
+     *           "oem": {
+     *             "start": 51,
+     *             "length": 30
+     *           },
+     *           "type": {
+     *             "start": 81,
+     *             "length": 30
+     *           },
+     *           "description": {
+     *             "start": 111,
+     *             "length": 60
+     *           },
+     *           "brand": {
+     *             "start": 171,
+     *             "length": 30
+     *           },
+     *           "price": {
+     *             "start": 233,
+     *             "length": 14,
+     *             "scale": 4
+     *           },
+     *           "validFrom": {
+     *             "start": 257,
+     *             "length": 8
+     *           },
+     *           "packQty": {
+     *             "start": 265,
+     *             "length": 5
+     *           },
+     *           "equivalentCatalogCode": {
+     *             "start": 285,
+     *             "length": 4
+     *           },
+     *           "equivalentCode": {
+     *             "start": 289,
+     *             "length": 15
+     *           }
+     *         }
+     *       },
+     *       "notes": "Record 319 bytes (OK-OP, ST-KAYIT, BAG). Ignored: MIN/MAX (201-232; per depot now), NOTE, SIRA, BISKONTO/BKDV. validFrom 00000000 → job validFrom. op 0 = DELETE, 1 insert, 2 update."
+     *     }
+     */
+    PriceImportPreset: {
+      /** @enum {string} */
+      code: 'LISAKT'
+      name: string
+      mapping: components['schemas']['PriceImportMapping']
+      notes?: string
+    }
+    PriceImportCounts: {
+      /** @description Data rows in the file */
+      rows: number
+      new: number
+      price: number
+      attributes: number
+      unchanged: number
+      /** @description Active catalog parts not in the file */
+      missing: number
+      delete: number
+      /** @description Rows with at least one error */
+      errors: number
+      warnings: number
+    }
+    PriceImport: {
+      id: number
+      catalogId: number
+      catalogCode: number
+      fileName: string
+      fileSha256: string
+      fileSize: number
+      /** @enum {string} */
+      format: 'CSV' | 'XLSX' | 'FIXED_WIDTH'
+      /** @description Effective mapping (after preset and auto-mapping) */
+      mapping?: components['schemas']['PriceImportMapping']
+      /** Format: date */
+      validFrom: string
+      /**
+       * @description PARSING → NEEDS_MAPPING | READY | FAILED; NEEDS_MAPPING | READY → PARSING (updatePriceImport);
+       *     READY → APPLYING → APPLIED (or back to READY on rollback); not applied → DISCARDED, or EXPIRED after 7 days.
+       *     FAILED, APPLIED, DISCARDED and EXPIRED are final.
+       * @enum {string}
+       */
+      status:
+        | 'PARSING'
+        | 'NEEDS_MAPPING'
+        | 'READY'
+        | 'FAILED'
+        | 'APPLYING'
+        | 'APPLIED'
+        | 'DISCARDED'
+        | 'EXPIRED'
+      /** @enum {string|null} */
+      failureCode?: 'ERR_IMPORT_FORMAT' | 'ERR_IMPORT_TOO_MANY_ROWS' | 'ERR_FILE_TOO_LARGE' | null
+      failureDetail?: string | null
+      /** @description Detected header cells (CSV / XLSX) */
+      headers?: string[]
+      /** @description First data rows, raw */
+      sample?: string[][]
+      /** @description Required targets without a column (NEEDS_MAPPING) */
+      unmappedTargets?: components['schemas']['PriceImportTarget'][]
+      counts: components['schemas']['PriceImportCounts']
+      /**
+       * Format: int64
+       * @description Catalog contentVersion the preview was built on
+       */
+      catalogVersion?: number | null
+      /** @description An APPLIED import of the same file into this catalog */
+      duplicateOfImportId?: number | null
+      result?: null | {
+        partsCreated: number
+        pricesInserted: number
+        partsUpdated: number
+        partsDeactivated: number
+        /** @description ERROR rows skipped with skipErrorRows */
+        rowsSkipped: number
+      }
+      createdBy?: string | null
+      /** Format: date-time */
+      createdAt: string
+      /** Format: date-time */
+      expiresAt: string
+      appliedBy?: string | null
+      /** Format: date-time */
+      appliedAt?: string | null
+      version: number
+    }
+    PriceImportFields: {
+      stockNo?: string
+      description?: string | null
+      brand?: string | null
+      type?: string | null
+      manufacturerCode?: string | null
+      oem?: string[]
+      altCodes?: string[]
+      price?: components['schemas']['Money4'] | null
+      /** Format: date */
+      validFrom?: string | null
+      packQty?: number | null
+      vatPct?: components['schemas']['Percent'] | null
+      equivalent?: null | {
+        catalogCode: number
+        stockNo: string
+      }
+    }
+    PriceImportIssue: {
+      field?: components['schemas']['PriceImportTarget']
+      /**
+       * @description Errors: REQUIRED, INVALID_NUMBER, INVALID_DATE, INVALID_PERCENT, NEGATIVE_PRICE, TOO_LONG, DUPLICATE_IN_FILE
+       *     (same stock no twice), PRICE_EXISTS (a different price already on that validFrom), CATALOG_MISMATCH (LISAKT
+       *     KATNO ≠ job catalog), UNKNOWN_OP. Warnings: BACKDATED (validFrom before the latest price), OP_MISMATCH
+       *     (insert of an existing part or update of an unknown one), EQUIVALENT_NOT_FOUND, INACTIVE_PART (reactivated).
+       * @enum {string}
+       */
+      code:
+        | 'REQUIRED'
+        | 'INVALID_NUMBER'
+        | 'INVALID_DATE'
+        | 'INVALID_PERCENT'
+        | 'NEGATIVE_PRICE'
+        | 'TOO_LONG'
+        | 'DUPLICATE_IN_FILE'
+        | 'PRICE_EXISTS'
+        | 'CATALOG_MISMATCH'
+        | 'UNKNOWN_OP'
+        | 'BACKDATED'
+        | 'OP_MISMATCH'
+        | 'EQUIVALENT_NOT_FOUND'
+        | 'INACTIVE_PART'
+      /** @description Raw cell */
+      value?: string | null
+    }
+    /**
+     * @description NEW = stock no not in the catalog. PRICE = file price ≠ price valid on the row's validFrom (then a new price row
+     *     is inserted; an equal price inserts nothing). ATTRIBUTES = a non-empty cell differs from the part.
+     *     UNCHANGED = none of these. MISSING = active part of the catalog not in the file (rowNo null).
+     *     DELETE = LISAKT op 0.
+     */
+    PriceImportRow: {
+      id: number
+      /** @description File row, header included; null for MISSING */
+      rowNo?: number | null
+      partId?: number | null
+      stockNo?: string | null
+      /** @description Empty = UNCHANGED */
+      changes: ('NEW' | 'PRICE' | 'ATTRIBUTES' | 'MISSING' | 'DELETE')[]
+      file?: components['schemas']['PriceImportFields'] | null
+      /** @description Catalog now; price = valid on the row validFrom */
+      current?: components['schemas']['PriceImportFields'] | null
+      changedFields?: components['schemas']['PriceImportTarget'][]
+      priceChangePct?: string | null
+      errors: components['schemas']['PriceImportIssue'][]
+      warnings: components['schemas']['PriceImportIssue'][]
     }
     PartDepotSettings: {
       minQty?: components['schemas']['Quantity']
@@ -3105,17 +3929,23 @@ export interface components {
       partId: number
       stockNo?: string
       name?: string
+      catalogCode?: number
       /** @description Null on the total row */
       depotId?: number | null
-      onHand: components['schemas']['Quantity']
+      /** @description Σ movements; negative allowed */
+      onHand: components['schemas']['SignedQuantity']
       /** @description Held by B2B orders (F3) */
       reserved: components['schemas']['Quantity']
-      available: components['schemas']['Quantity']
+      /** @description onHand − reserved */
+      available: components['schemas']['SignedQuantity']
       minQty?: components['schemas']['Quantity']
       maxQty?: components['schemas']['Quantity'] | null
       shelf?: string
-      belowMin?: boolean
-      /** @description Of the depot settings */
+      /** @description minQty > 0 and onHand < minQty */
+      belowMin: boolean
+      /** @description onHand < 0 */
+      negative: boolean
+      /** @description Of the depot settings; 0 = no row yet */
       version?: number
     }
     /** @enum {string} */
@@ -3123,6 +3953,8 @@ export interface components {
     StockMovement: {
       id: number
       partId: number
+      stockNo?: string
+      name?: string
       depotId: number
       kind: components['schemas']['MovementKind']
       /**
@@ -3138,16 +3970,22 @@ export interface components {
         | 'COUNT'
         | 'OPENING'
       qty: components['schemas']['Quantity']
-      unitCost?: components['schemas']['Money4']
+      /** @description +qty for IN kinds, −qty for OUT kinds */
+      delta: components['schemas']['SignedQuantity']
+      unitCost?: components['schemas']['Money4'] | null
       /** @enum {string} */
       sourceType: 'document' | 'stock_count' | 'transfer' | 'legacy_import'
       sourceId?: string | null
       /** @description Document, count or transfer number */
       sourceNo?: string | null
+      documentId?: number | null
+      documentType?: components['schemas']['DocumentType'] | null
+      transferId?: number | null
+      countId?: number | null
       sicilName?: string | null
       /** @description Transfers */
       otherDepotId?: number | null
-      runningOnHand?: components['schemas']['Quantity']
+      runningOnHand?: components['schemas']['SignedQuantity'] | null
       /** Format: date */
       date: string
       /** Format: date-time */
@@ -3161,6 +3999,7 @@ export interface components {
       note?: string
       lines: {
         partId: number
+        /** @description > 0 */
         qty: components['schemas']['Quantity']
       }[]
     }
@@ -3168,11 +4007,19 @@ export interface components {
       id: number
       /** @example TRF-2026-1-000051 */
       transferNo: string
+      createdBy?: string | null
+      /** Format: date-time */
+      createdAt?: string
       movements: components['schemas']['StockMovement'][]
+      warnings: components['schemas']['StockWarning'][]
     }
     StockCountOpen: {
       depotId: number
-      year: number
+      /**
+       * Format: date
+       * @description Date of the ADJUST movements; sets the SAY year
+       */
+      countDate: string
       shelfFrom?: string
       shelfTo?: string
     }
@@ -3181,13 +4028,22 @@ export interface components {
       partId: number
       stockNo: string
       name: string
+      brand?: string | null
+      unit?: string
       shelf: string
-      /** @description Live while OPEN, snapshot after posting */
-      systemQty: components['schemas']['Quantity']
+      /** @description On hand at the count startedAt; frozen */
+      systemQty: components['schemas']['SignedQuantity']
       /** @description Null = not counted */
       countedQty?: components['schemas']['Quantity'] | null
-      difference?: string | null
-      /** @description Last purchase cost (docs/domain-model.md); live while OPEN, snapshot after posting */
+      /** @description countedQty − systemQty; null when not counted */
+      difference?: components['schemas']['SignedQuantity'] | null
+      /** @description Net movements of the part in the depot after startedAt (recount hint) */
+      movedSinceOpen?: components['schemas']['SignedQuantity']
+      /** @description On hand now + difference */
+      onHandAfterPost?: components['schemas']['SignedQuantity'] | null
+      /** @description Added during the count */
+      added: boolean
+      /** @description Last purchase cost on countDate (docs/domain-model.md); live while OPEN, snapshot after finalize */
       unitCost?: components['schemas']['Money4'] | null
       /**
        * @description LIST_PRICE and NONE are flagged in the grid; NONE leaves value null
@@ -3200,28 +4056,51 @@ export interface components {
       countedBy?: string | null
       /** Format: date-time */
       countedAt?: string | null
+      /** @description Line ETag; +1 per save */
       version: number
     }
     StockCount: components['schemas']['StockCountOpen'] & {
       id: number
       /** @example SAY-2026-1-000001 */
       countNo: string
+      /** @description Year of countDate */
+      year: number
       /** @enum {string} */
       status: 'OPEN' | 'FINALIZED' | 'CANCELLED'
-      /** Format: date-time */
-      startedAt?: string
+      /**
+       * Format: date-time
+       * @description Freeze instant of systemQty
+       */
+      startedAt: string
       lineCount: number
       /** @description Progress "412 / 1,280" */
       countedCount: number
-      /** @description Σ line value at last purchase cost */
+      /** @description Counted lines with a difference */
+      differenceCount: number
+      /** @description Σ line value (signed) */
       differenceValue?: components['schemas']['Money']
+      /** @description Σ positive values */
+      valueIn?: components['schemas']['Money']
+      /** @description Σ negative values */
+      valueOut?: components['schemas']['Money']
       /** @description Lines with a difference and costSource LIST_PRICE or NONE */
       unvaluedLines?: number
       /** @enum {string|null} */
       uncounted?: 'SKIP' | 'ZERO' | null
+      createdBy?: string | null
       /** Format: date-time */
       finalizedAt?: string | null
+      /** Format: date-time */
+      cancelledAt?: string | null
+      cancelReason?: string | null
+      /** @description Header ETag; moves on finalize and cancel only */
       version: number
+    }
+    StockCountFinalized: {
+      count: components['schemas']['StockCount']
+      /** @description ADJUST movements written */
+      movementCount: number
+      warnings: components['schemas']['StockWarning'][]
     }
     MigrationRun: {
       id: number
@@ -3343,7 +4222,7 @@ export interface components {
         'application/json': components['schemas']['Error']
       }
     }
-    /** @description Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_ENTRY_OWNED_BY_SOURCE with `owner`) */
+    /** @description Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_IMPORT_STALE, ERR_ENTRY_OWNED_BY_SOURCE with `owner`) */
     Conflict: {
       headers: {
         [name: string]: unknown
@@ -3370,7 +4249,7 @@ export interface components {
         'application/json': components['schemas']['Error']
       }
     }
-    /** @description Business rule violated or unknown id in the body (ERR_ENTRY_UNBALANCED, ERR_INSUFFICIENT_STOCK, ERR_IDEMPOTENCY_KEY_REUSED, ERR_*_NOT_FOUND, …) */
+    /** @description Business rule violated or unknown id in the body (ERR_ENTRY_UNBALANCED, ERR_IDEMPOTENCY_KEY_REUSED, ERR_IMPORT_HAS_ERRORS, ERR_*_NOT_FOUND, …) */
     Unprocessable: {
       headers: {
         [name: string]: unknown
@@ -3455,6 +4334,26 @@ export interface components {
         'application/json': components['schemas']['Part']
       }
     }
+    /** @description Catalog */
+    CatalogResponse: {
+      headers: {
+        ETag: components['headers']['ETag']
+        [name: string]: unknown
+      }
+      content: {
+        'application/json': components['schemas']['Catalog']
+      }
+    }
+    /** @description Price list import job */
+    PriceImportResponse: {
+      headers: {
+        ETag: components['headers']['ETag']
+        [name: string]: unknown
+      }
+      content: {
+        'application/json': components['schemas']['PriceImport']
+      }
+    }
     /** @description Document */
     DocumentResponse: {
       headers: {
@@ -3508,6 +4407,8 @@ export interface components {
     DocumentId: number
     ReceiptId: number
     PartId: number
+    CatalogId: number
+    ImportId: number
     CountId: number
     InstrumentId: number
     Filename: string
@@ -5759,6 +6660,187 @@ export interface operations {
       428: components['responses']['PreconditionRequired']
     }
   }
+  listCatalogs: {
+    parameters: {
+      query?: {
+        includeInactive?: boolean
+      }
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Catalogs */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Catalog'][]
+        }
+      }
+      401: components['responses']['Unauthorized']
+    }
+  }
+  createCatalog: {
+    parameters: {
+      query?: never
+      header: {
+        /**
+         * @description Client-generated UUID. Unique per (org, key) for 24 h. Same key + same body replays the stored
+         *     response; same key + different body → 422 ERR_IDEMPOTENCY_KEY_REUSED; in-flight → 409 ERR_IDEMPOTENCY_IN_PROGRESS.
+         */
+        'Idempotency-Key': components['parameters']['IdempotencyKey']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CatalogWrite']
+      }
+    }
+    responses: {
+      201: components['responses']['CatalogResponse']
+      400: components['responses']['BadRequest']
+      401: components['responses']['Unauthorized']
+      409: components['responses']['Conflict']
+      422: components['responses']['Unprocessable']
+    }
+  }
+  getCatalog: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        catalogId: components['parameters']['CatalogId']
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: components['responses']['CatalogResponse']
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+    }
+  }
+  updateCatalog: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        catalogId: components['parameters']['CatalogId']
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CatalogWrite']
+      }
+    }
+    responses: {
+      200: components['responses']['CatalogResponse']
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+      412: components['responses']['PreconditionFailed']
+      422: components['responses']['Unprocessable']
+      428: components['responses']['PreconditionRequired']
+    }
+  }
+  listPrices: {
+    parameters: {
+      query?: {
+        /** @description Defaults to today */
+        validOn?: string
+        limit?: components['parameters']['Limit']
+        /** @description Opaque keyset cursor from a previous `nextCursor`. */
+        cursor?: components['parameters']['Cursor']
+      }
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        catalogId: components['parameters']['CatalogId']
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Prices; `price` null for a part without a price on that date */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            items: components['schemas']['Price'][]
+            nextCursor?: string | null
+          }
+        }
+      }
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+    }
+  }
+  setPrices: {
+    parameters: {
+      query?: never
+      header: {
+        /**
+         * @description Client-generated UUID. Unique per (org, key) for 24 h. Same key + same body replays the stored
+         *     response; same key + different body → 422 ERR_IDEMPOTENCY_KEY_REUSED; in-flight → 409 ERR_IDEMPOTENCY_IN_PROGRESS.
+         */
+        'Idempotency-Key': components['parameters']['IdempotencyKey']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        catalogId: components['parameters']['CatalogId']
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Format: date */
+          validFrom: string
+          items: {
+            partId: number
+            price: components['schemas']['Money4']
+          }[]
+        }
+      }
+    }
+    responses: {
+      /** @description Inserted prices (no-ops left out) */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Price'][]
+        }
+      }
+      400: components['responses']['BadRequest']
+      401: components['responses']['Unauthorized']
+      409: components['responses']['Conflict']
+      422: components['responses']['Unprocessable']
+    }
+  }
   gridParts: {
     parameters: {
       query?: never
@@ -5771,7 +6853,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['GridRequest']
+        'application/json': components['schemas']['PartGridRequest']
       }
     }
     responses: {
@@ -5782,11 +6864,12 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['GridResponse'] & {
-            rows?: components['schemas']['Part'][]
+            rows?: components['schemas']['PartRow'][]
           }
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': components['schemas']['Xlsx']
         }
       }
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
     }
   }
@@ -5794,11 +6877,11 @@ export interface operations {
     parameters: {
       query: {
         q: string
-        /** @description Defaults to the default sales list */
-        priceListId?: number
+        /** @description Only this catalog */
+        catalogId?: number
         /** @description Price date; defaults to today */
         date?: string
-        /** @description Only parts available in this depot */
+        /** @description Only parts with available > 0 in this depot */
         inStockDepotId?: number
         limit?: number
         /** @description Opaque keyset cursor from a previous `nextCursor`. */
@@ -5890,6 +6973,7 @@ export interface operations {
       400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
       409: components['responses']['Conflict']
+      422: components['responses']['Unprocessable']
     }
   }
   lookupPartByCode: {
@@ -5957,9 +7041,12 @@ export interface operations {
     }
     responses: {
       200: components['responses']['PartResponse']
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
       404: components['responses']['NotFound']
+      409: components['responses']['Conflict']
       412: components['responses']['PreconditionFailed']
+      422: components['responses']['Unprocessable']
       428: components['responses']['PreconditionRequired']
     }
   }
@@ -6025,109 +7112,20 @@ export interface operations {
         }
       }
       401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
       412: components['responses']['PreconditionFailed']
       422: components['responses']['Unprocessable']
+      428: components['responses']['PreconditionRequired']
     }
   }
   getPartPriceHistory: {
     parameters: {
-      query?: {
-        priceListId?: number
-      }
+      query?: never
       header?: never
       path: {
         /** @description Tenant. Caller must be a member (or admin). */
         orgId: components['parameters']['OrgId']
         partId: components['parameters']['PartId']
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Prices, newest first */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['Price'][]
-        }
-      }
-      401: components['responses']['Unauthorized']
-    }
-  }
-  listPriceLists: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description Tenant. Caller must be a member (or admin). */
-        orgId: components['parameters']['OrgId']
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Price lists */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['PriceList'][]
-        }
-      }
-      401: components['responses']['Unauthorized']
-    }
-  }
-  createPriceList: {
-    parameters: {
-      query?: never
-      header: {
-        /**
-         * @description Client-generated UUID. Unique per (org, key) for 24 h. Same key + same body replays the stored
-         *     response; same key + different body → 422 ERR_IDEMPOTENCY_KEY_REUSED; in-flight → 409 ERR_IDEMPOTENCY_IN_PROGRESS.
-         */
-        'Idempotency-Key': components['parameters']['IdempotencyKey']
-      }
-      path: {
-        /** @description Tenant. Caller must be a member (or admin). */
-        orgId: components['parameters']['OrgId']
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['PriceList']
-      }
-    }
-    responses: {
-      /** @description Created */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['PriceList']
-        }
-      }
-      401: components['responses']['Unauthorized']
-      409: components['responses']['Conflict']
-    }
-  }
-  listPrices: {
-    parameters: {
-      query?: {
-        validOn?: string
-        limit?: components['parameters']['Limit']
-        /** @description Opaque keyset cursor from a previous `nextCursor`. */
-        cursor?: components['parameters']['Cursor']
-      }
-      header?: never
-      path: {
-        /** @description Tenant. Caller must be a member (or admin). */
-        orgId: components['parameters']['OrgId']
-        priceListId: number
       }
       cookie?: never
     }
@@ -6139,16 +7137,14 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': {
-            items: components['schemas']['Price'][]
-            nextCursor?: string | null
-          }
+          'application/json': components['schemas']['Price'][]
         }
       }
       401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
     }
   }
-  setPrices: {
+  setPartPrice: {
     parameters: {
       query?: never
       header: {
@@ -6161,34 +7157,306 @@ export interface operations {
       path: {
         /** @description Tenant. Caller must be a member (or admin). */
         orgId: components['parameters']['OrgId']
-        priceListId: number
+        partId: components['parameters']['PartId']
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PriceWrite']
+      }
+    }
+    responses: {
+      /** @description Same price already on that date */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Price']
+        }
+      }
+      /** @description Price recorded */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Price']
+        }
+      }
+      400: components['responses']['BadRequest']
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+      409: components['responses']['Conflict']
+    }
+  }
+  listPriceImports: {
+    parameters: {
+      query?: {
+        catalogId?: number
+        limit?: components['parameters']['Limit']
+        /** @description Opaque keyset cursor from a previous `nextCursor`. */
+        cursor?: components['parameters']['Cursor']
+      }
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Jobs */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            items: components['schemas']['PriceImport'][]
+            nextCursor?: string | null
+          }
+        }
+      }
+      401: components['responses']['Unauthorized']
+    }
+  }
+  createPriceImport: {
+    parameters: {
+      query?: never
+      header: {
+        /**
+         * @description Client-generated UUID. Unique per (org, key) for 24 h. Same key + same body replays the stored
+         *     response; same key + different body → 422 ERR_IDEMPOTENCY_KEY_REUSED; in-flight → 409 ERR_IDEMPOTENCY_IN_PROGRESS.
+         */
+        'Idempotency-Key': components['parameters']['IdempotencyKey']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** @description .csv, .xlsx or .txt (LISAKT) */
+          file: string
+          catalogId: number
+          /**
+           * Format: date
+           * @description For rows without their own valid_from
+           */
+          validFrom: string
+          mapping?: components['schemas']['PriceImportMapping']
+        }
+      }
+    }
+    responses: {
+      201: components['responses']['PriceImportResponse']
+      400: components['responses']['BadRequest']
+      401: components['responses']['Unauthorized']
+      422: components['responses']['Unprocessable']
+    }
+  }
+  getPriceImport: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        importId: components['parameters']['ImportId']
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: components['responses']['PriceImportResponse']
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+    }
+  }
+  updatePriceImport: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        importId: components['parameters']['ImportId']
       }
       cookie?: never
     }
     requestBody: {
       content: {
         'application/json': {
+          mapping?: components['schemas']['PriceImportMapping']
           /** Format: date */
-          validFrom: string
-          items: {
-            partId: number
-            price: components['schemas']['Money4']
-          }[]
+          validFrom?: string
         }
       }
     }
     responses: {
-      /** @description Prices recorded */
-      201: {
+      200: components['responses']['PriceImportResponse']
+      400: components['responses']['BadRequest']
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+      409: components['responses']['Conflict']
+      412: components['responses']['PreconditionFailed']
+      428: components['responses']['PreconditionRequired']
+    }
+  }
+  gridPriceImportRows: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        importId: components['parameters']['ImportId']
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['GridRequest'] & {
+          /**
+           * @default ALL
+           * @enum {string}
+           */
+          change?:
+            | 'ALL'
+            | 'NEW'
+            | 'PRICE'
+            | 'ATTRIBUTES'
+            | 'UNCHANGED'
+            | 'MISSING'
+            | 'DELETE'
+            | 'ERROR'
+            | 'WARNING'
+        }
+      }
+    }
+    responses: {
+      /** @description One page of rows */
+      200: {
         headers: {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['Price'][]
+          'application/json': components['schemas']['GridResponse'] & {
+            rows?: components['schemas']['PriceImportRow'][]
+          }
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': components['schemas']['Xlsx']
         }
       }
       401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+    }
+  }
+  applyPriceImport: {
+    parameters: {
+      query?: never
+      header: {
+        /**
+         * @description Client-generated UUID. Unique per (org, key) for 24 h. Same key + same body replays the stored
+         *     response; same key + different body → 422 ERR_IDEMPOTENCY_KEY_REUSED; in-flight → 409 ERR_IDEMPOTENCY_IN_PROGRESS.
+         */
+        'Idempotency-Key': components['parameters']['IdempotencyKey']
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        importId: components['parameters']['ImportId']
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @default false */
+          skipErrorRows?: boolean
+          /** @default true */
+          applyAttributes?: boolean
+          /**
+           * @default KEEP
+           * @enum {string}
+           */
+          missing?: 'KEEP' | 'DEACTIVATE'
+        }
+      }
+    }
+    responses: {
+      200: components['responses']['PriceImportResponse']
+      202: components['responses']['PriceImportResponse']
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+      409: components['responses']['Conflict']
+      412: components['responses']['PreconditionFailed']
       422: components['responses']['Unprocessable']
+      428: components['responses']['PreconditionRequired']
+    }
+  }
+  discardPriceImport: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        importId: components['parameters']['ImportId']
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: components['responses']['PriceImportResponse']
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+      409: components['responses']['Conflict']
+      412: components['responses']['PreconditionFailed']
+      428: components['responses']['PreconditionRequired']
+    }
+  }
+  listPriceImportPresets: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Presets */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            presets: components['schemas']['PriceImportPreset'][]
+            /** @description Target → accepted header names, e.g. `price: [price, fiyat, liste fiyatı]` */
+            aliases: {
+              [key: string]: string[]
+            }
+          }
+        }
+      }
+      401: components['responses']['Unauthorized']
     }
   }
   listStockLevels: {
@@ -6197,8 +7465,7 @@ export interface operations {
         partId?: number
         /** @description Restrict to one depot; omitted means all depots of the company. */
         depotId?: components['parameters']['DepotIdQuery']
-        /** @description Dashboard "below minimum" list */
-        belowMin?: boolean
+        only?: 'ALL' | 'BELOW_MIN' | 'NEGATIVE' | 'BELOW_MIN_OR_NEGATIVE'
         limit?: components['parameters']['Limit']
         /** @description Opaque keyset cursor from a previous `nextCursor`. */
         cursor?: components['parameters']['Cursor']
@@ -6246,7 +7513,7 @@ export interface operations {
       }
     }
     responses: {
-      /** @description One page of movements, newest first */
+      /** @description One page of movements */
       200: {
         headers: {
           [name: string]: unknown
@@ -6254,6 +7521,8 @@ export interface operations {
         content: {
           'application/json': components['schemas']['GridResponse'] & {
             rows?: components['schemas']['StockMovement'][]
+            openingOnHand?: components['schemas']['SignedQuantity'] | null
+            closingOnHand?: components['schemas']['SignedQuantity'] | null
           }
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': components['schemas']['Xlsx']
         }
@@ -6283,7 +7552,7 @@ export interface operations {
       }
     }
     responses: {
-      /** @description Transfer */
+      /** @description Transfer with its movements and warnings */
       201: {
         headers: {
           [name: string]: unknown
@@ -6292,8 +7561,36 @@ export interface operations {
           'application/json': components['schemas']['StockTransfer']
         }
       }
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
+      409: components['responses']['Conflict']
       422: components['responses']['Unprocessable']
+    }
+  }
+  getStockTransfer: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        transferId: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Transfer */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StockTransfer']
+        }
+      }
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
     }
   }
   listStockCounts: {
@@ -6302,6 +7599,7 @@ export interface operations {
         year?: number
         /** @description Restrict to one depot; omitted means all depots of the company. */
         depotId?: components['parameters']['DepotIdQuery']
+        status?: 'OPEN' | 'FINALIZED' | 'CANCELLED'
       }
       header?: never
       path: {
@@ -6347,13 +7645,24 @@ export interface operations {
     }
     responses: {
       201: components['responses']['StockCountResponse']
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
       409: components['responses']['Conflict']
+      422: components['responses']['Unprocessable']
     }
   }
   getStockCount: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description PDF only */
+        sheet?: 'BLIND' | 'WITH_SYSTEM'
+        /** @description PDF only */
+        only?: 'ALL' | 'NOT_COUNTED'
+        /** @description PDF only */
+        shelfFrom?: string
+        /** @description PDF only */
+        shelfTo?: string
+      }
       header?: never
       path: {
         /** @description Tenant. Caller must be a member (or admin). */
@@ -6397,12 +7706,14 @@ export interface operations {
            * @default ALL
            * @enum {string}
            */
-          only?: 'ALL' | 'DIFFERENCES' | 'NOT_COUNTED'
+          only?: 'ALL' | 'DIFFERENCES' | 'NOT_COUNTED' | 'COUNTED'
+          shelfFrom?: string
+          shelfTo?: string
         }
       }
     }
     responses: {
-      /** @description One page of lines; `totals` has system, counted, difference and value */
+      /** @description One page of lines */
       200: {
         headers: {
           [name: string]: unknown
@@ -6415,12 +7726,19 @@ export interface operations {
         }
       }
       401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
     }
   }
   addStockCountLine: {
     parameters: {
       query?: never
-      header?: never
+      header: {
+        /**
+         * @description Client-generated UUID. Unique per (org, key) for 24 h. Same key + same body replays the stored
+         *     response; same key + different body → 422 ERR_IDEMPOTENCY_KEY_REUSED; in-flight → 409 ERR_IDEMPOTENCY_IN_PROGRESS.
+         */
+        'Idempotency-Key': components['parameters']['IdempotencyKey']
+      }
       path: {
         /** @description Tenant. Caller must be a member (or admin). */
         orgId: components['parameters']['OrgId']
@@ -6432,7 +7750,8 @@ export interface operations {
       content: {
         'application/json': {
           partId: number
-          shelf: string
+          /** @description Defaults to the part's shelf in the depot */
+          shelf?: string
           countedQty?: components['schemas']['Quantity']
         }
       }
@@ -6441,6 +7760,7 @@ export interface operations {
       /** @description Line */
       201: {
         headers: {
+          ETag: components['headers']['ETag']
           [name: string]: unknown
         }
         content: {
@@ -6449,6 +7769,7 @@ export interface operations {
       }
       401: components['responses']['Unauthorized']
       409: components['responses']['Conflict']
+      422: components['responses']['Unprocessable']
     }
   }
   setStockCountLine: {
@@ -6470,6 +7791,8 @@ export interface operations {
       content: {
         'application/json': {
           countedQty: components['schemas']['Quantity'] | null
+          /** @description Where it was found; the part's depot shelf is not changed */
+          shelf?: string
         }
       }
     }
@@ -6485,6 +7808,7 @@ export interface operations {
         }
       }
       401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
       409: components['responses']['Conflict']
       412: components['responses']['PreconditionFailed']
       428: components['responses']['PreconditionRequired']
@@ -6518,10 +7842,43 @@ export interface operations {
       }
     }
     responses: {
+      /** @description Finalized count, adjustments and warnings */
+      200: {
+        headers: {
+          ETag: components['headers']['ETag']
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StockCountFinalized']
+        }
+      }
+      401: components['responses']['Unauthorized']
+      409: components['responses']['Conflict']
+      412: components['responses']['PreconditionFailed']
+      428: components['responses']['PreconditionRequired']
+    }
+  }
+  cancelStockCount: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        countId: components['parameters']['CountId']
+      }
+      cookie?: never
+    }
+    requestBody: components['requestBodies']['Reason']
+    responses: {
       200: components['responses']['StockCountResponse']
       401: components['responses']['Unauthorized']
       409: components['responses']['Conflict']
       412: components['responses']['PreconditionFailed']
+      428: components['responses']['PreconditionRequired']
     }
   }
   listMigrationRuns: {

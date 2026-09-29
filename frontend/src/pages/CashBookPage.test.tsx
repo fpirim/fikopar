@@ -30,6 +30,21 @@ describe('CashBookPage', () => {
     expect(top).toHaveTextContent('38.215,50')
   })
 
+  it('restarts the running balance at the carried opening of a new year', async () => {
+    renderApp('/cash-book?from=2025-12-01&to=2026-01-31&depot=1')
+    await waitFor(() => expect(stat('Kapanış')).toHaveTextContent('21.480,00'))
+    expect(stat('Devir')).toHaveTextContent('0,00')
+    expect(stat('Giriş')).toHaveTextContent('+4.000,00')
+    const grid = document.querySelector('.fk-grid') as HTMLElement
+    const chip = await within(grid).findByText('DEVİR')
+    const row = chip.closest('.ag-row') as HTMLElement
+    expect(row).toHaveClass('fk-row-reset')
+    expect(row).toHaveTextContent('21.480,00')
+    const bottom = grid.querySelector('.ag-floating-bottom') as HTMLElement
+    expect(bottom).toHaveTextContent('4.000,00')
+    expect(bottom).not.toHaveTextContent('25.480,00')
+  })
+
   it('uses the top-bar depot', async () => {
     const calls = capture('get', '/api/orgs/:orgId/cash-book')
     renderApp(WEEK.replace('depot=1', 'depot=2'))

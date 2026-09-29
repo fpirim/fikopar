@@ -109,3 +109,17 @@ export function parseAmount(text: string): string | null {
   if (!/^-?\d+(\.\d*)?$/.test(t)) return null
   return toMoney(Number(t))
 }
+
+// Quantity (up to four decimals, no grouping below 10,000): '12', '−3', '2.5'. `sign` adds '+'.
+export function formatQty(
+  value: string | number | null | undefined,
+  opts: { sign?: boolean } = {},
+): string {
+  if (value === null || value === undefined || value === '') return ''
+  const n = typeof value === 'number' ? value : Number(value)
+  if (Number.isNaN(n)) return ''
+  const abs = Math.abs(n).toLocaleString(intlLocale(), { maximumFractionDigits: 4 })
+  if (n === 0) return abs
+  if (n < 0) return MINUS + abs
+  return opts.sign ? `+${abs}` : abs
+}

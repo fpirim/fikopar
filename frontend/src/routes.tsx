@@ -16,8 +16,13 @@ import CashBookPage from './pages/CashBookPage'
 import CarryForwardPage from './pages/CarryForwardPage'
 import JournalPage from './pages/JournalPage'
 import JournalEntryPage from './pages/JournalEntryPage'
+import PartsPage from './pages/PartsPage'
+import PartPage from './pages/PartPage'
+import PriceImportPage from './pages/PriceImportPage'
+import StockCountsPage from './pages/StockCountsPage'
+import StockCountPage from './pages/StockCountPage'
 
-const LATER = ['/invoices', '/cheques', '/parts', '/stock-counts', '/migration']
+const LATER = ['/invoices', '/cheques', '/migration']
 
 function AppRoutes() {
   return (
@@ -40,6 +45,12 @@ function AppRoutes() {
           <Route path="/carry-forward/:year" element={<CarryForwardPage />} />
           <Route path="/statements" element={<StatementPage />} />
           <Route path="/statements/:accountId" element={<StatementPage />} />
+          <Route path="/parts" element={<PartsPage />} />
+          <Route path="/parts/import" element={<PriceImportPage />} />
+          <Route path="/parts/import/:importId" element={<PriceImportPage />} />
+          <Route path="/parts/:partId" element={<PartPage />} />
+          <Route path="/stock-counts" element={<StockCountsPage />} />
+          <Route path="/stock-counts/:countId" element={<StockCountPage />} />
           {LATER.map((p) => (
             <Route key={p} path={p} element={<NotInBuildPage />} />
           ))}

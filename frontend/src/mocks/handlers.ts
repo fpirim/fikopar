@@ -8,6 +8,7 @@ import type {
   CashCountCreate,
   CashVoucher,
   CashVoucherCreate,
+  Dashboard,
   GridRequest,
   JournalEntry,
   Receipt,
@@ -18,6 +19,7 @@ import type {
   StatementLine,
 } from '../api/types'
 import { applyGrid } from './grid'
+import { belowMinLevels, catalogSearch, resetStock, stockHandlers } from './stockHandlers'
 import {
   balanceRow,
   createDb,
@@ -41,6 +43,7 @@ const db: { current: Db } = { current: createDb() }
 
 export function resetDb() {
   db.current = createDb()
+  resetStock()
 }
 
 function nextNumber(prefix: string, depotId: number, year = 2026): string {
@@ -168,20 +171,25 @@ function statement(accountId: number, from: string, to: string, depotId: number 
 }
 
 function cashBook(depotId: number, from: string, to: string): CashBook {
-  const all = db.current.cash.filter((l) => l.depotId === depotId)
-  const openingBalance = all
-    .filter((l) => l.date < from)
-    .reduce((s, l) => s + Number(l.income) - Number(l.expense), 0)
+  const all = db.current.cash
+    .filter((l) => l.depotId === depotId)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  // An OPENING line of a carried year restarts the running balance.
+  const step = (run: number, l: CashLine) => {
+    const amount = Number(l.income) - Number(l.expense)
+    return l.resetsBalance ? amount : run + amount
+  }
+  const openingBalance = all.filter((l) => l.date < from).reduce(step, 0)
   let running = openingBalance
   const lines = all
     .filter((l) => l.date >= from && l.date <= to)
-    .sort((a, b) => a.date.localeCompare(b.date))
     .map((l) => {
-      running += Number(l.income) - Number(l.expense)
+      running = step(running, l)
       return { ...l, depotId: undefined, runningBalance: m(running) }
     })
-  const totalIn = lines.reduce((s, l) => s + Number(l.income), 0)
-  const totalOut = lines.reduce((s, l) => s + Number(l.expense), 0)
+  const counted = lines.filter((l) => !l.resetsBalance)
+  const totalIn = counted.reduce((s, l) => s + Number(l.income), 0)
+  const totalOut = counted.reduce((s, l) => s + Number(l.expense), 0)
   return {
     depotId,
     from,
@@ -309,6 +317,7 @@ function createReceipt(body: ReceiptCreate): { status: number; body: JsonBodyTyp
       income: m(collection ? amount : 0),
       expense: m(collection ? 0 : amount),
       runningBalance: '0.00',
+      resetsBalance: false,
     })
   }
   const receipt: Receipt = {
@@ -347,6 +356,7 @@ function createVoucher(body: CashVoucherCreate): { status: number; body: JsonBod
     income: m(out ? 0 : Number(body.amount)),
     expense: m(out ? Number(body.amount) : 0),
     runningBalance: '0.00',
+    resetsBalance: false,
   })
   const voucher: CashVoucher = { ...body, id: entryId, voucherNo, journalEntryId: entryId }
   return { status: 201, body: voucher }
@@ -371,6 +381,7 @@ function createCount(body: CashCountCreate): { status: number; body: JsonBodyTyp
       income: m(Math.max(difference, 0)),
       expense: m(Math.max(-difference, 0)),
       runningBalance: '0.00',
+      resetsBalance: false,
     })
   }
   return {
@@ -461,7 +472,79 @@ function search(q: string): SearchResult {
   ]
     .filter((d) => fold(d.number).includes(f))
     .slice(0, 5)
-  return { accounts, parts: [], documents }
+  const parts = f.length >= 2 ? catalogSearch(q).hits.slice(0, 5) : []
+  return { accounts, parts, documents }
+}
+
+function dashboard(depotId: number | null): Dashboard {
+  const rows = db.current.ledger.parties.map((p) => balanceRow(p, depotId))
+  const sum = (tipi: string, sign: 1 | -1) => {
+    const hit = rows.filter((r) => r.sicilTipi === tipi && sign * Number(r.balance) > 0)
+    return { total: m(hit.reduce((s, r) => s + sign * Number(r.balance), 0)), accounts: hit.length }
+  }
+  const cashDepots = depots
+    .filter((d) => !depotId || d.id === depotId)
+    .map((d) => ({
+      depotId: d.id!,
+      balance: cashBook(d.id!, '2000-01-01', TODAY).closingBalance,
+    }))
+  const below = belowMinLevels(depotId)
+  return {
+    date: TODAY,
+    receivables: sum('MUSTERI', 1),
+    payables: sum('FIRMA', -1),
+    cash: {
+      total: m(cashDepots.reduce((s, c) => s + Number(c.balance), 0)),
+      depots: cashDepots,
+    },
+    instrumentsDue30: { total: '386000.00', overdueCount: 3 },
+    latest: [
+      ...db.current.activity,
+      ...db.current.receipts.slice(0, 5).map((r) => ({
+        kind: 'RECEIPT' as const,
+        id: r.id,
+        number: r.receiptNo,
+        subtype: r.kind,
+        sicilId: r.sicilId,
+        sicilName: r.sicilName ?? null,
+        date: r.date,
+        depotId: r.depotId,
+        amount: r.amount,
+      })),
+    ]
+      .filter((a) => !depotId || a.depotId === depotId)
+      .slice(0, 6),
+    dueThisWeek: [
+      {
+        instrumentId: 71,
+        instrumentNo: 'AC-000071',
+        sicilName: 'Kaya Ziraat',
+        dueDate: '2026-09-25',
+        daysToDue: -4,
+        remaining: '24000.00',
+      },
+      {
+        instrumentId: 84,
+        instrumentNo: 'AC-000084',
+        sicilName: 'Demir Traktör',
+        dueDate: '2026-10-01',
+        daysToDue: 2,
+        remaining: '55000.00',
+      },
+      {
+        instrumentId: 12,
+        instrumentNo: 'AS-000012',
+        sicilName: 'Öztürk Tarım',
+        dueDate: '2026-10-04',
+        daysToDue: 5,
+        remaining: '18500.00',
+      },
+    ],
+    belowMin: below.slice(0, 10),
+    belowMinCount: below.filter((l) => l.belowMin).length,
+    negativeCount: below.filter((l) => l.negative).length,
+    ledgerCheck: { status: 'BALANCED', checkedAt: `${TODAY}T02:00:00Z` },
+  }
 }
 
 const num = (v: string | null) => (v ? Number(v) : null)
@@ -474,6 +557,7 @@ const ROLE_PREFIX: Record<string, string> = {
 }
 
 export const handlers = [
+  ...stockHandlers,
   http.get('/healthz', () => HttpResponse.json({ status: 'ok', version: '3.0.0+4f2c91a' })),
   http.post('/api/auth/login', async ({ request }) => {
     const body = (await request.json()) as { email: string; password: string }
@@ -492,6 +576,9 @@ export const handlers = [
   ),
   http.get('/api/admin/organizations', () => HttpResponse.json(organizations)),
   http.get(`${O}/depots`, () => HttpResponse.json(depots)),
+  http.get(`${O}/dashboard`, ({ request }) =>
+    HttpResponse.json(dashboard(num(new URL(request.url).searchParams.get('depotId')))),
+  ),
   http.get(`${O}/search`, ({ request }) =>
     HttpResponse.json(search(new URL(request.url).searchParams.get('q') ?? '')),
   ),
