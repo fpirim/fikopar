@@ -40,6 +40,8 @@ export interface CatalogSearchProps {
   pickHint?: string
   placeholder?: string
   inputClassName?: string
+  // Always open below the input and shorten the list to the room there (grid cell editors).
+  below?: boolean
 }
 
 // OEM / alt. column: the code that matched, else the first OEM, ALT or manufacturer code.
@@ -93,6 +95,7 @@ export default function CatalogSearch({
   pickHint,
   placeholder,
   inputClassName,
+  below,
 }: Readonly<CatalogSearchProps>) {
   const { t } = useTranslation('catalog')
   const [result, setResult] = useState<Result | null>(null)
@@ -227,7 +230,10 @@ export default function CatalogSearch({
       </div>
       <CommandPrimitive.List
         label={t('search.results')}
-        className="max-h-[340px] overflow-y-auto overflow-x-hidden"
+        className={cn(
+          'max-h-[340px] overflow-y-auto overflow-x-hidden',
+          below && 'max-h-[min(340px,calc(var(--radix-popover-content-available-height)-76px))]',
+        )}
         onScroll={(e) => {
           const el = e.currentTarget
           if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) loadMore()
@@ -309,6 +315,8 @@ export default function CatalogSearch({
   const content = (children: ReactNode) => (
     <PopoverContent
       align={align}
+      side="bottom"
+      avoidCollisions={!below}
       sideOffset={6}
       onOpenAutoFocus={(e) => {
         if (!anchor) e.preventDefault()

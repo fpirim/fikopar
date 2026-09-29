@@ -59,6 +59,7 @@ const PartEditor = forwardRef<unknown, Props>(function PartEditor(props, ref) {
           props.stopEditing()
           props.onPicked(props.rowIndex)
         }}
+        below
         inputClassName="h-[32px] rounded-none border-0 bg-transparent px-1.5 focus-within:border-0"
       />
     </div>

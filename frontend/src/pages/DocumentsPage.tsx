@@ -14,6 +14,7 @@ import type {
 import { useDepot, withDepot } from '../hooks/useDepot'
 import { useDownload } from '../hooks/useDownload'
 import { useInfiniteGrid } from '../hooks/useInfiniteGrid'
+import { useNarrow } from '../hooks/useNarrow'
 import { useOrgId } from '../hooks/useOrgId'
 import { DOC_TYPES } from '../lib/documents'
 import { formatDay, formatMoney, formatQty } from '../lib/format'
@@ -56,6 +57,7 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
   const { depotId } = useDepot()
   const gridRef = useRef<AgGridReact>(null)
   const download = useDownload()
+  const narrow = useNarrow()
 
   const types = useMemo(
     () => (params.get('types')?.split(',').filter(Boolean) ?? []) as DocumentType[],
@@ -99,12 +101,13 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
   const typeLabel = (v: DocumentType, dir?: string | null) =>
     v === 'PRICE_DIFFERENCE' && dir ? t(`typeShort.${v}_${dir}`) : t(`typeShort.${v}`)
 
-  const money = (colId: keyof DocumentSummary, width = MONEY_W): ColDef<Row> => ({
+  const money = (colId: keyof DocumentSummary, hide = false): ColDef<Row> => ({
     colId,
     field: colId,
+    hide,
     headerName: t(`list.${colId}`),
     flex: 0,
-    width,
+    width: MONEY_W,
     ...numCol,
     ...exprFilter({ kind: 'number', placeholder: t('grid:fk.positive') }),
     valueFormatter: (p) => formatMoney(p.value),
@@ -137,7 +140,7 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
         field: 'type',
         headerName: t('list.type'),
         flex: 0,
-        width: 148,
+        width: 136,
         ...exprFilter({
           kind: 'enum',
           anyLabel: t('grid:fk.any'),
@@ -155,7 +158,7 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
         field: 'status',
         headerName: t('list.status'),
         flex: 0,
-        width: 112,
+        width: 100,
         ...exprFilter({
           kind: 'enum',
           anyLabel: t('grid:fk.any'),
@@ -186,6 +189,7 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
         colId: 'hesapNo',
         field: 'hesapNo',
         headerName: t('list.hesapNo'),
+        hide: narrow,
         flex: 0,
         width: monoWidth(10),
         cellClass: 'font-mono',
@@ -196,7 +200,7 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
         field: 'sicilName',
         headerName: t('list.sicilName'),
         flex: 1,
-        minWidth: 160,
+        minWidth: 120,
         ...exprFilter({ kind: 'text', placeholder: t('grid:fk.contains') }),
       },
       {
@@ -209,22 +213,11 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
         cellClass: 'font-mono',
         ...exprFilter({ kind: 'text', placeholder: '=', defaultOp: 'equals' }),
       },
-      {
-        colId: 'dueDate',
-        field: 'dueDate',
-        headerName: t('list.dueDate'),
-        flex: 0,
-        width: monoWidth(10),
-        cellClass: 'font-mono',
-        ...exprFilter({ kind: 'date', placeholder: t('grid:fk.range_hint') }),
-        valueFormatter: (p) => formatDay(p.value),
-      },
-      money('netTotal'),
-      money('vatTotal', monoWidth(11)),
+      money('netTotal', narrow),
       money('grandTotal'),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, i18n.language, depotId],
+    [t, i18n.language, depotId, narrow],
   )
 
   const labels = Object.fromEntries(
@@ -242,7 +235,6 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
       {
         label: `${shown} · ${t('list.totalsNote')}`,
         netTotal: info.totals?.netTotal ?? '',
-        vatTotal: info.totals?.vatTotal ?? '',
         grandTotal: info.totals?.grandTotal ?? '',
       } as Row,
     ]
@@ -259,9 +251,9 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
     { header: labels.hesapNo, value: (r: Row) => r.hesapNo },
     { header: labels.sicilName, value: (r: Row) => r.sicilName },
     { header: labels.depotCode, value: (r: Row) => r.depotCode },
-    { header: labels.dueDate, value: (r: Row) => r.dueDate ?? '' },
+    { header: t('list.dueDate'), value: (r: Row) => r.dueDate ?? '' },
     { header: labels.netTotal, value: (r: Row) => r.netTotal },
-    { header: labels.vatTotal, value: (r: Row) => r.vatTotal },
+    { header: t('list.vatTotal'), value: (r: Row) => r.vatTotal },
     { header: labels.grandTotal, value: (r: Row) => r.grandTotal },
   ]
 
@@ -337,7 +329,7 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
           onPick={(a) =>
             setParam({ sicil: String(a.sicilId), sicilName: `${a.hesapNo} · ${a.hesapAdi}` })
           }
-          className="w-[240px] [&>input]:h-[30px] [&>input]:text-13"
+          className="w-[200px] [&>input]:h-[30px] [&>input]:text-13"
         />
         {sicilId && (
           <Button
@@ -353,7 +345,7 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
           value={dateFrom}
           ariaLabel={t('list.dateFrom')}
           onChange={(v) => setParam({ from: v })}
-          inputClassName="h-[30px] w-[108px] text-13"
+          inputClassName="h-[30px] w-[100px] text-13"
         />
         <span className="pb-1.5 text-13 text-fk-muted">–</span>
         <DateField
@@ -361,14 +353,14 @@ function Documents({ orgId }: Readonly<{ orgId: number }>) {
           value={dateTo}
           ariaLabel={t('list.dateTo')}
           onChange={(v) => setParam({ to: v })}
-          inputClassName="h-[30px] w-[108px] text-13"
+          inputClassName="h-[30px] w-[100px] text-13"
         />
         <input
           aria-label={t('list.numberFilter')}
           placeholder={t('list.numberFilter')}
           value={documentNo}
           onChange={(e) => setParam({ no: e.target.value })}
-          className="h-[30px] w-[150px] rounded-md border border-fk-input bg-fk-surface px-2 font-mono text-13 outline-none placeholder:font-sans focus:border-fk-accent"
+          className="h-[30px] w-[120px] rounded-md border border-fk-input bg-fk-surface px-2 font-mono text-13 outline-none placeholder:font-sans focus:border-fk-accent"
         />
         <div className="flex-1" />
         <Button

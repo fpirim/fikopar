@@ -81,6 +81,10 @@ const money4 = (v: string | null | undefined) => {
   const frac = v.split('.')[1] ?? ''
   return formatMoney(v, { digits: frac.replace(/0+$/, '').length > 2 ? 4 : 2 })
 }
+// A goods line shows its defaults only once it has a part.
+const empty = (s: { data?: Row; node?: { rowPinned?: string | null } | null; context: unknown }) =>
+  !s.node?.rowPinned && !ctx(s).amountOnly && s.data?.partId === null
+
 const pct = (v: string | null | undefined) =>
   v === '' || v == null ? '' : formatQty(Math.round(Number(v) * 100) / 100)
 
@@ -102,16 +106,18 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
   }, [])
   const changed = useCallback(() => live.current.onChange(collect()), [collect])
 
-  // After a transaction the row renders on the next frame; editing starts once it is there.
+  // A new row renders on a later frame (the grid grows with its lines); retry until it edits.
   const startEdit = useCallback((rowIndex: number, colKey: string) => {
     const a = api()
     if (!a) return
-    a.ensureIndexVisible(rowIndex)
-    a.setFocusedCell(rowIndex, colKey)
-    setTimeout(() => {
+    let tries = 0
+    const attempt = () => {
+      a.ensureIndexVisible(rowIndex)
       a.setFocusedCell(rowIndex, colKey)
       a.startEditingCell({ rowIndex, colKey })
-    }, 0)
+      if (!a.getEditingCells().length && ++tries < 10) setTimeout(attempt, 16)
+    }
+    setTimeout(attempt, 0)
   }, [])
 
   const firstCol = () => (live.current.amountOnly ? 'description' : 'part')
@@ -244,7 +250,7 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
           : s.data
             ? amountsOf(s.data, p.amountOnly ? 'PRICE_DIFFERENCE' : 'SALES_INVOICE').netAmount
             : '',
-      valueFormatter: (s) => formatMoney(s.value),
+      valueFormatter: (s) => (empty(s) ? '' : formatMoney(s.value)),
     }
     const vat: ColDef<Row> = {
       colId: 'vat',
@@ -256,7 +262,7 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
       editable: editable(),
       ...numEditor(t('col.vat')),
       valueSetter: numSetter('vatPct', t('col.vat')),
-      valueFormatter: (s) => (s.node?.rowPinned ? '' : pct(s.value)),
+      valueFormatter: (s) => (s.node?.rowPinned || empty(s) ? '' : pct(s.value)),
     }
     if (p.amountOnly) {
       const origin = p.originLines ?? []
@@ -270,8 +276,8 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
           colId: 'origin',
           field: 'originLineId',
           headerName: t('col.originLine'),
-          flex: 0,
-          width: 260,
+          flex: 1,
+          minWidth: 180,
           colSpan: pinnedSpan(3),
           editable: editable(() => origin.length > 0),
           cellEditor: 'agSelectCellEditor',
@@ -312,7 +318,7 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
           field: 'description',
           headerName: t('col.description'),
           flex: 1,
-          minWidth: 180,
+          minWidth: 140,
           editable: editable((r) => r.originLineId === null),
           ...numEditor(t('col.description'), true),
           valueSetter: (s) => {
@@ -348,7 +354,7 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
         field: 'stockNo',
         headerName: t('col.part'),
         flex: 0,
-        width: monoWidth(10, true),
+        width: monoWidth(12, true),
         cellClass: 'font-mono',
         colSpan: pinnedSpan(showCap ? 4 : 3),
         editable: editable((_r, c) => !c.partsFixed),
@@ -458,7 +464,7 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
         valueSetter: numSetter('discount1Pct', t('col.d1')),
         valueGetter: (s) => (s.node?.rowPinned ? s.data?.pinned?.discount : s.data?.discount1Pct),
         valueFormatter: (s) =>
-          s.node?.rowPinned ? formatMoney(-Number(s.value || 0)) : pct(s.value),
+          s.node?.rowPinned ? formatMoney(-Number(s.value || 0)) : empty(s) ? '' : pct(s.value),
         cellClassRules: { 'fk-pinned-discount': (s) => Boolean(s.node?.rowPinned) },
       },
       {
@@ -471,7 +477,7 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
         editable: editable((r) => r.partId !== null),
         ...numEditor(t('col.d2')),
         valueSetter: numSetter('discount2Pct', t('col.d2')),
-        valueFormatter: (s) => pct(s.value),
+        valueFormatter: (s) => (empty(s) ? '' : pct(s.value)),
       },
       vat,
       net,
