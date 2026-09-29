@@ -6,12 +6,14 @@ package testutil
 
 import (
 	"context"
+	"net/url"
 	"testing"
 
 	"github.com/fpirim/fikopar/backend/internal/db"
 
 	"github.com/stretchr/testify/require"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -36,6 +38,7 @@ func NewPostgres(ctx context.Context) (*gorm.DB, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
+	ownerDSN = dsn
 
 	// db.Connect connects (the container is already healthy) and runs Migrate.
 	gdb, err := db.Connect(dsn)
@@ -44,6 +47,27 @@ func NewPostgres(ctx context.Context) (*gorm.DB, func(), error) {
 		return nil, nil, err
 	}
 	return gdb, cleanup, nil
+}
+
+var ownerDSN string
+
+// AppRole is the login the server runs as; migrations run as the owner.
+const AppRole = "fikopar_app"
+
+const appPassword = "app"
+
+// App connects to the package's container as AppRole.
+func App(t *testing.T) *gorm.DB {
+	t.Helper()
+	u, err := url.Parse(ownerDSN)
+	require.NoError(t, err)
+	u.User = url.UserPassword(AppRole, appPassword)
+	gdb, err := gorm.Open(postgres.Open(u.String()), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := gdb.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	return gdb
 }
 
 // SetupTestDB spins up a throwaway PostgreSQL container, migrates the schema,
