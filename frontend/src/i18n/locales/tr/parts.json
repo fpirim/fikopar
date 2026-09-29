@@ -61,6 +61,8 @@
   "change": "Değişim",
   "nextPrice": "Sonraki: {{date}} itibarıyla {{price}}",
   "noPrice": "Liste fiyatı yok",
+  "lastPurchase": "Son alış maliyeti",
+  "noPurchase": "Kayıtlı alış faturası yok",
   "newPrice": "Yeni fiyat",
   "newPriceTitle": "Yeni liste fiyatı · {{stockNo}}",
   "price": "Fiyat",

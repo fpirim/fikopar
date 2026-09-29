@@ -136,6 +136,7 @@ export type DocumentWarning = Document['warnings'][number]
 export type DocumentEffects = NonNullable<Document['effects']>
 export type Member = S['Member']
 export type CreditLimitExceeded = S['CreditLimitExceeded']
+export type DocumentDependent = S['DocumentDependents']['dependents'][number]
 export type DocumentsRequest = Omit<GridRequest, 'sortModel' | 'filterModel'> & {
   sortModel?: { colId?: DocumentColId; sort?: 'asc' | 'desc' }[]
   filterModel?: Partial<Record<DocumentColId, FilterModel[string]>>
@@ -146,4 +147,6 @@ export type DocumentsRequest = Omit<GridRequest, 'sortModel' | 'filterModel'> & 
   dateFrom?: string | null
   dateTo?: string | null
   documentNo?: string | null
+  billed?: boolean | null
+  billsWaybill?: boolean | null
 }

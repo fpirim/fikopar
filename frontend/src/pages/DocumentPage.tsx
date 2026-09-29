@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ApiError } from '../api/client'
+import { ApiError, creditDetails, dependentsOf } from '../api/client'
 import {
   cancelDocument,
   createDocument,
@@ -20,6 +20,7 @@ import { errorText } from '../api/errorText'
 import type {
   CreditLimitExceeded,
   Document,
+  DocumentDependent,
   DocumentType,
   DocumentWarning,
   NumberSeries,
@@ -49,6 +50,7 @@ import { formatDateTime, formatDay, formatQty, todayIso } from '../lib/format'
 import { formatNumber } from '../lib/numbering'
 import { cn } from '@/lib/utils'
 import type { AccountHit } from '../components/AccountPicker'
+import type { LinkOption } from './document/HeaderForm'
 import ConflictDialog from '../components/ConflictDialog'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { Button } from '../components/ui/button'
@@ -58,7 +60,7 @@ import HeaderForm from './document/HeaderForm'
 import { LinesGrid, type LinesGridHandle } from './document/LinesGrid'
 import SidePanel from './document/SidePanel'
 import CreditLimitDialog from './document/CreditLimitDialog'
-import CancelDialog, { type Dependent } from './document/CancelDialog'
+import CancelDialog, { Dependents } from './document/CancelDialog'
 import { STATUS_TONE } from './document/status'
 import {
   availableHere,
@@ -133,13 +135,17 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
   const [dirty, setDirty] = useState(isNew)
   const [busy, setBusy] = useState<Busy>(isNew ? null : 'load')
   const [error, setError] = useState('')
+  const [errorDeps, setErrorDeps] = useState<DocumentDependent[]>([])
   const [lineMsg, setLineMsg] = useState<string | null>(null)
   const [badRow, setBadRow] = useState<number | null>(null)
   const [conflict, setConflict] = useState(false)
   const [credit, setCredit] = useState<{ details: CreditLimitExceeded; error: string } | null>(null)
-  const [cancelling, setCancelling] = useState<{ error: string; dependents: Dependent[] } | null>(
-    null,
-  )
+  const [cancelling, setCancelling] = useState<{
+    error: string
+    dependents: DocumentDependent[]
+  } | null>(null)
+  // A picked card sets the salesperson once its summary is in.
+  const [repFor, setRepFor] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [notFound, setNotFound] = useState(false)
 
@@ -158,6 +164,12 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
   const summary = useApi(sicilId ? () => getSicilSummary(orgId, sicilId) : null, [orgId, sicilId])
   const card = summary.data
   const members = useApi(() => listMembers(orgId), [orgId]).data ?? []
+  if (repFor !== null && card?.sicilId === repFor) {
+    setRepFor(null)
+    setHeader((h) =>
+      h.account?.sicilId === repFor ? { ...h, salesRepUserId: card.salesRepUserId ?? null } : h,
+    )
+  }
 
   const originId = needsOriginal(header.type) ? header.linkedDocumentId : null
   const original = useApi(originId ? () => getDocument(orgId, originId) : null, [orgId, originId])
@@ -179,14 +191,21 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
             statuses: ['POSTED'],
             sicilId,
             depotId: isReturn(header.type) ? null : depotId,
+            ...pickerFilter(header.type),
             sortModel: [{ colId: 'documentDate', sort: 'desc' }],
           })
       : null,
-    [orgId, linkKey, sicilId, depotId, editable],
+    [orgId, linkKey, sicilId, depotId, editable, header.type],
   )
-  const linkRows = (links.data?.rows ?? []).filter(
-    (r) => !isReturn(header.type) || !r.waybillDocumentNo,
-  )
+  const linkRows: LinkOption[] = [...(links.data?.rows ?? [])]
+  // The waybill this draft bills is billed already, so the picker keeps it from the document.
+  if (
+    doc?.waybillDocumentId &&
+    header.waybillDocumentId === doc.waybillDocumentId &&
+    !linkRows.some((r) => r.id === doc.waybillDocumentId)
+  ) {
+    linkRows.unshift({ id: doc.waybillDocumentId, documentNo: doc.waybillDocumentNo ?? null })
+  }
 
   const prefix = PREFIX[header.type]
   const year = Number(header.documentDate.slice(0, 4))
@@ -212,23 +231,14 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
 
   // ---- loading ----
 
-  const accountOf = (d: Document, code?: string): AccountHit => ({
-    sicilId: d.sicilId,
-    accountId: null,
-    hesapNo: code ?? '',
-    hesapAdi: d.sicilName ?? '',
-  })
-
   const load = useCallback(
     (d: Document) => {
       setDoc(d)
       setHeader((h) =>
-        headerOf(
-          d,
-          h.account?.sicilId === d.sicilId && h.account.hesapNo
-            ? h.account
-            : accountOf(d, undefined),
-        ),
+        headerOf(d, {
+          ...accountOf(d),
+          accountId: h.account?.sicilId === d.sicilId ? h.account.accountId : null,
+        }),
       )
       setLines(d.lines.map(lineOf), true)
       setDirty(false)
@@ -329,8 +339,10 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
 
   const patch = (p: Partial<Header>) => {
     setHeader((h) => ({ ...h, ...p }))
+    if (p.account && p.account.sicilId !== header.account?.sicilId) setRepFor(p.account.sicilId)
     setDirty(true)
     setError('')
+    setErrorDeps([])
   }
 
   function changeType(type: DocumentType) {
@@ -399,18 +411,12 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
     return new Map(origin.lines.map((l) => [l.id, Number(l.qty) - Number(l.returnedQty ?? 0)]))
   }, [header.type, origin])
 
-  // The card code comes with the summary.
-  const account =
-    header.account && !header.account.hesapNo && card?.sicilId === header.account.sicilId
-      ? { ...header.account, hesapNo: card.accountCode ?? '', accountId: card.accountId }
-      : header.account
-
   const totals = useMemo(() => totalsOf(lines, header.type), [lines, header.type])
   const due = dueFor(header, card?.paymentTermDays)
   const effects =
     doc && !dirty && doc.effects
       ? doc.effects
-      : previewEffects({ ...header, depotId, account }, lines, totals, card, origin?.type ?? null)
+      : previewEffects({ ...header, depotId }, lines, totals, card, origin?.type ?? null)
 
   // ---- server calls ----
 
@@ -431,6 +437,7 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
     const body = toWrite({ ...header, depotId, dueDate: due }, linesRef.current)
     setBusy('save')
     setError('')
+    setErrorDeps([])
     try {
       let d: Document
       if (doc) {
@@ -457,6 +464,12 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
       setConflict(true)
       return
     }
+    const deps = dependentsOf(e)
+    if (deps) {
+      setError(t('draftDependents'))
+      setErrorDeps(deps)
+      return
+    }
     const row = e instanceof ApiError ? /^lines\[(\d+)\]/.exec(e.field ?? '') : null
     if (row) setBadRow(Number(row[1]))
     const msg = errorText(t, e, { date: header.documentDate })
@@ -466,10 +479,9 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
   function negative(ws: DocumentWarning[] | undefined) {
     for (const w of ws ?? []) {
       if (w.code !== 'NEGATIVE_STOCK') continue
-      const l = lines.find((x) => x.partId === w.partId)
       toast.info(
         t('negativeStock', {
-          part: l?.stockNo ?? w.partId,
+          part: w.stockNo ?? w.partId,
           code: depots.find((d) => d.id === w.depotId)?.code ?? w.depotId,
           qty: formatQty(w.onHandAfter),
         }),
@@ -496,8 +508,9 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
       toast.success(t('posted', { no: posted.documentNo }))
       negative(posted.warnings)
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'ERR_CREDIT_LIMIT_EXCEEDED' && e.details) {
-        setCredit({ details: e.details, error: '' })
+      const over = creditDetails(e)
+      if (over) {
+        setCredit({ details: over, error: '' })
       } else if (credit) {
         setCredit({ ...credit, error: errorText(t, e, { date: header.documentDate }) })
       } else {
@@ -524,18 +537,10 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
         setConflict(true)
         return
       }
-      let dependents: Dependent[] = []
-      if (e instanceof ApiError && e.code === 'ERR_DOCUMENT_HAS_DEPENDENTS') {
-        const fresh = await getDocument(orgId, doc.id).catch(() => doc)
-        dependents = await Promise.all(
-          (fresh.dependentDocumentIds ?? []).map((depId) =>
-            getDocument(orgId, depId)
-              .then((x) => ({ id: depId, no: x.documentNo ?? `#${depId}` }))
-              .catch(() => ({ id: depId, no: `#${depId}` })),
-          ),
-        )
-      }
-      setCancelling({ error: errorText(t, e, { date: todayIso() }), dependents })
+      setCancelling({
+        error: errorText(t, e, { date: todayIso() }),
+        dependents: dependentsOf(e) ?? [],
+      })
     } finally {
       setBusy(null)
     }
@@ -618,12 +623,13 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
     if (stockDirection(header.type, header.waybillDocumentId !== null) !== 'OUT') return []
     const out: DocumentWarning[] = []
     lines.forEach((l, i) => {
-      const a = availableHere(l, depotId)
+      const a = availableHere(l, depotId, lines)
       if (l.partId !== null && a !== null && l.qty && a < Number(l.qty)) {
         out.push({
           code: 'STOCK_SHORT',
           lineNo: i + 1,
           partId: l.partId,
+          stockNo: l.stockNo,
           depotId,
           requested: l.qty,
           available: String(a),
@@ -725,13 +731,12 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
       <StatusLine doc={doc} />
       <HeaderForm
         orgId={orgId}
-        header={{ ...header, depotId, account }}
+        header={{ ...header, depotId }}
         due={due}
         editable={editable}
         locked={partsFixed || (isNew && Boolean(params.get('original') || params.get('waybill')))}
         depots={depots}
         members={members}
-        cardSalesRep={null}
         links={linkRows}
         linkError={null}
         onChange={patch}
@@ -739,9 +744,10 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
         onLink={(l) => void changeLink(l)}
       />
       {error && (
-        <p role="alert" className="text-13 text-fk-negative">
-          {error}
-        </p>
+        <div role="alert" className="flex flex-col gap-1 text-13 text-fk-negative">
+          <p>{error}</p>
+          <Dependents items={errorDeps} />
+        </div>
       )}
       <div className="flex items-start gap-4 max-[1320px]:flex-col max-[1320px]:items-stretch">
         <section aria-label={t('lines')} className="flex min-w-0 flex-1 flex-col">
@@ -891,6 +897,19 @@ function Editor({ orgId }: Readonly<{ orgId: number }>) {
   )
 }
 
+// Waybill picker: waybills not billed yet. Return originals: documents that bill no waybill.
+function pickerFilter(type: DocumentType): { billed?: boolean; billsWaybill?: boolean } {
+  if (!needsOriginal(type)) return { billed: false }
+  return isReturn(type) ? { billsWaybill: false } : {}
+}
+
+const accountOf = (d: Document): AccountHit => ({
+  sicilId: d.sicilId,
+  accountId: null,
+  hesapNo: d.hesapNo,
+  hesapAdi: d.sicilName ?? '',
+})
+
 function followUpsOf(d: Document): { key: string; to: string }[] {
   const out: { key: string; to: string }[] = []
   if (isWaybill(d.type) && !d.billedByDocumentId && billTypeFor(d.type)) {
@@ -986,6 +1005,7 @@ function Warnings({
 }>) {
   const { t } = useTranslation('documents')
   const part = (w: DocumentWarning) =>
+    w.stockNo ??
     (w.lineNo ? lines[w.lineNo - 1]?.stockNo : undefined) ??
     lines.find((l) => l.partId === w.partId)?.stockNo ??
     ''

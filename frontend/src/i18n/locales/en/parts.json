@@ -61,6 +61,8 @@
   "change": "Change",
   "nextPrice": "Next: {{price}} from {{date}}",
   "noPrice": "No list price",
+  "lastPurchase": "Last purchase cost",
+  "noPurchase": "No posted purchase invoice",
   "newPrice": "New price",
   "newPriceTitle": "New list price · {{stockNo}}",
   "price": "Price",

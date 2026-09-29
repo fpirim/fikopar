@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, seeded, V14 } from './fixtures'
+import { test, expect, seeded, V14, V15 } from './fixtures'
 import { clipped, cutControls } from '../clipped'
 
 // F3 flows against the real API. Every test is @v14: run after the F3 backend and frontend merge.
@@ -9,6 +9,12 @@ const cell = (page: Page, row: number, col: string) =>
     `.fk-doc-lines .ag-center-cols-container .ag-row[row-index="${row}"] [col-id="${col}"]`,
   )
 const onPost = (page: Page) => page.getByRole('region', { name: /^(On post|Posted|Reversed)$/ })
+async function pickAccount(page: Page, text: string) {
+  const account = page.getByRole('combobox', { name: 'Account' })
+  await account.fill(text)
+  await page.getByRole('listbox', { name: 'Account' }).getByRole('option').first().click()
+  await expect(account).toHaveValue(new RegExp(text))
+}
 
 test.describe('documents', () => {
   test(
@@ -151,4 +157,36 @@ test.describe('documents', () => {
       expect(await cutControls(page)).toEqual([])
     })
   }
+
+  test("a new invoice takes the card's salesperson and account no.", V15, async ({ page }) => {
+    await page.goto('/invoices/new?type=SALES_INVOICE')
+    await pickAccount(page, 'Yılmaz')
+    await expect(page.getByLabel('Salesperson').locator('option:checked')).toHaveText(
+      seeded().salesRep.name,
+    )
+    await page.goto(`/invoices/${doc('sale')}`)
+    await expect(page.getByLabel('Account')).toHaveValue('120.10482 · Yılmaz Tarım Makinaları')
+  })
+
+  test('pickers leave out billed waybills and bills of waybills', V15, async ({ page }) => {
+    // Kaya Ziraat: its only waybill is billed, its only invoice bills it.
+    await page.goto('/invoices/new?type=SALES_INVOICE')
+    await pickAccount(page, 'Kaya Ziraat')
+    await expect(page.getByLabel('Waybill ref.').locator('option')).toHaveCount(1)
+    await page.goto('/invoices/new?type=SALES_RETURN')
+    await pickAccount(page, 'Kaya Ziraat')
+    await expect(page.getByLabel('Original').locator('option')).toHaveCount(1)
+    await pickAccount(page, 'Yılmaz')
+    await expect(page.getByLabel('Original').locator(`option[value="${doc('sale')}"]`)).toHaveCount(
+      1,
+    )
+  })
+
+  test('the part card shows the last purchase cost', V15, async ({ page }) => {
+    await page.goto(`/parts/${seeded().parts['HP-3774']}`)
+    const box = page.getByRole('region', { name: 'Last purchase cost' })
+    await expect(box).toContainText('8,900.00')
+    await expect(box).toContainText('20.09.2026')
+    await expect(box).toContainText(/AF-2026-\d+-\d{6}/)
+  })
 })

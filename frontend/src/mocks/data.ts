@@ -338,6 +338,12 @@ interface Ledger {
   accounts: Account[]
 }
 
+// Card salespeople (members of the documents mock).
+const SALES_REPS: Record<string, [number, string]> = {
+  '120.10482': [7, 'A. Kaya'],
+  '120.10711': [9, 'M. Demir'],
+}
+
 function buildLedger(): Ledger {
   const parties: Party[] = [...FEATURED, ...synthParties()].map((p, i) => ({
     ...p,
@@ -366,6 +372,8 @@ function buildLedger(): Ledger {
       { name: p.code === '120.10482' ? 'Mehmet Yılmaz' : 'Ali Demir', role: 'purchasing' },
     ],
     emails: [`muhasebe@${p.code.replace('.', '-')}.example.com`],
+    sales_rep_user_id: SALES_REPS[p.code]?.[0] ?? null,
+    sales_rep_name: SALES_REPS[p.code]?.[1] ?? null,
     account_id: p.accountId,
     version: 1,
   }))

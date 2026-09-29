@@ -24,6 +24,7 @@ import {
   documentHandlers,
   documentRef,
   documentSeries,
+  memberName,
   resetDocuments,
   type Card,
 } from './documentHandlers'
@@ -57,6 +58,8 @@ const cards = (): Card[] =>
     tipi: p.tipi,
     balance: Number(balanceRow(p, null).balance),
     limit: p.tipi === 'MUSTERI' ? 250000 : null,
+    salesRepUserId:
+      db.current.ledger.sicils.find((s) => s.id === p.sicilId)?.sales_rep_user_id ?? null,
   }))
 
 resetDocuments(cards)
@@ -522,22 +525,6 @@ function dashboard(depotId: number | null): Dashboard {
       depots: cashDepots,
     },
     instrumentsDue30: { total: '386000.00', overdueCount: 3 },
-    latest: [
-      ...db.current.activity,
-      ...db.current.receipts.slice(0, 5).map((r) => ({
-        kind: 'RECEIPT' as const,
-        id: r.id,
-        number: r.receiptNo,
-        subtype: r.kind,
-        sicilId: r.sicilId,
-        sicilName: r.sicilName ?? null,
-        date: r.date,
-        depotId: r.depotId,
-        amount: r.amount,
-      })),
-    ]
-      .filter((a) => !depotId || a.depotId === depotId)
-      .slice(0, 6),
     dueThisWeek: [
       {
         instrumentId: 71,
@@ -666,7 +653,13 @@ export const handlers = [
     const stale = precondition(request, s.version)
     if (stale) return stale
     const patch = (await request.json()) as Partial<Sicil>
+    if (patch.sales_rep_user_id != null && !memberName(patch.sales_rep_user_id)) {
+      return err(422, 'ERR_USER_NOT_FOUND', { field: 'sales_rep_user_id' })
+    }
     Object.assign(s, patch, {
+      ...(patch.sales_rep_user_id === undefined
+        ? {}
+        : { sales_rep_name: memberName(patch.sales_rep_user_id) }),
       id: s.id,
       organization_id: s.organization_id,
       version: s.version + 1,
@@ -679,6 +672,7 @@ export const handlers = [
     const depotId = num(new URL(request.url).searchParams.get('depotId'))
     const row = balanceRow(p, depotId)
     const limit = p.tipi === 'MUSTERI' ? 250000 : null
+    const rep = db.current.ledger.sicils.find((s) => s.id === p.sicilId)?.sales_rep_user_id ?? null
     return HttpResponse.json({
       sicilId: p.sicilId,
       accountId: p.accountId,
@@ -690,6 +684,8 @@ export const handlers = [
       paymentTermDays: 30,
       discount1Pct: '10',
       discount2Pct: '5',
+      salesRepUserId: rep,
+      salesRepName: memberName(rep),
       chequesInPortfolio: p.code === '120.10482' ? '55000.00' : '0.00',
       lastMoveDate: p.lastMove,
     })

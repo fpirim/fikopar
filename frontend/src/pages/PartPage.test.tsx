@@ -42,6 +42,20 @@ describe('PartPage', () => {
     )
   })
 
+  it('shows the last purchase cost with the invoice it comes from', async () => {
+    renderApp(HP)
+    const box = await screen.findByRole('region', { name: 'Son alış maliyeti' })
+    await waitFor(() => expect(box).toHaveTextContent('8.900,00'))
+    expect(box).toHaveTextContent('26.09.2026')
+    expect(box).toHaveTextContent('AF-2026-1-000201')
+  })
+
+  it('says when a part has no posted purchase invoice', async () => {
+    renderApp('/parts/1009')
+    const box = await screen.findByRole('region', { name: 'Son alış maliyeti' })
+    await waitFor(() => expect(box).toHaveTextContent('Kayıtlı alış faturası yok'))
+  })
+
   it('links equivalents to their part with name and price list', async () => {
     renderApp('/parts/1005')
     const card = await screen.findByRole('region', { name: 'Muadiller' })

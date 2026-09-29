@@ -117,6 +117,7 @@ function PartView({ orgId, partId }: Readonly<{ orgId: number; partId: number }>
           <Panel className="overflow-hidden">
             <PriceTable prices={prices.data ?? []} next={p.nextPrice ?? null} />
           </Panel>
+          <LastPurchase cost={p.lastPurchaseCost} />
           {p.equivalents.length > 0 && <Equivalents part={p} depotId={depotId} />}
         </div>
       </div>
@@ -203,6 +204,35 @@ function Header({ part, children }: Readonly<{ part: Part; children: React.React
       </div>
       {children}
     </div>
+  )
+}
+
+// Unit net of the part's line on the latest posted purchase invoice.
+function LastPurchase({ cost }: Readonly<{ cost: Part['lastPurchaseCost'] }>) {
+  const { t } = useTranslation('parts')
+  const digits = cost && /\.\d{2}0*[1-9]/.test(cost.amount) ? 4 : 2
+  return (
+    <Panel aria-labelledby="last-purchase-h" className="overflow-hidden">
+      <div className="flex h-11 items-center gap-3 px-3.5">
+        <h2 id="last-purchase-h" className="min-w-0 flex-1 truncate text-15 font-semibold">
+          {t('lastPurchase')}
+        </h2>
+        {cost ? (
+          <>
+            <span className="shrink-0 whitespace-nowrap font-mono text-13 text-fk-muted">
+              {formatDay(cost.date)} · {cost.documentNo}
+            </span>
+            <span className="fk-num shrink-0 whitespace-nowrap text-15 font-medium">
+              {formatMoney(cost.amount, { digits })}
+            </span>
+          </>
+        ) : (
+          <span className="shrink-0 whitespace-nowrap text-13 text-fk-muted">
+            {t('noPurchase')}
+          </span>
+        )}
+      </div>
+    </Panel>
   )
 }
 

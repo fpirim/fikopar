@@ -1,10 +1,11 @@
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
-import { updateSicil } from '../../api/endpoints'
+import { listMembers, updateSicil } from '../../api/endpoints'
 import { errorText } from '../../api/errorText'
 import type { Sicil, SicilUpdate } from '../../api/types'
 import { useToast } from '../../context/ToastContext'
+import { useApi } from '../../hooks/useApi'
 import ConflictDialog from '../../components/ConflictDialog'
 import { Button } from '../../components/ui/button'
 import {
@@ -14,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog'
-import { Field } from '../../components/ui/field'
+import { Field, selectCls } from '../../components/ui/field'
 import { MoneyInput } from '../../components/ui/money-input'
 import { TextField } from '../../components/ui/text-field'
 
@@ -31,6 +32,7 @@ type Draft = Record<(typeof FIELDS)[number][0], string> & {
   credit_limit: string
   email: string
   contact: string
+  salesRep: string
 }
 
 function draftOf(sicil: Sicil): Draft {
@@ -39,17 +41,19 @@ function draftOf(sicil: Sicil): Draft {
     credit_limit: sicil.credit_limit ?? '',
     email: sicil.emails?.[0] ?? '',
     contact: sicil.contacts?.[0]?.name ?? '',
+    salesRep: sicil.sales_rep_user_id == null ? '' : String(sicil.sales_rep_user_id),
   }
 }
 
 // The dialog edits the first email and the first contact's name; the rest of each list is kept.
 function bodyOf(sicil: Sicil, d: Draft): SicilUpdate {
-  const { credit_limit, email, contact, ...plain } = d
+  const { credit_limit, email, contact, salesRep, ...plain } = d
   const [first, ...contacts] = sicil.contacts ?? []
   const [, ...emails] = sicil.emails ?? []
   return {
     ...plain,
     credit_limit: credit_limit || null,
+    sales_rep_user_id: salesRep ? Number(salesRep) : null,
     emails: email.trim() ? [email.trim(), ...emails] : emails,
     contacts: contact.trim() ? [{ ...first, name: contact.trim() }, ...contacts] : contacts,
   }
@@ -71,6 +75,8 @@ export default function EditCardDialog({
   const { t } = useTranslation(['ledger', 'common', 'errors'])
   const toast = useToast()
   const limitId = useId()
+  const repId = useId()
+  const members = useApi(() => listMembers(orgId), [orgId]).data ?? []
   const [draft, setDraft] = useState<Draft>(() => draftOf(sicil))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -133,6 +139,26 @@ export default function EditCardDialog({
             value={draft.contact}
             onChange={set('contact')}
           />
+          <Field label={t('statement.field.salesRep')} htmlFor={repId}>
+            <select
+              id={repId}
+              className={selectCls}
+              value={draft.salesRep}
+              onChange={(e) => set('salesRep')(e.target.value)}
+            >
+              <option value="">{t('statement.field.noSalesRep')}</option>
+              {members.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.name}
+                </option>
+              ))}
+              {draft.salesRep && !members.some((m) => String(m.userId) === draft.salesRep) && (
+                <option value={draft.salesRep}>
+                  {sicil.sales_rep_name ?? `#${draft.salesRep}`}
+                </option>
+              )}
+            </select>
+          </Field>
           <TextField
             label={t('statement.field.email')}
             value={draft.email}

@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   cancelDocument,
   createDocument,
+  deleteDocument,
+  getDashboard,
   getDocument,
+  getPart,
+  getSicilSummary,
   getStockCount,
   gridDocuments,
+  gridParts,
   gridStockCountLines,
   gridStockMovements,
   postDocument,
@@ -152,5 +157,103 @@ describe('document mocks', () => {
       filterModel: { stockNo: { filterType: 'text', type: 'equals', filter: 'HP-3774' } },
     })
     expect(lines.rows[0]).toMatchObject({ unitCost: '8900.00', costSource: 'LAST_PURCHASE' })
+  })
+})
+
+describe('document mocks, contracts v1.5', () => {
+  const ids = (rows: { id: number }[]) => rows.map((r) => r.id).sort((a, b) => a - b)
+
+  it('filters waybills by billed and documents by billing a waybill', async () => {
+    const wb = await getDocument(1, 52)
+    const open = await gridDocuments(1, { startRow: 0, endRow: 100, billed: false })
+    expect(ids(open.rows)).toEqual([52])
+    const bill = await createDocument(
+      1,
+      {
+        type: 'SALES_INVOICE',
+        depotId: 1,
+        sicilId: wb.sicilId,
+        documentDate: '2026-09-29',
+        waybillDocumentId: 52,
+        lines: [],
+      },
+      key(),
+    )
+    expect((await gridDocuments(1, { startRow: 0, endRow: 100, billed: false })).rows).toEqual([])
+    expect(ids((await gridDocuments(1, { startRow: 0, endRow: 100, billed: true })).rows)).toEqual([
+      52,
+    ])
+    const bills = await gridDocuments(1, { startRow: 0, endRow: 100, billsWaybill: true })
+    expect(ids(bills.rows)).toEqual([bill.id])
+    const rest = await gridDocuments(1, { startRow: 0, endRow: 100, billsWaybill: false })
+    expect(rest.rows.map((r) => r.id)).not.toContain(bill.id)
+    expect(rest.totalCount).toBe(14)
+  })
+
+  it('names the dependents of a cancel and of a draft another draft bills', async () => {
+    const orig = await getDocument(1, 391)
+    try {
+      await cancelDocument(1, orig, 'Duplicate', key())
+      expect.unreachable()
+    } catch (e) {
+      expect(e).toBeInstanceOf(ApiError)
+      expect((e as ApiError).details).toEqual({
+        dependents: expect.arrayContaining([
+          { id: 12, documentNo: 'SI-2026-1-000012', type: 'SALES_RETURN' },
+          { id: 7, documentNo: 'FF-2026-1-000007', type: 'PRICE_DIFFERENCE' },
+        ]),
+      })
+    }
+    const wbBody: DocumentWrite = {
+      type: 'SALES_WAYBILL',
+      depotId: 1,
+      sicilId: orig.sicilId,
+      documentDate: '2026-09-29',
+      lines: [{ partId: orig.lines[0].partId, qty: '1', unitPrice: '10' }],
+    }
+    const wb = await createDocument(1, wbBody, key())
+    expect(wb.hesapNo).toBe('120.10482')
+    const bill = await createDocument(
+      1,
+      { ...wbBody, type: 'SALES_INVOICE', waybillDocumentId: wb.id, lines: [] },
+      key(),
+    )
+    const dependents = [{ id: bill.id, documentNo: null, type: 'SALES_INVOICE' }]
+    for (const call of [() => deleteDocument(1, wb), () => updateDocument(1, wb, wbBody)]) {
+      const e = await call().catch((x: unknown) => x)
+      expect(e).toBeInstanceOf(ApiError)
+      expect((e as ApiError).code).toBe('ERR_DOCUMENT_HAS_DEPENDENTS')
+      expect((e as ApiError).details).toEqual({ dependents })
+    }
+    await deleteDocument(1, bill)
+    expect(await code(deleteDocument(1, wb))).toBe('OK')
+  })
+
+  it('puts the stock no. on every warning with a part', async () => {
+    const d = await getDocument(1, 1001)
+    for (const w of d.warnings) if (w.partId) expect(w.stockNo).toBeTruthy()
+    const posted = await postDocument(1, d, key())
+    const neg = posted.warnings.filter((w) => w.code === 'NEGATIVE_STOCK')
+    expect(neg.length).toBeGreaterThan(0)
+    for (const w of neg) expect(w.stockNo).toMatch(/^[A-Z]{2}-\d{4}$/)
+  })
+
+  it('carries the card salesperson, the account no. and the last purchase cost', async () => {
+    const d = await getDocument(1, 391)
+    expect(d.hesapNo).toBe('120.10482')
+    const s = await getSicilSummary(1, d.sicilId)
+    expect(s).toMatchObject({ salesRepUserId: 7, salesRepName: 'A. Kaya' })
+    const hp = (await getPart(1, 1001)).data
+    expect(hp.lastPurchaseCost).toEqual({
+      amount: '8900.0000',
+      date: '2026-09-26',
+      documentNo: 'AF-2026-1-000201',
+    })
+    expect((await getPart(1, 1009)).data.lastPurchaseCost).toBeNull()
+    const rows = await gridParts(1, { startRow: 0, endRow: 2000 })
+    expect(rows.rows.find((r) => r.id === 1001)?.lastPurchaseCost?.documentNo).toBe(
+      'AF-2026-1-000201',
+    )
+    expect(await getDashboard(1)).not.toHaveProperty('latest')
   })
 })

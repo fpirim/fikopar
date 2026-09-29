@@ -392,13 +392,15 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
         width: monoWidth(5, true),
         ...numCol,
         valueGetter: (s) =>
-          s.data && !s.node?.rowPinned ? availableHere(s.data, ctx(s).depotId) : null,
+          s.data && !s.node?.rowPinned ? availableHere(s.data, ctx(s).depotId, ctx(s).rows) : null,
         valueFormatter: (s) =>
           s.value === null || s.value === undefined ? '' : formatQty(s.value),
         cellClassRules: {
-          'fk-stock-ok': (s) => !!s.data && stockTone(s.data, ctx(s).depotId) === 'ok',
-          'fk-stock-short': (s) => !!s.data && stockTone(s.data, ctx(s).depotId) === 'short',
-          'fk-stock-none': (s) => !!s.data && stockTone(s.data, ctx(s).depotId) === 'none',
+          'fk-stock-ok': (s) => !!s.data && stockTone(s.data, ctx(s).depotId, ctx(s).rows) === 'ok',
+          'fk-stock-short': (s) =>
+            !!s.data && stockTone(s.data, ctx(s).depotId, ctx(s).rows) === 'short',
+          'fk-stock-none': (s) =>
+            !!s.data && stockTone(s.data, ctx(s).depotId, ctx(s).rows) === 'none',
         },
         tooltipValueGetter: (s) =>
           s.data?.stock

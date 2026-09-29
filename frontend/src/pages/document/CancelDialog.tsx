@@ -11,10 +11,26 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog'
 import { TextField } from '../../components/ui/text-field'
+import type { DocumentDependent } from '../../api/types'
 
-export interface Dependent {
-  id: number
-  no: string
+// Documents that block a cancel, a draft update or a delete; drafts have no number yet.
+export function Dependents({
+  items,
+  onOpen,
+}: Readonly<{ items: DocumentDependent[]; onOpen?: () => void }>) {
+  const { t } = useTranslation('documents')
+  if (!items.length) return null
+  return (
+    <ul className="flex flex-wrap gap-x-3 font-mono">
+      {items.map((d) => (
+        <li key={d.id} className="whitespace-nowrap">
+          <Link to={`/invoices/${d.id}`} onClick={onOpen}>
+            {d.documentNo ?? t('draftRef', { id: d.id })}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 // Cancelling a posted document: a reason, then the reversal entry and opposite movements dated today.
@@ -29,7 +45,7 @@ export default function CancelDialog({
   number: string
   busy: boolean
   error: string
-  dependents: Dependent[]
+  dependents: DocumentDependent[]
   onCancel: (reason: string) => void
   onClose: () => void
 }>) {
@@ -68,17 +84,7 @@ export default function CancelDialog({
         {error && (
           <div role="alert" className="flex flex-col gap-1 text-13 text-fk-negative">
             <p>{error}</p>
-            {dependents.length > 0 && (
-              <ul className="flex flex-wrap gap-x-3 font-mono">
-                {dependents.map((d) => (
-                  <li key={d.id}>
-                    <Link to={`/invoices/${d.id}`} onClick={onClose}>
-                      {d.no}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <Dependents items={dependents} onOpen={onClose} />
           </div>
         )}
         <DialogFooter>

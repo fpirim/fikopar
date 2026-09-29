@@ -22,6 +22,8 @@ export interface Seeded {
   openCountId: number | null
   // v1.4 documents by role in the flows (sale, purchase, waybill, bill, return, increase, decrease, draft).
   documents: Record<string, number>
+  // v1.5: the salesperson of card 10482.
+  salesRep: { userId: number; name: string }
 }
 
 const API = process.env.E2E_API_URL || 'http://localhost:18080'
@@ -114,6 +116,10 @@ const RECEIPTS: [string, number, string, 'COLLECTION' | 'PAYMENT', number][] = [
 
 const money = (n: number) => n.toFixed(2)
 
+// Card 10482 has a salesperson (v1.5); documents of the card take it as their default.
+const SALES_REP = 'Selin Arslan'
+const SALES_REP_CARD = '10482'
+
 class Api {
   token = ''
 
@@ -177,6 +183,31 @@ async function accounts(api: Api, o: string): Promise<Record<string, number>> {
   return out
 }
 
+// A company member to be the salesperson of a card; created once per company.
+async function member(
+  api: Api,
+  o: string,
+  orgId: number,
+  slug: string,
+): Promise<{ userId: number; name: string }> {
+  const find = async () =>
+    (await api.call<{ userId: number; name: string }[]>('GET', `${o}/members`)).find(
+      (m) => m.name === SALES_REP,
+    )
+  const hit = await find()
+  if (hit) return hit
+  await api.call('POST', '/api/admin/users', {
+    email: `selin.arslan.${slug}@fikopar.local`,
+    password: 'salesrep-2026',
+    name: SALES_REP,
+    role: 'user',
+    organization_ids: [orgId],
+  })
+  const made = await find()
+  if (!made) throw new Error(`salesperson ${SALES_REP} is not a member of ${o}`)
+  return made
+}
+
 async function sicils(api: Api, o: string): Promise<Record<string, number>> {
   const grid = await api.call<{ rows: { id: number; hesap_no: string }[] }>(
     'POST',
@@ -205,6 +236,8 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
     if (!acc[code]) await api.call('POST', `${o}/ledger/accounts`, { code, name, type })
   }
 
+  const salesRep = await member(api, o, orgId, slug)
+
   let sic = await sicils(api, o)
   for (const p of PARTIES) {
     if (sic[p.no]) continue
@@ -220,6 +253,7 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
       v_no: '[TAX NO]',
       credit_limit: p.tipi === 'MUSTERI' ? '250000.00' : null,
       telefonlar: [{ tipi: 'IS', numara: '+90 332 000 00 00' }],
+      sales_rep_user_id: p.no === SALES_REP_CARD ? salesRep.userId : null,
     })
   }
   sic = await sicils(api, o)
@@ -247,18 +281,13 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
     { role: 'CASH_OVER_SHORT', depotId: null, accountId: acc['689.01'] },
     // v1.4 posting table (ADR-0013 §2).
     { role: 'SALES_RETURNS', depotId: null, accountId: acc['610.01'] },
+    { role: 'SALES_DISCOUNTS', depotId: null, accountId: acc['611.01'] },
     { role: 'PRICE_DIFFERENCE', depotId: null, accountId: acc['600.01'] },
     { role: 'PURCHASES', depotId: null, accountId: acc['153.01'] },
     { role: 'PURCHASE_RETURNS', depotId: null, accountId: acc['153.01'] },
     { role: 'INPUT_VAT', depotId: null, accountId: acc['191.20'] },
   ]
-  // SALES_DISCOUNTS is in ADR-0013 but not yet in the AccountRole enum of v1.4; send it when accepted.
-  await api
-    .call('PUT', `${o}/ledger/account-roles`, [
-      ...roles,
-      { role: 'SALES_DISCOUNTS', depotId: null, accountId: acc['611.01'] },
-    ])
-    .catch(() => api.call('PUT', `${o}/ledger/account-roles`, roles))
+  await api.call('PUT', `${o}/ledger/account-roles`, roles)
 
   const entries = await api.call<{ items: unknown[] }>('GET', `${o}/ledger/entries?limit=1`)
   if (entries.items.length === 0) await activity(api, o, depot, acc, sic)
@@ -273,6 +302,7 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
     sicils: sic,
     ...stocked,
     documents,
+    salesRep,
   }
 }
 

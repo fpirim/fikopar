@@ -120,7 +120,6 @@ describe('DashboardPage', () => {
           payables: { total: '0.00', accounts: 0 },
           cash: { total: '0.00', depots: [] },
           instrumentsDue30: { total: '0.00', overdueCount: 0 },
-          latest: [],
           dueThisWeek: [],
           belowMin: [],
           belowMinCount: 0,

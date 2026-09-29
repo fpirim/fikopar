@@ -13,6 +13,8 @@ import type { Header } from './model'
 const control =
   'h-9 w-full min-w-0 rounded-md border border-fk-input bg-fk-surface px-2.5 text-sm text-fk-text outline-none focus:border-fk-accent focus:ring-1 focus:ring-fk-accent disabled:bg-fk-sunken disabled:text-fk-secondary'
 
+export type LinkOption = Pick<DocumentSummary, 'id' | 'documentNo'> & { documentDate?: string }
+
 export interface HeaderFormProps {
   orgId: number
   header: Header
@@ -22,8 +24,7 @@ export interface HeaderFormProps {
   locked: boolean
   depots: Depot[]
   members: Member[]
-  cardSalesRep: string | null
-  links: DocumentSummary[]
+  links: LinkOption[]
   linkError: string | null
   onChange: (patch: Partial<Header>) => void
   onType: (type: DocumentType) => void
@@ -153,7 +154,7 @@ export default function HeaderForm(p: Readonly<HeaderFormProps>) {
             p.onChange({ salesRepUserId: e.target.value ? Number(e.target.value) : null })
           }
         >
-          <option value="">{p.cardSalesRep ?? t('cardDefault')}</option>
+          <option value="">{t('noSalesRep')}</option>
           {p.members.map((m) => (
             <option key={m.userId} value={m.userId}>
               {m.name}
@@ -178,7 +179,7 @@ export default function HeaderForm(p: Readonly<HeaderFormProps>) {
             <option value="">{t(original ? 'pickOriginal' : 'optional')}</option>
             {p.links.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.documentNo} · {formatDay(d.documentDate)}
+                {d.documentDate ? `${d.documentNo} · ${formatDay(d.documentDate)}` : d.documentNo}
               </option>
             ))}
           </select>
