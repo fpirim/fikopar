@@ -165,7 +165,7 @@
       "STOCK": "Stock · {{label}}"
     },
     "trailRef": {
-      "AUDIT": "user {{user}} · {{ref}}",
+      "AUDIT": "{{ref}}",
       "OUTBOX": "outbox {{ref}}",
       "DELIVERY": "delivery {{ref}}",
       "STOCK": "{{ref}}"
@@ -179,6 +179,7 @@
       "submit": "Post reversal",
       "done": "{{no}} posted as the reversal"
     },
-    "postings": "Postings"
+    "postings": "Postings",
+    "trailUser": "user {{user}}"
   }
 }

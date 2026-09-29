@@ -81,7 +81,7 @@ describe('JournalPage', () => {
   it('lists newest first and searches as you type', async () => {
     renderApp('/journal')
     expect(await screen.findByRole('link', { name: 'J-2026-004833' })).toBeInTheDocument()
-    await userEvent.type(screen.getByRole('searchbox'), 'VRM')
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Kayıt veya belge no' }), 'VRM')
     await waitFor(() => expect(location()).toBe('/journal?q=VRM'))
     await waitFor(() =>
       expect(screen.queryByRole('link', { name: 'J-2026-004833' })).not.toBeInTheDocument(),

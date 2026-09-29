@@ -14,9 +14,10 @@ import StatementPage from './pages/StatementPage'
 import ReceiptPage from './pages/ReceiptPage'
 import CashBookPage from './pages/CashBookPage'
 import CarryForwardPage from './pages/CarryForwardPage'
+import JournalPage from './pages/JournalPage'
+import JournalEntryPage from './pages/JournalEntryPage'
 
 const LATER = ['/invoices', '/cheques', '/parts', '/stock-counts', '/migration']
-const F1 = ['/journal/*']
 
 function AppRoutes() {
   return (
@@ -34,10 +35,12 @@ function AppRoutes() {
           <Route path="/receipts" element={<ReceiptPage />} />
           <Route path="/cash-book" element={<CashBookPage />} />
           <Route path="/carry-forward" element={<CarryForwardPage />} />
+          <Route path="/journal" element={<JournalPage />} />
+          <Route path="/journal/:entryId" element={<JournalEntryPage />} />
           <Route path="/carry-forward/:year" element={<CarryForwardPage />} />
           <Route path="/statements" element={<StatementPage />} />
           <Route path="/statements/:accountId" element={<StatementPage />} />
-          {[...LATER, ...F1].map((p) => (
+          {LATER.map((p) => (
             <Route key={p} path={p} element={<NotInBuildPage />} />
           ))}
         </Route>

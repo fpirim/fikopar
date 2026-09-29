@@ -27,6 +27,14 @@
   body {
     @apply bg-background font-sans text-foreground;
   }
+
+  a {
+    color: var(--fk-accent);
+  }
+
+  a:hover {
+    color: var(--fk-accent-hover);
+  }
 }
 
 @layer utilities {

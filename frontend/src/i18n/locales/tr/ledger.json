@@ -165,7 +165,7 @@
       "STOCK": "Stok · {{label}}"
     },
     "trailRef": {
-      "AUDIT": "kullanıcı {{user}} · {{ref}}",
+      "AUDIT": "{{ref}}",
       "OUTBOX": "outbox {{ref}}",
       "DELIVERY": "teslim {{ref}}",
       "STOCK": "{{ref}}"
@@ -179,6 +179,7 @@
       "submit": "Ters kaydı at",
       "done": "Ters kayıt {{no}} atıldı"
     },
-    "postings": "Kayıt satırları"
+    "postings": "Kayıt satırları",
+    "trailUser": "kullanıcı {{user}}"
   }
 }
