@@ -14,55 +14,15 @@ func handlesDocumentEvent(typ string) bool {
 	return typ == "DocumentPosted" || typ == "DocumentCancelled"
 }
 
-// documentOf loads the event's document; consumers act on the stored document, not the payload copy.
-func documentOf(q *repository.Q, env Envelope) (*repository.DocumentRow, []repository.LineRow, error) {
-	var p struct {
-		DocumentID uint `json:"documentId"`
-	}
-	if err := json.Unmarshal(env.Payload, &p); err != nil {
-		return nil, nil, err
-	}
-	d, err := q.GetDocument(env.OrgID, p.DocumentID)
-	if err != nil {
-		return nil, nil, err
-	}
-	lines, err := q.DocumentLines(env.OrgID, d.ID)
-	return d, lines, err
-}
-
-// DocumentLedger writes a document's entry on DocumentPosted and its reversal on DocumentCancelled; the entry's
-// source key (document, id) and the one-reversal rule make a redelivery a no-op.
-type DocumentLedger struct{}
-
-func (DocumentLedger) Name() string            { return "document-ledger" }
-func (DocumentLedger) Handles(typ string) bool { return handlesDocumentEvent(typ) }
-
-func (DocumentLedger) Handle(ctx context.Context, q *repository.Q, env Envelope) error {
-	d, _, err := documentOf(q, env)
-	if err != nil || !docKinds[d.Type].ledger {
-		return err
+// documentEntry writes the entry of a posted document (ADR-0013 posting table) unless it has one; waybills and zero
+// totals have none.
+func documentEntry(ctx context.Context, q *repository.Q, d *repository.DocumentRow, direction string) error {
+	if !docKinds[d.Type].ledger {
+		return nil
 	}
 	src := strconv.FormatUint(uint64(d.ID), 10)
 	existing, err := q.EntryIDBySource(d.OrgID, string(models.SourceDocument), src)
-	if err != nil {
-		return err
-	}
-	if env.Type == "DocumentCancelled" {
-		if existing == nil {
-			return nil
-		}
-		e, err := entry(q, d.OrgID, *existing)
-		if err != nil || e.ReversedByEntryID != nil {
-			return err
-		}
-		_, err = reverseEntry(ctx, q, e, *d.CancelDate, *d.CancelReason)
-		return err
-	}
-	if existing != nil {
-		return nil
-	}
-	direction, err := documentDirection(q, d)
-	if err != nil {
+	if err != nil || existing != nil {
 		return err
 	}
 	rules := postingLines(d.Type, direction, priceDirection(d), amountsOf(d))
@@ -96,6 +56,20 @@ func (DocumentLedger) Handle(ctx context.Context, q *repository.Q, env Envelope)
 	return err
 }
 
+// reverseDocumentEntry reverses a cancelled document's entry on the cancel date, once.
+func reverseDocumentEntry(ctx context.Context, q *repository.Q, d *repository.DocumentRow) error {
+	existing, err := q.EntryIDBySource(d.OrgID, string(models.SourceDocument), strconv.FormatUint(uint64(d.ID), 10))
+	if err != nil || existing == nil {
+		return err
+	}
+	e, err := entry(q, d.OrgID, *existing)
+	if err != nil || e.ReversedByEntryID != nil {
+		return err
+	}
+	_, err = reverseEntry(ctx, q, e, *d.CancelDate, *d.CancelReason)
+	return err
+}
+
 func deref(s *string) string {
 	if s == nil {
 		return ""
@@ -103,18 +77,10 @@ func deref(s *string) string {
 	return *s
 }
 
-// DocumentStock writes one movement per line on DocumentPosted and the opposite one on DocumentCancelled, unless the
-// document never moves stock (price differences, bills of a waybill); lines that moved already are skipped.
-type DocumentStock struct{}
-
-func (DocumentStock) Name() string            { return "document-stock" }
-func (DocumentStock) Handles(typ string) bool { return handlesDocumentEvent(typ) }
-
-func (DocumentStock) Handle(ctx context.Context, q *repository.Q, env Envelope) error {
-	d, lines, err := documentOf(q, env)
-	if err != nil {
-		return err
-	}
+// documentMoves writes one movement per line of a posted document, or the opposite one of a cancelled document on
+// the cancel date, unless the document never moves stock (price differences, bills of a waybill); lines that moved
+// already are skipped.
+func documentMoves(ctx context.Context, q *repository.Q, d *repository.DocumentRow, lines []repository.LineRow) error {
 	kind := movesStock(d.Type, d.WaybillID)
 	if kind == "" || len(lines) == 0 {
 		return nil
@@ -128,7 +94,7 @@ func (DocumentStock) Handle(ctx context.Context, q *repository.Q, env Envelope) 
 		return err
 	}
 	date := d.DocumentDate
-	if env.Type == "DocumentCancelled" {
+	if d.Status == statusCancelled {
 		if !moved {
 			return nil
 		}
@@ -155,23 +121,6 @@ func (DocumentStock) Handle(ctx context.Context, q *repository.Q, env Envelope) 
 func unitCost(net models.Money, qty models.Dec4) models.Dec4 {
 	n := new(big.Int).Mul(big.NewInt(int64(net)), big.NewInt(1_000_000))
 	return models.Dec4(divRound(n, big.NewInt(int64(qty))))
-}
-
-// deliverInline runs the ledger and stock consumers on an event inside the writing transaction and records their
-// deliveries, so the relay later publishes the event without handling it twice.
-func deliverInline(ctx context.Context, q *repository.Q, env Envelope) error {
-	for _, c := range []Consumer{DocumentLedger{}, DocumentStock{}} {
-		first, err := q.MarkDelivered(env.ID, c.Name())
-		if err != nil {
-			return err
-		}
-		if first {
-			if err := c.Handle(ctx, q, env); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // PostedDocument is what an e-Fatura integrator receives.

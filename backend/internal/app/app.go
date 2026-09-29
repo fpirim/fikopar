@@ -26,7 +26,7 @@ func New(db *gorm.DB, cfg *config.Config) *App {
 	authService := services.NewAuthService(cfg)
 	userService := services.NewUserService(userRepo, authService, cfg)
 	orgService := services.NewOrganizationService(orgRepo, cfg)
-	sicilService := services.NewSicilService(sicilRepo)
+	sicilService := services.NewSicilService(sicilRepo, orgRepo)
 	store := repository.NewStore(db)
 	idem := services.NewIdempotencyService(store)
 	receiptService := services.NewReceiptService(store)
@@ -49,7 +49,7 @@ func New(db *gorm.DB, cfg *config.Config) *App {
 		Count:   handlers.NewStockCountHandler(services.NewStockCountService(store), idem),
 		Doc:     handlers.NewDocumentHandler(services.NewDocumentService(store), idem),
 	}, router.Services{Auth: authService, Membership: services.NewMembershipService(orgRepo)}, cfg)
-	return &App{Echo: e, UserService: userService, Relay: services.NewOutboxRelay(store, services.LedgerCheck{}, services.DocumentLedger{},
-		services.DocumentStock{}, services.DocumentExport{Exporter: services.NoopExporter{}}),
+	return &App{Echo: e, UserService: userService, Relay: services.NewOutboxRelay(store, services.LedgerCheck{},
+		services.DocumentExport{Exporter: services.NoopExporter{}}),
 		Sweeper: services.NewReservationSweeper(store)}
 }

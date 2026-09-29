@@ -176,6 +176,9 @@ func (s *DocumentService) Update(ctx context.Context, orgID, id uint, version in
 		if err != nil {
 			return err
 		}
+		if err := noDependents(q.DraftDependents(orgID, id)); err != nil {
+			return err
+		}
 		before, err := s.read(q, orgID, id)
 		if err != nil {
 			return err
@@ -215,6 +218,9 @@ func (s *DocumentService) Delete(ctx context.Context, orgID, id uint, version in
 		if err != nil {
 			return err
 		}
+		if err := noDependents(q.DraftDependents(orgID, id)); err != nil {
+			return err
+		}
 		before, err := s.read(q, orgID, id)
 		if err != nil {
 			return err
@@ -230,6 +236,14 @@ func (s *DocumentService) Delete(ctx context.Context, orgID, id uint, version in
 		}
 		return audit(ctx, q, orgID, "document.deleted", "document", id, before, nil)
 	})
+}
+
+// noDependents is 409 ERR_DOCUMENT_HAS_DEPENDENTS listing the dependents, if there are any.
+func noDependents(deps []models.DocumentDependent, err error) error {
+	if err != nil || len(deps) == 0 {
+		return err
+	}
+	return apierror.WithDetails(apierror.DocumentHasDependents, models.DocumentDependents{Dependents: deps})
 }
 
 func lockDocument(q *repository.Q, orgID, id uint) (*repository.DocumentRow, error) {

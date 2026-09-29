@@ -52,11 +52,7 @@ func TestDocuments_DraftDefaultsAmountsAndReservations(t *testing.T) {
 	exp, err := time.Parse(time.RFC3339Nano, d.Reservation.ExpiresAt)
 	require.NoError(t, err)
 	assert.WithinDuration(t, time.Now().Add(48*time.Hour), exp, time.Minute)
-	short := d.warnings("STOCK_SHORT")
-	require.Len(t, short, 1)
-	assert.Equal(t, 2, *short[0].LineNo)
-	assert.Equal(t, "8", *short[0].Requested)
-	assert.Equal(t, "10", *short[0].Available, "available without this draft")
+	assert.Empty(t, d.warnings("STOCK_SHORT"), "per line: 10 on hand, nothing held by other documents")
 	assert.Equal(t, "10", f.reserved(t, f.p1, f.depot))
 	noDrift(t)
 
@@ -715,7 +711,7 @@ func TestDocuments_SweeperReleasesExpiredReservations(t *testing.T) {
 	assert.Equal(t, "DRAFT", g.Status)
 	assert.Nil(t, g.Reservation)
 	assert.Equal(t, "0", g.Lines[0].ReservedQty)
-	assert.Len(t, g.warnings("STOCK_SHORT"), 1)
+	assert.Empty(t, g.warnings("STOCK_SHORT"), "an expired draft is short only against other documents")
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})

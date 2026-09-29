@@ -72,7 +72,8 @@ func (s *ReportService) SicilSummary(ctx context.Context, orgID, sicilID uint, d
 		return nil, err
 	}
 	sum := &models.SicilSummary{SicilID: sicilID, AccountID: acc.ID, AccountCode: acc.Code, CreditLimit: terms.CreditLimit,
-		Discount1Pct: models.TrimDecimal(terms.Iskonto), Discount2Pct: models.TrimDecimal(terms.Iskonto2)}
+		Discount1Pct: models.TrimDecimal(terms.Iskonto), Discount2Pct: models.TrimDecimal(terms.Iskonto2),
+		SalesRepUserID: terms.SalesRepID, SalesRepName: terms.SalesRep}
 	if len(rows) > 0 {
 		sum.Balance, sum.Overdue, sum.LastMoveDate = rows[0].Balance, rows[0].Overdue, rows[0].LastMoveDate
 	}

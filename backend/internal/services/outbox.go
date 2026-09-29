@@ -39,15 +39,9 @@ type Consumer interface {
 
 // emit appends an outbox row; depotID 0 is a company-wide event (depotId null).
 func emit(ctx context.Context, q *repository.Q, orgID, depotID uint, eventType, aggregateType string, aggregateID uint, aggregateVersion *int, payload any) error {
-	_, err := emitEnvelope(ctx, q, orgID, depotID, eventType, aggregateType, aggregateID, aggregateVersion, payload)
-	return err
-}
-
-// emitEnvelope appends an outbox row and returns it as the relay would deliver it.
-func emitEnvelope(ctx context.Context, q *repository.Q, orgID, depotID uint, eventType, aggregateType string, aggregateID uint, aggregateVersion *int, payload any) (Envelope, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return Envelope{}, err
+		return err
 	}
 	a := actorFrom(ctx)
 	var depot *uint
@@ -58,14 +52,11 @@ func emitEnvelope(ctx context.Context, q *repository.Q, orgID, depotID uint, eve
 	if a.RequestID != "" {
 		corr = &a.RequestID
 	}
-	ev := repository.OutboxEvent{
+	return q.AppendOutbox(repository.OutboxEvent{
 		ID: uuid.NewString(), OrgID: orgID, DepotID: depot, EventType: eventType, EventVersion: 1,
 		AggregateType: aggregateType, AggregateID: strconv.FormatUint(uint64(aggregateID), 10),
 		AggregateVersion: aggregateVersion, Payload: string(body), CorrelationID: corr, ActorUserID: a.userID(),
-	}
-	return Envelope{ID: ev.ID, Type: eventType, Version: 1, OccurredAt: time.Now().UTC(), OrgID: orgID, DepotID: depot,
-		AggregateType: aggregateType, AggregateID: ev.AggregateID, AggregateVersion: aggregateVersion, CorrelationID: corr,
-		ActorUserID: ev.ActorUserID, Payload: body}, q.AppendOutbox(ev)
+	})
 }
 
 type idemKey struct{}

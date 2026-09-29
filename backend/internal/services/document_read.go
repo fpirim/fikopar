@@ -54,7 +54,7 @@ func (s *DocumentService) read(q *repository.Q, orgID, id uint) (*models.Documen
 func documentHeader(row *repository.DocumentRow, card *repository.DocumentCard) *models.Document {
 	doc := &models.Document{
 		ID: row.ID, OrgID: row.OrgID, DocumentNo: row.DocumentNo, Type: row.Type, Status: row.Status, DepotID: row.DepotID,
-		SicilID: row.SicilID, SicilName: card.HesapAdi, DocumentDate: row.DocumentDate, ShipDate: row.ShipDate,
+		SicilID: row.SicilID, HesapNo: card.HesapNo, SicilName: card.HesapAdi, DocumentDate: row.DocumentDate, ShipDate: row.ShipDate,
 		DueDate: row.DueDate, SalesRepUserID: row.SalesRepUserID, LinkedDocumentID: row.LinkedDocumentID,
 		PriceDirection: row.PriceDirection, WaybillDocumentID: row.WaybillID, Currency: models.TRY,
 		GrossTotal: row.GrossTotal, DiscountTotal: row.DiscountTotal, NetTotal: row.NetTotal, VatTotal: row.VatTotal,
@@ -104,8 +104,12 @@ func (s *DocumentService) readLinks(q *repository.Q, row *repository.DocumentRow
 			return err
 		}
 	}
-	if doc.DependentDocumentIDs, err = q.DependentDocumentIDs(row.OrgID, row.ID); err != nil {
+	deps, err := q.PostedDependents(row.OrgID, row.ID)
+	if err != nil {
 		return err
+	}
+	for _, d := range deps {
+		doc.DependentDocumentIDs = append(doc.DependentDocumentIDs, d.ID)
 	}
 	if doc.JournalEntryID, doc.ReversalEntryID, err = q.DocumentEntries(row.OrgID, row.ID); err != nil {
 		return err
@@ -243,39 +247,16 @@ func amountsOf(row *repository.DocumentRow) docAmounts {
 	return docAmounts{gross: row.GrossTotal, discount: row.DiscountTotal, net: row.NetTotal, vat: row.VatTotal, total: row.GrandTotal}
 }
 
-// creditBalance is the card's current account over all depots and dates plus the documents whose ledger effect is
-// not written yet (ADR-0013 §9).
+// creditBalance is the card's current account over all depots and dates (ADR-0014).
 func creditBalance(q *repository.Q, orgID uint, card *repository.DocumentCard) (models.Money, error) {
-	var balance models.Money
 	acct, err := q.AccountBySicil(orgID, card.ID)
-	switch {
-	case err == nil:
-		if balance, err = q.AccountBalance(acct.ID); err != nil {
-			return 0, err
-		}
-	case !repository.IsNotFound(err):
-		return 0, err
+	if repository.IsNotFound(err) {
+		return 0, nil
 	}
-	pending, err := q.PendingLedgerDocuments(orgID, card.ID)
 	if err != nil {
 		return 0, err
 	}
-	for _, p := range pending {
-		dir := docKinds[p.Type].direction
-		if p.LinkedType != nil && p.Type == typePriceDifference {
-			dir = docKinds[*p.LinkedType].direction
-		}
-		pd := ""
-		if p.PriceDirection != nil {
-			pd = *p.PriceDirection
-		}
-		signed := cardDebit(p.Type, dir, pd, p.GrandTotal)
-		if p.Reversal {
-			signed = -signed
-		}
-		balance += signed
-	}
-	return balance, nil
+	return q.AccountBalance(acct.ID)
 }
 
 var cardGroup = map[string]string{string(models.SicilTipiMusteri): "120", string(models.SicilTipiFirma): "320", string(models.SicilTipiBanka): "102"}
@@ -333,27 +314,32 @@ func effects(q *repository.Q, row *repository.DocumentRow, card *repository.Docu
 	return out, nil
 }
 
-// draftWarnings: STOCK_SHORT per line holding less than its qty, CREDIT_LIMIT, PRICE_BELOW_LIST on sales.
+// draftWarnings: STOCK_SHORT, CREDIT_LIMIT, PRICE_BELOW_LIST on sales. A line is short when on hand minus what other
+// documents hold in the depot is below its qty; what this draft holds, expired or not, is not counted against it.
 func draftWarnings(q *repository.Q, row *repository.DocumentRow, card *repository.DocumentCard, direction string,
 	balance models.Money, lines []models.DocumentLine) ([]models.DocumentWarning, error) {
 	out := []models.DocumentWarning{}
 	if reserves(row.Type, row.WaybillID) {
-		byPart := map[uint]models.Dec4{}
+		held := map[uint]models.Dec4{}
 		for _, l := range lines {
-			byPart[*l.PartID] += *l.ReservedQty
+			held[*l.PartID] += *l.ReservedQty
 		}
+		avail := map[uint]models.Dec4{}
 		for _, l := range lines {
-			if *l.ReservedQty >= l.Qty {
+			part := *l.PartID
+			if _, ok := avail[part]; !ok {
+				lvl, err := q.StockLevel(part, row.DepotID)
+				if err != nil {
+					return nil, err
+				}
+				avail[part] = lvl.OnHand - lvl.Reserved + held[part]
+			}
+			if avail[part] >= l.Qty {
 				continue
 			}
-			lvl, err := q.StockLevel(*l.PartID, row.DepotID)
-			if err != nil {
-				return nil, err
-			}
-			no, part, depot, qty := l.LineNo, *l.PartID, row.DepotID, l.Qty
-			avail := lvl.OnHand - lvl.Reserved + byPart[part]
+			no, depot, qty, a, stockNo := l.LineNo, row.DepotID, l.Qty, avail[part], l.StockNo
 			out = append(out, models.DocumentWarning{Code: models.WarningStockShort, LineNo: &no, PartID: &part,
-				DepotID: &depot, Requested: &qty, Available: &avail})
+				StockNo: &stockNo, DepotID: &depot, Requested: &qty, Available: &a})
 		}
 	}
 	if creditChecked(row.Type, direction, priceDirection(row)) && card.CreditLimit != nil && balance+row.GrandTotal > *card.CreditLimit {
@@ -366,8 +352,8 @@ func draftWarnings(q *repository.Q, row *repository.DocumentRow, card *repositor
 				return nil, err
 			}
 			if p != nil && l.UnitPrice < p.Price {
-				no, part := l.LineNo, *l.PartID
-				out = append(out, models.DocumentWarning{Code: models.WarningPriceBelowList, LineNo: &no, PartID: &part})
+				no, part, stockNo := l.LineNo, *l.PartID, l.StockNo
+				out = append(out, models.DocumentWarning{Code: models.WarningPriceBelowList, LineNo: &no, PartID: &part, StockNo: &stockNo})
 			}
 		}
 	}

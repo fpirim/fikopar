@@ -34,8 +34,8 @@ func (s *DocumentService) today() models.Date {
 	return models.NewDate(n.Year(), n.Month(), n.Day())
 }
 
-// Post allocates the number, releases the reservations, emits DocumentPosted and, in the same transaction, runs
-// the ledger and stock consumers on it (ADR-0013), so the entry, the movements and the warnings are in the answer.
+// Post allocates the number, releases the reservations, writes the entry and the movements and emits DocumentPosted
+// in one transaction (ADR-0014), so the entry, the movements and the warnings are in the answer.
 func (s *DocumentService) Post(ctx context.Context, orgID, id uint, version int, in PostInput) (*models.Document, error) {
 	if in.CreditOverride != nil {
 		in.CreditOverride.Reason = strings.TrimSpace(in.CreditOverride.Reason)
@@ -101,12 +101,14 @@ func (s *DocumentService) Post(ctx context.Context, orgID, id uint, version int,
 		if err != nil {
 			return err
 		}
-		env, err := emitEnvelope(ctx, q, orgID, row.DepotID, "DocumentPosted", "document", id, &posted.Version,
-			documentPostedPayload(posted, lines, direction))
-		if err != nil {
+		if err := documentEntry(ctx, q, posted, direction); err != nil {
 			return err
 		}
-		if err := deliverInline(ctx, q, env); err != nil {
+		if err := documentMoves(ctx, q, posted, lines); err != nil {
+			return err
+		}
+		if err := emit(ctx, q, orgID, row.DepotID, "DocumentPosted", "document", id, &posted.Version,
+			documentPostedPayload(posted, lines, direction)); err != nil {
 			return err
 		}
 		if out, err = s.read(q, orgID, id); err != nil {
@@ -201,7 +203,8 @@ func negativeStock(q *repository.Q, row *repository.DocumentRow, lines []reposit
 		}
 		if lvl.OnHand < 0 {
 			part, depot, after := *l.PartID, row.DepotID, lvl.OnHand
-			out = append(out, models.DocumentWarning{Code: models.WarningNegativeStock, PartID: &part, DepotID: &depot, OnHandAfter: &after})
+			out = append(out, models.DocumentWarning{Code: models.WarningNegativeStock, PartID: &part, StockNo: l.StockNo,
+				DepotID: &depot, OnHandAfter: &after})
 		}
 	}
 	return out, nil
@@ -229,8 +232,8 @@ func documentPostedPayload(d *repository.DocumentRow, lines []repository.LineRow
 	}
 }
 
-// Cancel reverses a posted document on today's date (Istanbul): DocumentCancelled drives the reversal entry and the
-// opposite movements, run in this transaction like the post.
+// Cancel reverses a posted document on the later of today (Istanbul) and its date: the reversal entry, the opposite
+// movements and DocumentCancelled in one transaction.
 func (s *DocumentService) Cancel(ctx context.Context, orgID, id uint, version int, reason string) (*models.Document, error) {
 	reason = strings.TrimSpace(reason)
 	if len([]rune(reason)) < 3 {
@@ -246,6 +249,9 @@ func (s *DocumentService) Cancel(ctx context.Context, orgID, id uint, version in
 			return apierror.InvalidStateTransition
 		case row.Version != version:
 			return apierror.VersionConflict
+		}
+		if err := noDependents(q.PostedDependents(orgID, id)); err != nil {
+			return err
 		}
 		date := s.today()
 		if date.Before(row.DocumentDate.Time) {
@@ -275,12 +281,14 @@ func (s *DocumentService) Cancel(ctx context.Context, orgID, id uint, version in
 		if err != nil {
 			return err
 		}
-		env, err := emitEnvelope(ctx, q, orgID, row.DepotID, "DocumentCancelled", "document", id, &cancelled.Version,
-			documentCancelledPayload(cancelled, lines, direction))
-		if err != nil {
+		if err := reverseDocumentEntry(ctx, q, cancelled); err != nil {
 			return err
 		}
-		if err := deliverInline(ctx, q, env); err != nil {
+		if err := documentMoves(ctx, q, cancelled, lines); err != nil {
+			return err
+		}
+		if err := emit(ctx, q, orgID, row.DepotID, "DocumentCancelled", "document", id, &cancelled.Version,
+			documentCancelledPayload(cancelled, lines, direction)); err != nil {
 			return err
 		}
 		if out, err = s.read(q, orgID, id); err != nil {

@@ -176,18 +176,9 @@ func TestDocumentsRead_StatementMovementsDashboardSearch(t *testing.T) {
 	}
 
 	r := f.posted(t, docBody("PURCHASE_INVOICE", f.depot, f.supp, "2026-03-02", "", lineJSON(f.p1, "1", "10", "")))
-	dash := decode[struct {
-		Latest []struct {
-			Kind   string `json:"kind"`
-			ID     uint   `json:"id"`
-			Number string `json:"number"`
-			Amount string `json:"amount"`
-		} `json:"latest"`
-	}](t, f.do(t, http.MethodGet, f.path("/dashboard?date=2026-12-31"), f.token, ""))
-	require.NotEmpty(t, dash.Latest)
-	assert.Equal(t, "DOCUMENT", dash.Latest[0].Kind)
-	assert.Equal(t, r.no(), dash.Latest[0].Number)
-	assert.Equal(t, r.GrandTotal, dash.Latest[0].Amount)
+	latest := f.grid(t, `{"statuses":["POSTED","CANCELLED"],"sortModel":[{"colId":"postedAt","sort":"desc"}],"startRow":0,"endRow":10}`)
+	require.NotEmpty(t, latest.Rows, "dashboard latest documents come from the grid")
+	assert.Equal(t, r.ID, latest.Rows[0].ID)
 
 	search := decode[struct {
 		Documents []struct {

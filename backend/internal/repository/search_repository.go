@@ -38,11 +38,14 @@ type SicilTerms struct {
 	Iskonto     string        `gorm:"column:iskonto"`
 	Iskonto2    string        `gorm:"column:iskonto2"`
 	CreditLimit *models.Money `gorm:"column:credit_limit"`
+	SalesRepID  *uint         `gorm:"column:sales_rep_user_id"`
+	SalesRep    *string       `gorm:"column:sales_rep_name"`
 }
 
 func (q *Q) SicilTerms(orgID, id uint) (*SicilTerms, error) {
 	return first[SicilTerms](q.db, `SELECT id, coalesce(gun, '') AS gun, iskonto::numeric(7,4)::text AS iskonto,
-			iskonto2::text AS iskonto2, credit_limit
+			iskonto2::text AS iskonto2, credit_limit, sales_rep_user_id,
+			(SELECT u.name FROM users u WHERE u.id = sicils.sales_rep_user_id) AS sales_rep_name
 		FROM sicils WHERE organization_id = ? AND id = ?`, orgID, id)
 }
 

@@ -183,11 +183,6 @@ type dashboardJSON struct {
 		Total        string `json:"total"`
 		OverdueCount int    `json:"overdueCount"`
 	} `json:"instrumentsDue30"`
-	Latest []struct {
-		Kind   string `json:"kind"`
-		Number string `json:"number"`
-		Amount string `json:"amount"`
-	} `json:"latest"`
 	DueThisWeek []struct {
 		InstrumentNo string `json:"instrumentNo"`
 		DaysToDue    int    `json:"daysToDue"`
@@ -236,9 +231,6 @@ func TestV12_DashboardAggregates(t *testing.T) {
 	require.Len(t, d.Cash.Depots, 2)
 	assert.Equal(t, "100.00", d.InstrumentsDue30.Total)
 	assert.Equal(t, 1, d.InstrumentsDue30.OverdueCount)
-	require.Len(t, d.Latest, 4)
-	assert.Equal(t, "INSTRUMENT", d.Latest[0].Kind)
-	assert.Equal(t, "RECEIPT", d.Latest[3].Kind)
 	require.Len(t, d.DueThisWeek, 2)
 	assert.Equal(t, -11, d.DueThisWeek[0].DaysToDue)
 	assert.Equal(t, 3, d.DueThisWeek[1].DaysToDue)
