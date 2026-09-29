@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
+	"github.com/fpirim/fikopar/backend/internal/export"
 	"github.com/fpirim/fikopar/backend/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -194,6 +196,72 @@ func (h *CatalogHandler) SetPartPrice(c echo.Context) error {
 	})
 }
 
-func (h *CatalogHandler) GridParts(c echo.Context) error { return notImplemented(c) }
-func (h *CatalogHandler) Search(c echo.Context) error    { return notImplemented(c) }
-func (h *CatalogHandler) Resolve(c echo.Context) error   { return notImplemented(c) }
+func (h *CatalogHandler) Search(c echo.Context) error {
+	in := services.SearchRequest{Q: c.QueryParam("q"), Cursor: c.QueryParam("cursor")}
+	var err error
+	if in.CatalogID, err = queryUint(c, "catalogId"); err != nil {
+		return apierror.Respond(c, err)
+	}
+	if in.InStock, err = queryUint(c, "inStockDepotId"); err != nil {
+		return apierror.Respond(c, err)
+	}
+	if in.Date, err = queryDate(c, "date"); err != nil {
+		return apierror.Respond(c, err)
+	}
+	if v := c.QueryParam("limit"); v != "" {
+		if in.Limit, err = strconv.Atoi(v); err != nil || in.Limit == 0 {
+			return apierror.Respond(c, apierror.WithField(apierror.InvalidRequest, "limit"))
+		}
+	}
+	out, err := h.svc.Search(c.Request().Context(), orgID(c), in)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+func (h *CatalogHandler) Resolve(c echo.Context) error {
+	var in services.ResolveRequest
+	if err := bindJSON(c, &in); err != nil {
+		return apierror.Respond(c, err)
+	}
+	out, err := h.svc.Resolve(c.Request().Context(), orgID(c), in)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+func (h *CatalogHandler) GridParts(c echo.Context) error {
+	var in services.PartGridRequest
+	if err := bindJSON(c, &in); err != nil {
+		return apierror.Respond(c, err)
+	}
+	xlsx := accepts(c, mimeXLSX)
+	g, err := h.svc.GridParts(c.Request().Context(), orgID(c), in, xlsx)
+	if err != nil {
+		return apierror.Respond(c, err)
+	}
+	if !xlsx {
+		return c.JSON(http.StatusOK, g)
+	}
+	t := export.Table{Columns: []export.Column{{Title: "Stock no", Kind: export.Text}, {Title: "Name", Kind: export.Text},
+		{Title: "Type", Kind: export.Text}, {Title: "Brand", Kind: export.Text}, {Title: "Catalog", Kind: export.Int},
+		{Title: "Codes", Kind: export.Text}, {Title: "Unit", Kind: export.Text}, {Title: "VAT %", Kind: export.Text},
+		{Title: "Package", Kind: export.Int}, {Title: "List price", Kind: export.Number}, {Title: "Valid from", Kind: export.DateCol},
+		{Title: "On hand", Kind: export.Number}, {Title: "Reserved", Kind: export.Number}, {Title: "Available", Kind: export.Number},
+		{Title: "Min", Kind: export.Number}, {Title: "Max", Kind: export.Number}, {Title: "Shelf", Kind: export.Text},
+		{Title: "Active", Kind: export.Text}}}
+	for _, r := range g.Rows {
+		codes := make([]string, len(r.Codes))
+		for i, pc := range r.Codes {
+			codes[i] = pc.Code
+		}
+		t.Rows = append(t.Rows, []any{r.StockNo, r.Name, deref(r.Type), deref(r.Brand), r.CatalogCode, strings.Join(codes, ", "), r.Unit,
+			r.VatPct, r.PackageQty, r.ListPrice, r.ListPriceValidFrom, r.OnHand, r.Reserved, r.Available, r.MinQty, r.MaxQty,
+			deref(r.Shelf), strconv.FormatBool(r.IsActive)})
+	}
+	t.Totals = []any{"Total", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, g.Totals["onHand"], g.Totals["reserved"], g.Totals["available"]}
+	data, err := export.XLSX("Parts", t)
+	return sendFile(c, mimeXLSX, "parts.xlsx", data, err)
+}

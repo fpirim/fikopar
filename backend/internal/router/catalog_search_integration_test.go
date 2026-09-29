@@ -119,7 +119,7 @@ func TestSearch_EquivalentsBothWaysAndPaging(t *testing.T) {
 	r2 := f.search(t, "q=EQ&limit=2&cursor="+url.QueryEscape(*r.NextCursor))
 	assert.Equal(t, []string{"EQ-3"}, stockNos(r2.Items))
 	assert.Nil(t, r2.NextCursor)
-	assert.Equal(t, http.StatusBadRequest, f.do(t, http.MethodGet, f.path("/catalog/search?q=EQ&cursor=%%%"), f.token, "").Code)
+	assert.Equal(t, http.StatusBadRequest, f.do(t, http.MethodGet, f.path("/catalog/search?q=EQ&cursor=@@"), f.token, "").Code)
 }
 
 func TestSearch_TotalIsCappedAt1000(t *testing.T) {
