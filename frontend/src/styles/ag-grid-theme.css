@@ -72,3 +72,56 @@
   background-color: var(--fk-surface-sunken);
   font-weight: 600;
 }
+
+/* Mockup details: column rules, header weight, accent sort and filter icons, flush inside cards. */
+.ag-theme-alpine.fk-grid {
+  --ag-cell-horizontal-border: solid var(--fk-divider-soft);
+  --ag-header-column-separator-display: block;
+  --ag-header-column-separator-height: 100%;
+  --ag-header-column-separator-color: var(--fk-divider);
+  --ag-header-column-resize-handle-display: none;
+  --ag-header-foreground-color: var(--fk-text-secondary);
+}
+
+.ag-theme-alpine.fk-grid .ag-root-wrapper {
+  border: 0;
+  border-radius: 0;
+}
+
+.ag-theme-alpine.fk-grid .ag-header-cell-text {
+  font-weight: 500;
+}
+
+.ag-theme-alpine.fk-grid .ag-header-row-column-filter .ag-header-cell {
+  padding: 3px 6px;
+}
+
+.ag-theme-alpine.fk-grid .ag-sort-indicator-icon,
+.ag-theme-alpine.fk-grid .ag-header-cell-filtered .ag-filter-icon {
+  color: var(--fk-accent);
+}
+
+.ag-theme-alpine.fk-grid .ag-floating-bottom {
+  border-top: 1px solid var(--fk-border);
+}
+
+.ag-theme-alpine.fk-grid .ag-row.fk-row-bf {
+  background-color: var(--fk-surface-sunken);
+  font-weight: 500;
+}
+
+.ag-theme-alpine.fk-grid .ag-cell.fk-muted {
+  color: var(--fk-text-faint);
+}
+
+.ag-theme-alpine.fk-grid .ag-cell.fk-neg {
+  color: var(--fk-negative);
+}
+
+.ag-theme-alpine.fk-grid a {
+  color: var(--fk-accent);
+}
+
+.ag-theme-alpine.fk-grid a:hover {
+  color: var(--fk-accent-hover);
+}

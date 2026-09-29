@@ -54,5 +54,27 @@
     "rowGroupColumnsEmptyMessage": "Drag here to set row groups",
     "totalRows": "Total Rows",
     "totalAndFilteredRows": "Rows"
+  },
+  "fk": {
+    "shownOf": "{{shown}} of {{total}}",
+    "filters_one": "{{count}} filter",
+    "filters_other": "{{count}} filters",
+    "sortedBy": "Sorted by {{cols}}",
+    "filteredBy": "filters: {{cols}}",
+    "noSort": "Unsorted",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "clearFilters": "Clear filters",
+    "columns": "Columns",
+    "csv": "CSV",
+    "excel": "Excel",
+    "pdf": "PDF",
+    "contains": "Contains…",
+    "any": "Any",
+    "all": "All",
+    "before": "Before…",
+    "range_hint": "Range…",
+    "positive": "> 0",
+    "nonZero": "≠ 0",
+    "total": "Total"
   }
 }
