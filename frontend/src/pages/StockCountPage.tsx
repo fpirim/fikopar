@@ -96,17 +96,20 @@ function Count({ orgId, countId }: Readonly<{ orgId: number; countId: number }>)
         >
           {t('allCounts')}
         </Link>
-        <h1 className="font-mono text-22 font-medium">{count.countNo}</h1>
-        <Chip tone={STATUS_TONE[count.status]}>{t(`status.${count.status}`)}</Chip>
-        <span className="whitespace-nowrap text-sm text-fk-muted">
-          {t('head.started', { code, date: started })}
+        <h1 className="shrink-0 whitespace-nowrap font-mono text-22 font-medium">
+          {count.countNo}
+        </h1>
+        <span className="shrink-0">
+          <Chip tone={STATUS_TONE[count.status]}>{t(`status.${count.status}`)}</Chip>
         </span>
-        {formatDay(count.countDate) !== started && (
-          <span className="whitespace-nowrap text-sm text-fk-muted">
-            · {t('head.countDate', { date: formatDay(count.countDate) })}
-          </span>
-        )}
-        <div className="flex-1" />
+        <span className="flex min-w-0 flex-1 flex-wrap gap-x-1.5 text-sm text-fk-muted">
+          <span className="whitespace-nowrap">{t('head.started', { code, date: started })}</span>
+          {formatDay(count.countDate) !== started && (
+            <span className="whitespace-nowrap">
+              · {t('head.countDate', { date: formatDay(count.countDate) })}
+            </span>
+          )}
+        </span>
         <Button
           variant="outline"
           disabled={download.busy !== null}
