@@ -1,0 +1,20 @@
+{
+  "fikoparApp": {
+    "EvrakTipi": {
+      "null": "",
+      "IRSALIYELI_SATIS_FATURASI": "İrsaliyeli Satış Faturası",
+      "SATIS_FATURASI": "Satış Faturası",
+      "SATIS_IRSALIYESI": "Satış İrsaliyesi",
+      "IRSALIYELI_ALIS_FATURASI": "İrsaliyeli Alış Faturası",
+      "ALIS_FATURASI": "Alış Faturası",
+      "ALIS_IRSALIYESI": "Alış İrsaliyesi",
+      "TAHSILAT_MAKBUZU": "Tahsilat Makbuzu",
+      "TEDIYE_MAKBUZU": "Tediye Makbuzu",
+      "ALACAK_CEKI": "Alacak Çeki",
+      "ALACAK_SENETI": "Alacak Senedi",
+      "BORC_CEKI": "Borç Çeki",
+      "BORC_SENETI": "Borç Senedi",
+      "DEVIR": "Devir"
+    }
+  }
+}

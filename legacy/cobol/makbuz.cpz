@@ -1,0 +1,15 @@
+       FD MAKBUZ DATA RECORD MK-KAYIT.
+       01 MK-KAYIT.
+           02 MK-KEY.
+               03 MK-EVRAKNO        PIC X(15).
+               03 MK-TIP        PIC 99.
+           02 MK-SEKILNO          PIC 9999.
+           02 MK-HESAPNO         PIC X(15).           
+           02 MK-DEPONO          PIC 9999.
+           02 MK-TARIH.
+               03 MK-YIL        PIC 9999.
+               03 MK-AY         PIC 99.
+               03 MK-GUN        PIC 99.
+           02 MK-ACIKLAMA        PIC X(60).
+           02 MK-TUTAR           PIC 9(13)V99.
+           

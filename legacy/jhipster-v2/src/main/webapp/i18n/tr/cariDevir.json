@@ -1,0 +1,29 @@
+{
+  "fikoparApp": {
+    "cariDevir": {
+      "home": {
+        "title": "Cari Devirs",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Cari Devir",
+        "createOrEditLabel": "Create or edit a Cari Devir",
+        "notFound": "No Cari Devirs found"
+      },
+      "created": "A new Cari Devir is created with identifier {{ param }}",
+      "updated": "A Cari Devir is updated with identifier {{ param }}",
+      "deleted": "A Cari Devir is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Cari Devir {{ id }}?"
+      },
+      "detail": {
+        "title": "Cari Devir"
+      },
+      "id": "ID",
+      "depotipi": "Depotipi",
+      "yil": "Yil",
+      "borc": "Borc",
+      "alacak": "Alacak",
+      "sicil": "Sicil",
+      "cari": "Cari"
+    }
+  }
+}

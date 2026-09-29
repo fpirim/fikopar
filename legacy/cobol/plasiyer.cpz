@@ -1,0 +1,5 @@
+       FD PLASIYER DATA RECORD IS PL-KAYIT.
+       01 PL-KAYIT.
+           02 PL-KEY.
+                03 PL-NO    PIC 9999.
+           02 PL-ADI      PIC X(60).

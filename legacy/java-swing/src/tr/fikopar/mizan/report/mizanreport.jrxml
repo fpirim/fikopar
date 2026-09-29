@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="mizanreport" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" isSummaryWithPageHeaderAndFooter="true" isFloatColumnFooter="true" uuid="867f0fad-969c-4622-82fe-49a4b9352751">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="245"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="totalRecordsOnReport" class="java.lang.Integer"/>
+	<field name="tipi" class="java.lang.String"/>
+	<field name="borc" class="java.math.BigDecimal"/>
+	<field name="alacak" class="java.math.BigDecimal"/>
+	<field name="hesapno" class="java.lang.String"/>
+	<field name="hesapadi" class="java.lang.String"/>
+	<field name="plasiyer" class="java.lang.String"/>
+	<field name="adres" class="java.lang.String"/>
+	<field name="telefon" class="java.lang.String"/>
+	<variable name="borctoplam" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{borc}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="alacaktoplam" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{alacak}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="bakiye" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$F{borc}.subtract($F{alacak})]]></variableExpression>
+	</variable>
+	<variable name="tbakiye" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$V{borctoplam}.subtract($V{alacaktoplam})]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<pageHeader>
+		<band height="42" splitType="Stretch">
+			<textField>
+				<reportElement x="721" y="0" width="50" height="20" uuid="e9eaadde-8c1c-4f6d-9076-8431737a9184"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Sayfa "+$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="0" width="147" height="20" uuid="754c2443-c4ce-4a64-901c-4b19c6316dd2"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="false" isUnderline="false"/>
+				</textElement>
+				<text><![CDATA[HESAP TOPLAMLARI (MİZAN) -]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="30" width="50" height="12" uuid="742a4609-5ee0-4d03-902c-c0599d6e1ae1"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineWidth="1.0" lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Hesap No]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="50" y="30" width="229" height="12" uuid="8d0596f0-cb6c-4d12-81d2-c6e76909a8c7"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineWidth="1.0" lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Hesap Adı]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="279" y="30" width="163" height="12" uuid="64472b10-240b-43e2-ab1e-de3f77bd0194"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineWidth="1.0" lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Adres]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="442" y="30" width="60" height="12" uuid="ac98c2fc-d343-4b9c-b137-f1766778cc5d"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineWidth="1.0" lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Plasiyer]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="502" y="30" width="60" height="12" uuid="188c1739-8400-48c5-8087-358e4a2206e7"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineWidth="1.0" lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipi]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="562" y="30" width="60" height="12" uuid="cef929c0-2737-4541-b3b8-456efb849997"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineWidth="1.0" lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Borç]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="622" y="30" width="60" height="12" uuid="63507e31-1377-47f0-806e-d3f141e6bfc1"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineWidth="1.0" lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Alacak]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="682" y="30" width="60" height="12" uuid="96be2251-e006-4c7c-82b3-cb6a22ffa2c2"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineWidth="1.0" lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ Borç Bakiye]]></text>
+			</staticText>
+			<textField evaluationTime="Report">
+				<reportElement x="771" y="0" width="31" height="20" uuid="50474380-1ece-4281-9fca-9c13aa447a65"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA["/"+$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="147" y="0" width="100" height="20" uuid="ac18074f-3bd5-44ae-a43f-a9bbdd257af5"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[new java.util.Date()]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="742" y="30" width="60" height="12" uuid="64de2024-b19c-4c2c-a246-17ad045e0e96"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineWidth="1.0" lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Alacak Bakiye]]></text>
+			</staticText>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="12" splitType="Stretch">
+			<printWhenExpression><![CDATA[$V{borctoplam}.compareTo(BigDecimal.ZERO)!=0 || $V{alacaktoplam}.compareTo(BigDecimal.ZERO)!=0]]></printWhenExpression>
+			<staticText>
+				<reportElement x="50" y="0" width="512" height="12" uuid="fd1ed584-a0fb-401a-a343-94c91367f5b6"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="false"/>
+				</textElement>
+				<text><![CDATA[NAKLİ YEKÜN]]></text>
+			</staticText>
+			<textField pattern="#,##0.00">
+				<reportElement x="562" y="0" width="60" height="12" uuid="85391f8c-62ff-432f-ad10-76f60efb83f7">
+					<printWhenExpression><![CDATA[$V{borctoplam}.compareTo(BigDecimal.ZERO)!=0]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{borctoplam}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="622" y="0" width="60" height="12" uuid="c5f14332-8c5b-4efd-97cc-c0ee2a5074a5">
+					<printWhenExpression><![CDATA[$V{alacaktoplam}.compareTo(BigDecimal.ZERO)!=0]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{alacaktoplam}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="742" y="0" width="60" height="12" uuid="c48ab355-3068-4221-a3cc-6190a7918b4c">
+					<printWhenExpression><![CDATA[$V{bakiye}.compareTo(BigDecimal.ZERO)<0]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{tbakiye}.multiply(new java.math.BigDecimal(-1))]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="682" y="0" width="60" height="12" uuid="94c8ec26-ccda-4d53-8d55-fa2fef908aa6">
+					<printWhenExpression><![CDATA[$V{bakiye}.compareTo(BigDecimal.ZERO)>0]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{tbakiye}]]></textFieldExpression>
+			</textField>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="12" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="50" height="12" uuid="d5120975-4161-48b9-8e58-4e48ceb120de"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{hesapno}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="50" y="0" width="229" height="12" uuid="dff0d3a5-42f2-4b2a-94e7-3ef10e735b6a"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{hesapadi}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="279" y="0" width="163" height="12" uuid="5765dbdf-e830-4a77-8385-df2cba0b6876"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{adres}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="442" y="0" width="60" height="12" uuid="642cb8fe-78d6-48ab-9cb3-a53edd5028dd"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{plasiyer}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="502" y="0" width="60" height="12" uuid="48c842e5-133d-470b-82c9-2d837b61c457"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{tipi}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="562" y="0" width="60" height="12" uuid="edcb90dd-ed68-431e-95a5-7796c127f274">
+					<printWhenExpression><![CDATA[$F{borc}.compareTo(BigDecimal.ZERO)!=0]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{borc}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="622" y="0" width="60" height="12" uuid="0c1656f7-82af-4d92-acfd-cbcdfb3d6bf9">
+					<printWhenExpression><![CDATA[$F{alacak}.compareTo(BigDecimal.ZERO)!=0]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{alacak}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="682" y="0" width="60" height="12" uuid="a6bff406-e340-447a-b479-5e748ef22868">
+					<printWhenExpression><![CDATA[$V{bakiye}.compareTo(BigDecimal.ZERO)>0]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{bakiye}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="742" y="0" width="60" height="12" uuid="828e131a-2bf1-480b-8a09-ea68ab44424a">
+					<printWhenExpression><![CDATA[$V{bakiye}.compareTo(BigDecimal.ZERO)<0]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{bakiye}.multiply(new java.math.BigDecimal(-1))]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="24">
+			<textField pattern="#,##0.00">
+				<reportElement x="622" y="0" width="60" height="12" uuid="7b45d55e-7738-4ecf-969e-3d081209bbe3"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineWidth="1.0" lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{alacaktoplam}.compareTo(BigDecimal.ZERO) == 0 ? "" : $V{alacaktoplam}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="562" y="0" width="60" height="12" uuid="26a0d58b-4557-4c4f-8439-91f7a84b88b5"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineWidth="1.0" lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{borctoplam}.compareTo(BigDecimal.ZERO) == 0 ? "" : $V{borctoplam}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="0" width="562" height="12" uuid="af3b02e4-cf52-40a8-a396-7520f5e856ba"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineWidth="1.0" lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOPLAMLAR :]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="12" width="562" height="12" uuid="e176abff-81dd-4bfd-92f9-b1035090ca13">
+					<printWhenExpression><![CDATA[$V{REPORT_COUNT}.equals($P{totalRecordsOnReport})]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineWidth="0.0" lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[BAKİYE :]]></text>
+			</staticText>
+			<textField pattern="#,##0.00">
+				<reportElement x="562" y="12" width="60" height="12" uuid="143eab2c-9682-4684-b7c6-267f62d1095f">
+					<printWhenExpression><![CDATA[$V{REPORT_COUNT}.equals($P{totalRecordsOnReport}) && $V{bakiye}.compareTo(BigDecimal.ZERO)>0]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineWidth="0.0" lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{tbakiye}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="622" y="12" width="60" height="12" uuid="d2ba87b2-c983-4d59-8654-7f75ccdd8467">
+					<printWhenExpression><![CDATA[$V{REPORT_COUNT}.equals($P{totalRecordsOnReport}) && $V{bakiye}.compareTo(BigDecimal.ZERO)<0]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineWidth="0.0" lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{tbakiye}.multiply(new java.math.BigDecimal(-1))]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="682" y="0" width="120" height="12" uuid="8d74c709-caf3-456e-888d-8bf2979c031e"/>
+				<box>
+					<pen lineStyle="Double"/>
+					<topPen lineWidth="1.0" lineStyle="Double"/>
+					<leftPen lineStyle="Double"/>
+					<bottomPen lineStyle="Double"/>
+					<rightPen lineStyle="Double"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+		</band>
+	</columnFooter>
+</jasperReport>

@@ -1,0 +1,231 @@
+package com.dizel.fikopar.service.criteria;
+
+import java.io.Serializable;
+import java.util.Objects;
+import org.springdoc.api.annotations.ParameterObject;
+import tech.jhipster.service.Criteria;
+import tech.jhipster.service.filter.*;
+
+/**
+ * Criteria class for the {@link com.dizel.fikopar.domain.Stok} entity. This class is used
+ * in {@link com.dizel.fikopar.web.rest.StokResource} to receive all the possible filtering options from
+ * the Http GET request parameters.
+ * For example the following could be a valid request:
+ * {@code /stoks?id.greaterThan=5&attr1.contains=something&attr2.specified=false}
+ * As Spring is unable to properly convert the types, unless specific {@link Filter} class are used, we need to use
+ * fix type specific filters.
+ */
+@ParameterObject
+@SuppressWarnings("common-java:DuplicatedBlocks")
+public class StokCriteria implements Serializable, Criteria {
+
+    private static final long serialVersionUID = 1L;
+
+    private LongFilter id;
+
+    private StringFilter stokno;
+
+    private StringFilter parcano;
+
+    private StringFilter tipi;
+
+    private StringFilter cinsi;
+
+    private StringFilter marka;
+
+    private BigDecimalFilter fiyati;
+
+    private LongFilter katalogId;
+
+    private Boolean distinct;
+
+    public StokCriteria() {}
+
+    public StokCriteria(StokCriteria other) {
+        this.id = other.id == null ? null : other.id.copy();
+        this.stokno = other.stokno == null ? null : other.stokno.copy();
+        this.parcano = other.parcano == null ? null : other.parcano.copy();
+        this.tipi = other.tipi == null ? null : other.tipi.copy();
+        this.cinsi = other.cinsi == null ? null : other.cinsi.copy();
+        this.marka = other.marka == null ? null : other.marka.copy();
+        this.fiyati = other.fiyati == null ? null : other.fiyati.copy();
+        this.katalogId = other.katalogId == null ? null : other.katalogId.copy();
+        this.distinct = other.distinct;
+    }
+
+    @Override
+    public StokCriteria copy() {
+        return new StokCriteria(this);
+    }
+
+    public LongFilter getId() {
+        return id;
+    }
+
+    public LongFilter id() {
+        if (id == null) {
+            id = new LongFilter();
+        }
+        return id;
+    }
+
+    public void setId(LongFilter id) {
+        this.id = id;
+    }
+
+    public StringFilter getStokno() {
+        return stokno;
+    }
+
+    public StringFilter stokno() {
+        if (stokno == null) {
+            stokno = new StringFilter();
+        }
+        return stokno;
+    }
+
+    public void setStokno(StringFilter stokno) {
+        this.stokno = stokno;
+    }
+
+    public StringFilter getParcano() {
+        return parcano;
+    }
+
+    public StringFilter parcano() {
+        if (parcano == null) {
+            parcano = new StringFilter();
+        }
+        return parcano;
+    }
+
+    public void setParcano(StringFilter parcano) {
+        this.parcano = parcano;
+    }
+
+    public StringFilter getTipi() {
+        return tipi;
+    }
+
+    public StringFilter tipi() {
+        if (tipi == null) {
+            tipi = new StringFilter();
+        }
+        return tipi;
+    }
+
+    public void setTipi(StringFilter tipi) {
+        this.tipi = tipi;
+    }
+
+    public StringFilter getCinsi() {
+        return cinsi;
+    }
+
+    public StringFilter cinsi() {
+        if (cinsi == null) {
+            cinsi = new StringFilter();
+        }
+        return cinsi;
+    }
+
+    public void setCinsi(StringFilter cinsi) {
+        this.cinsi = cinsi;
+    }
+
+    public StringFilter getMarka() {
+        return marka;
+    }
+
+    public StringFilter marka() {
+        if (marka == null) {
+            marka = new StringFilter();
+        }
+        return marka;
+    }
+
+    public void setMarka(StringFilter marka) {
+        this.marka = marka;
+    }
+
+    public BigDecimalFilter getFiyati() {
+        return fiyati;
+    }
+
+    public BigDecimalFilter fiyati() {
+        if (fiyati == null) {
+            fiyati = new BigDecimalFilter();
+        }
+        return fiyati;
+    }
+
+    public void setFiyati(BigDecimalFilter fiyati) {
+        this.fiyati = fiyati;
+    }
+
+    public LongFilter getKatalogId() {
+        return katalogId;
+    }
+
+    public LongFilter katalogId() {
+        if (katalogId == null) {
+            katalogId = new LongFilter();
+        }
+        return katalogId;
+    }
+
+    public void setKatalogId(LongFilter katalogId) {
+        this.katalogId = katalogId;
+    }
+
+    public Boolean getDistinct() {
+        return distinct;
+    }
+
+    public void setDistinct(Boolean distinct) {
+        this.distinct = distinct;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final StokCriteria that = (StokCriteria) o;
+        return (
+            Objects.equals(id, that.id) &&
+            Objects.equals(stokno, that.stokno) &&
+            Objects.equals(parcano, that.parcano) &&
+            Objects.equals(tipi, that.tipi) &&
+            Objects.equals(cinsi, that.cinsi) &&
+            Objects.equals(marka, that.marka) &&
+            Objects.equals(fiyati, that.fiyati) &&
+            Objects.equals(katalogId, that.katalogId) &&
+            Objects.equals(distinct, that.distinct)
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, stokno, parcano, tipi, cinsi, marka, fiyati, katalogId, distinct);
+    }
+
+    // prettier-ignore
+    @Override
+    public String toString() {
+        return "StokCriteria{" +
+            (id != null ? "id=" + id + ", " : "") +
+            (stokno != null ? "stokno=" + stokno + ", " : "") +
+            (parcano != null ? "parcano=" + parcano + ", " : "") +
+            (tipi != null ? "tipi=" + tipi + ", " : "") +
+            (cinsi != null ? "cinsi=" + cinsi + ", " : "") +
+            (marka != null ? "marka=" + marka + ", " : "") +
+            (fiyati != null ? "fiyati=" + fiyati + ", " : "") +
+            (katalogId != null ? "katalogId=" + katalogId + ", " : "") +
+            (distinct != null ? "distinct=" + distinct + ", " : "") +
+            "}";
+    }
+}

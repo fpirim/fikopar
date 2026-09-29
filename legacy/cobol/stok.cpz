@@ -1,0 +1,77 @@
+       FD STOK DATA RECORD IS ST-KAYIT.
+       01 ST-KAYIT.
+           02 ST-KEY.
+               03 ST-KATNO              PIC 9999.
+               03 ST-STNO               PIC X(15).
+           02 ST-PRCNO                  PIC X(30).
+           02 ST-OEMNO                  PIC X(30).
+           02 ST-TIPI                   PIC X(30).
+           02 ST-CINSI                  PIC X(60).
+           02 ST-MARKA                  PIC X(30).
+           02 ST-MIN                    PIC 9(12)V9999.
+           02 ST-MAX                    PIC 9(12)V9999.
+           02 ST-FIYAT                  PIC 9(10)V9999.
+           02 ST-NOTE                   PIC X(10).
+           02 ST-DEG.
+                 03 ST-YIL          PIC 9999.
+                 03 ST-AY           PIC 99.
+                 03 ST-GUN          PIC 99.
+           02 ST-PAKET                  PIC 9(5).
+           02 ST-SIRA                   PIC 9(15).
+           
+       FD STOKBAG DATA RECORD IS SB-KAYIT.
+       01 SB-KAYIT.
+           02 SB-KEY.
+               03 SB-KATNO          PIC 9999.
+               03 SB-STNO           PIC X(15).
+               03 SB-SIRA           PIC 9(12).
+           02 SB-BAG-KATNO          PIC 9999.
+           02 SB-BAG-STNO           PIC X(15).
+           02 SB-ISK                PIC 9(5)V9999.
+           02 SB-KDV                PIC 9(5)V9999.
+               
+       FD PASSTOK DATA RECORD IS PAS-KAYIT.
+       01 PAS-KAYIT.
+           02 PAS-KEY.
+               03 PAS-KATNO              PIC 9999.
+               03 PAS-STNO               PIC X(15).
+           02 PAS-PRCNO                  PIC X(30).
+           02 PAS-OEMNO                  PIC X(30).
+           02 PAS-TIPI                   PIC X(30).
+           02 PAS-CINSI                  PIC X(60).
+           02 PAS-MARKA                  PIC X(30).
+           02 PAS-MIN                    PIC 9(12)V9999.
+           02 PAS-MAX                    PIC 9(12)V9999.
+           02 PAS-FIYAT                  PIC 9(10)V9999.
+           02 PAS-NOTE                   PIC X(10).
+           02 PAS-DEG.
+                 03 PAS-YIL          PIC 9999.
+                 03 PAS-AY           PIC 99.
+                 03 PAS-GUN          PIC 99.
+           02 PAS-PAKET                  PIC 9(5).
+           02 PAS-TARIH.
+                 03 PAS-IYIL        PIC 9999.
+                 03 PAS-IAY         PIC 99.
+                 03 PAS-IGUN        PIC 99.
+           02 PAS-ZAMAN.
+                 03 PAS-SA      PIC 99.
+                 03 PAS-DD      PIC 99.
+                 03 PAS-SS      PIC 99.
+				 
+       FD STOKADET DATA RECORD IS STA-KAYIT.
+       01 STA-KAYIT.
+           02 STA-KEY.
+               03 STA-KATNO         PIC 9999.
+               03 STA-STNO          PIC X(15).
+               03 STA-YIL           PIC 9999.
+               03 STA-DEPONO        PIC 9999.
+           02 STA-GIR               PIC 9(12)V9999.
+           02 STA-CIK               PIC 9(12)V9999.
+           
+       FD STOKARA.
+       01 SA-KAYIT.
+           02 SA-STNO            PIC X(19).
+           02 SA-PRCNO           PIC X(34).
+           02 SA-OEMNO           PIC X(34).
+           02 SA-TIPI            PIC X(34).
+           02 SA-CINSI           PIC X(64).

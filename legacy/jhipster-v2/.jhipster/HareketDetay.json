@@ -1,0 +1,59 @@
+{
+  "applications": ["fikopar"],
+  "changelogDate": "20230810135108",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "hareket_detay",
+  "fields": [
+    {
+      "fieldName": "stokno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "parcano",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "tipi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "cinsi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "marka",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "iskonto",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "kdv",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "adet",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "fiyati",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "HareketDetay",
+  "pagination": "infinite-scroll",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "hareketSicil",
+      "otherEntityRelationshipName": "hareketDetays",
+      "relationshipName": "hareketSicil",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "serviceImpl"
+}

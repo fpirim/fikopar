@@ -1,0 +1,34 @@
+{
+  "fikoparApp": {
+    "caritoplam": {
+      "home": {
+        "title": "Caris",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Cari",
+        "createOrEditLabel": "Create or edit a Cari",
+        "notFound": "No Caris found"
+      },
+      "created": "A new Cari is created with identifier {{ param }}",
+      "updated": "A Cari is updated with identifier {{ param }}",
+      "deleted": "A Cari is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Cari {{ id }}?"
+      },
+      "detail": {
+        "title": "Cari"
+      },
+      "borc": "Borç",
+      "alacak": "Alacak",
+      "borcBakiye": "Borç Bakiye",
+      "alacakBakiye": "Alacak Bakiye",
+      "depotipi": "Depotipi",
+      "filter": "Ara ...",
+      "toplamlar": {
+        "borc": "Borç Toplamı",
+        "alacak": "Alacak Toplamı",
+        "borcBakiye": "Borç Bakiye",
+        "alacakBakiye": "Alacak Bakiye"
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+       FD SAYIM DATA RECORD IS SY-KAYIT.
+       01 SY-KAYIT.
+           02 SY-KEY.
+               03 SY-YIL                PIC 9999.
+               03 SY-KATNO              PIC 9999.
+               03 SY-STNO               PIC X(15).
+               03 SY-SIRA               PIC 9(10).
+           02 SY-DEPONO             PIC 9999.    
+           02 SY-PRCNO              PIC X(30).
+           02 SY-OEMNO              PIC X(30).
+           02 SY-TIPI               PIC X(30).
+           02 SY-CINSI              PIC X(60).
+           02 SY-MARKA              PIC X(30).
+           02 SY-FIYAT              PIC 9(15)V9999.
+           02 SY-ADET               PIC 9(10)V9999.
+           02 SY-KDV                PIC 9(5)V9999.
+           02 SY-RAF                PIC X(15).
+           

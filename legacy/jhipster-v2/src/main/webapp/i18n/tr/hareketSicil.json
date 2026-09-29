@@ -1,0 +1,48 @@
+{
+  "fikoparApp": {
+    "hareketSicil": {
+      "home": {
+        "title": "Hareket Sicils",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Hareket Sicil",
+        "createOrEditLabel": "Create or edit a Hareket Sicil",
+        "notFound": "No Hareket Sicils found"
+      },
+      "created": "A new Hareket Sicil is created with identifier {{ param }}",
+      "updated": "A Hareket Sicil is updated with identifier {{ param }}",
+      "deleted": "A Hareket Sicil is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Hareket Sicil {{ id }}?"
+      },
+      "detail": {
+        "title": "Stok Giriş/Çıkış İşlemi"
+      },
+      "id": "ID",
+      "evraktipi": "Evraktipi",
+      "evrakno": "Evrakno",
+      "tarihi": "Tarihi",
+      "sevktarihi": "Sevktarihi",
+      "saati": "Saati",
+      "hesapno": "Hesapno",
+      "hesapadi": "Hesapadi",
+      "adresi": "Adresi",
+      "ilce": "Ilce",
+      "sehir": "Sehir",
+      "vda": "Vda",
+      "tcno": "Tcno",
+      "vno": "Vno",
+      "telefon": "Telefon",
+      "gun": "Gun",
+      "tutari": "Tutari",
+      "notlar": "Notlar",
+      "depotipi": "Depotipi",
+      "toplam": "Toplam",
+      "isktoplam": "Isktoplam",
+      "kdvtoplam": "Kdvtoplam",
+      "aratoplam": "Aratoplam",
+      "sicil": "Sicil",
+      "cari": "Cari",
+      "hareketDetays": "Hareket Detays"
+    }
+  }
+}

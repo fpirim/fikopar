@@ -1,0 +1,29 @@
+# This configuration is intended for development purpose, it's **your** responsibility to harden it for production
+version: '3.8'
+services:
+  postgresql:
+    image: postgres:14.5
+    restart: unless-stopped
+    container_name: postgresql
+    networks:
+      - fikopar
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: fikopar
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.tcp.routers.postgresql.entrypoints=postgresql'
+      - 'traefik.tcp.routers.postgresql.rule=HostSNI(`*`)'
+      - 'traefik.tcp.routers.postgresql.service=postgresql'
+      - 'traefik.tcp.services.postgresql.loadbalancer.server.port=5432'
+      - 'traefik.docker.network=fikopar'
+
+volumes:
+  postgres-data: {}
+
+networks:
+  fikopar:
+    external: true

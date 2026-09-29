@@ -1,0 +1,5 @@
+           SELECT CARHAR ASSIGN TO DISK, 'DATA\CARHAR.DAT'
+               ORGANIZATION INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS CH-KEY
+               FILE STATUS IS ST-CARHAR.

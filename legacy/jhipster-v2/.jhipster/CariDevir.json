@@ -1,0 +1,46 @@
+{
+  "applications": ["fikopar"],
+  "changelogDate": "20230810135208",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "cari_devir",
+  "fields": [
+    {
+      "fieldName": "depotipi",
+      "fieldType": "DepoTipi",
+      "fieldValues": "DEPO1,DEPO2"
+    },
+    {
+      "fieldName": "yil",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "borc",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "alacak",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "CariDevir",
+  "pagination": "infinite-scroll",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "sicil",
+      "ownerSide": true,
+      "relationshipName": "sicil",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "cari",
+      "ownerSide": true,
+      "relationshipName": "cari",
+      "relationshipType": "one-to-one"
+    }
+  ],
+  "service": "serviceImpl"
+}

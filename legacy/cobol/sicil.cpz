@@ -1,0 +1,26 @@
+       FD SICIL DATA RECORD IS SC-KAYIT.
+       01 SC-KAYIT.
+           02 SC-KEY.
+               03 SC-HESAPNO            PIC X(15).
+           02 SC-HESAPADI               PIC X(50).
+           02 SC-YETKILI                PIC X(40).
+           02 SC-ADRES1                 PIC X(40).
+           02 SC-ADRES2                 PIC X(40).
+           02 SC-ADRES3                 PIC X(40).
+           02 SC-POSKOD                 PIC X(6).
+           02 SC-MAHALLE                PIC X(20).
+           02 SC-ILCE                   PIC X(20).
+           02 SC-IL                     PIC X(20).
+           02 SC-ULKE                   PIC X(20).
+           02 SC-VDA                    PIC X(30).
+           02 SC-VNO                    PIC X(10).
+           02 SC-TCNO                   PIC X(11).
+           02 SC-TSNO                   PIC X(11).
+           02 SC-MERSIS                 PIC X(20).
+           02 SC-TUR                    PIC XXX.
+           02 SC-KREDI                  PIC 9(14)V9999.
+           02 SC-GUN                    PIC 99999.
+           02 SC-ISKONTO1               PIC 9(4)V9999.
+		   02 SC-ISKONTO2               PIC 9(4)V9999.
+           02 SC-PLKOD					PIC 9(4).
+           

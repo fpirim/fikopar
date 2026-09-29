@@ -1,0 +1,167 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. 'IRSDEN'.
+       AUTHOR. FIKRET PIRIM.
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. RMCOBOL.
+       OBJECT-COMPUTER. RMCOBOL.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+       copy 'hareket.cpy'.
+       DATA DIVISION.
+       FILE SECTION.
+       copy 'hareket.cpz'.
+       WORKING-STORAGE SECTION.
+       01 INPUT-VARIABLES.
+           02 E-EVRAKNO         PIC X(15).
+           02 E-DTARIH.
+                03 E-DYIL       PIC 9999.
+                03 E-DAY        PIC 99.
+                03 E-DGUN       PIC 99.
+           02 E-DSAAT.
+                03 E-SA         PIC 99.
+                03 E-DD         PIC 99.
+                03 E-SS         PIC 99.
+           02 E-GUN             PIC 9(5).
+           02 E-HESAPNO         PIC X(15).
+           02 E-IRSNO           PIC X(15).
+           02 E-ONAY            PIC X.
+           02 F             PIC 9999.
+           
+       copy 'status.cpy'.   
+       copy 'win.cpy'.
+       SCREEN SECTION.
+       01 SCR-TARIH-AL.      
+           02 LINE 18 COLUMN 56 BACKGROUND BLACK FOREGROUND WHITE
+                 PIC ZZ USING E-DGUN HIGHLIGHT AUTO.
+           02 LINE 18 COLUMN 59 BACKGROUND BLACK FOREGROUND WHITE
+                 PIC ZZ USING E-DAY HIGHLIGHT AUTO.
+           02 LINE 18 COLUMN 62 BACKGROUND BLACK FOREGROUND WHITE
+                 PIC ZZZZ USING E-DYIL HIGHLIGHT AUTO.
+       01 SCR-SAAT-AL.      
+           02 LINE 19 COLUMN 56 BACKGROUND BLACK FOREGROUND WHITE
+                 PIC 99 USING E-SA HIGHLIGHT AUTO.
+           02 LINE 19 COLUMN 59 BACKGROUND BLACK FOREGROUND WHITE
+                 PIC 99 USING E-DD HIGHLIGHT AUTO.
+           02 LINE 19 COLUMN 62 BACKGROUND BLACK FOREGROUND WHITE
+                 PIC 99 USING E-SS HIGHLIGHT AUTO.
+       01 SCR-GUN-AL.
+           02 LINE 20 COLUMN 56 BACKGROUND BLACK FOREGROUND WHITE
+                 PIC ZZ.ZZZ USING E-GUN HIGHLIGHT AUTO.
+       01 SCR.
+           02 LINE 13 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'É' HIGHLIGHT. 02 PIC X(38) FROM ALL 'Í' HIGHLIGHT.
+           02 '»' HIGHLIGHT.
+           02 LINE 14 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'º ˜RSAL˜YEDEN FATURA' HIGHLIGHT.
+           02 PIC X(19) FROM ALL ' '. 02 'º' HIGHLIGHT.
+           02 LINE 15 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'Ì' HIGHLIGHT. 02 PIC X(38) FROM ALL 'Í' HIGHLIGHT.
+           02 '¹' HIGHLIGHT.
+           02 LINE 16 COLUMN 40 'º' HIGHLIGHT. 
+           02 PIC X(38) FROM ALL ' ' HIGHLIGHT.
+           02 'º' HIGHLIGHT.
+           02 LINE 17 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'º EVRAK NO     [' HIGHLIGHT.
+           02 PIC X(15) FROM ALL ' ' HIGHLIGHT. 02 ']' HIGHLIGHT.
+           02 PIC X(7) FROM ALL ' '. 02 'º' HIGHLIGHT. 
+           02 LINE 18 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'º DšZ.TAR˜H˜   [  /  /    ]' HIGHLIGHT.
+           02 PIC X(12) FROM ALL ' '. 02 'º' HIGHLIGHT. 
+           02 LINE 19 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'º DšZ.SAAT˜    [  :  :  ]' HIGHLIGHT.
+           02 PIC X(14) FROM ALL ' '. 02 'º' HIGHLIGHT. 
+           02 LINE 20 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'º VADE (GšN)   [      ]' HIGHLIGHT.
+           02 PIC X(16) FROM ALL ' '. 02 'º' HIGHLIGHT. 
+           02 LINE 21 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'º HESAP NO     [' HIGHLIGHT.
+           02 PIC X(15) FROM ALL ' ' HIGHLIGHT. 02 ']' HIGHLIGHT.
+           02 PIC X(7) FROM ALL ' '. 02 'º' HIGHLIGHT. 
+           02 LINE 22 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'º ˜RSAL˜YE NO  [' HIGHLIGHT.
+           02 PIC X(15) FROM ALL ' ' HIGHLIGHT. 02 ']' HIGHLIGHT.
+           02 PIC X(7) FROM ALL ' '. 02 'º' HIGHLIGHT. 
+           02 LINE 23 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'º ˜žLEM ONAYI  [ ] E/H' HIGHLIGHT.
+           02 PIC X(17) FROM ALL ' '. 02 'º' HIGHLIGHT. 
+           02 LINE 24 COLUMN 40 'º' HIGHLIGHT. 
+           02 PIC X(38) FROM ALL ' ' HIGHLIGHT.
+           02 'º' HIGHLIGHT.
+           02 LINE 25 COLUMN 40 BACKGROUND BLACK FOREGROUND WHITE
+              'È' HIGHLIGHT. 02 PIC X(38) FROM ALL 'Í' HIGHLIGHT.
+           02 '¼' HIGHLIGHT.
+       PROCEDURE DIVISION.
+       START-PROGRAM.       
+           MOVE WCB TO NESTED-WCB (1).
+           DISPLAY NESTED-WCB (1)
+              LINE 1 POSITION 1 CONTROL 'WINDOW-CREATE'.
+           ACCEPT E-DTARIH FROM CENTURY-DATE.
+           ACCEPT E-DSAAT FROM TIME.
+           DISPLAY SCR.
+           CALL 'GOLGE' USING BY CONTENT 0013 0040 0025 0079.
+           CANCEL 'GOLGE'.
+       EVRAKNO-AL.
+           ACCEPT E-EVRAKNO NO BEEP LINE 17 POSITION 56 UPDATE
+                  CONTROL 'BCOLOR=BLACK, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           IF F = 27 GO STOP-PROGRAM.
+       TARIH-AL.
+           DISPLAY SCR-TARIH-AL.       
+           ACCEPT SCR-TARIH-AL.
+           ACCEPT F FROM ESCAPE KEY.
+           IF F = 27 GO EVRAKNO-AL.
+       SAAT-AL.
+           DISPLAY SCR-SAAT-AL.
+           ACCEPT SCR-SAAT-AL.
+           ACCEPT F FROM ESCAPE KEY.
+           IF F = 27 GO TARIH-AL.
+       GUN-AL.
+           DISPLAY SCR-GUN-AL.
+           ACCEPT SCR-GUN-AL.
+           ACCEPT F FROM ESCAPE KEY.
+           IF F = 27 GO SAAT-AL.
+       HESAPNO-AL.    
+           MOVE SPACES TO E-HESAPNO.
+           CALL 'SICPEN' USING E-HESAPNO.
+           CANCEL 'SICPEN'.
+           
+           IF E-HESAPNO = SPACES GO GUN-AL.
+           DISPLAY E-HESAPNO LINE 21 POSITION 56
+            CONTROL 'BCOLOR=BLACK, FCOLOR=BROWN'.
+       IRSNO-AL.
+      *           
+      * 01 - ˜RSAL˜YEL˜ SATIž FATURASI
+      * 02 - SATIž ˜RSAL˜YES˜
+      * 03 - SATIž FATURASI     
+      * 
+      * 04 - ˜RSAL˜YEL˜ ALIž FATURASI
+      * 05 - ALIž ˜RSAL˜YES˜
+      * 06 - ALIž FATURASI
+      * 
+      *
+           MOVE SPACES TO E-IRSNO.
+           CALL 'HARPEN' USING BY CONTENT 02 BY REFERENCE E-IRSNO.
+           CANCEL 'HARPEN'.
+           
+           IF E-IRSNO = SPACES GO HESAPNO-AL.
+           DISPLAY E-IRSNO LINE 22 POSITION 56
+            CONTROL 'BCOLOR=BLACK, FCOLOR=BROWN'.
+       ONAY-AL.
+           MOVE 'H' TO E-ONAY.
+           ACCEPT E-ONAY LINE 23 POSITION 56 NO BEEP UPDATE TAB
+                CONTROL 'BCOLOR=BLACK, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           IF F = 27 OR F = 52 GO IRSNO-AL.
+           
+                
+       STOP-PROGRAM.
+           MOVE WCB TO NESTED-WCB (1).
+           DISPLAY NESTED-WCB (1)
+              LINE 1 POSITION 1 CONTROL 'WINDOW-REMOVE'.
+           EXIT PROGRAM.
+           STOP RUN.
+           
+           

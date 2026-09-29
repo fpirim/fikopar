@@ -1,0 +1,16 @@
+       FD KASA DATA RECORD IS KS-KAYIT.
+       01 KS-KAYIT.
+           02 KS-KEY.
+               03 KS-TARIH.
+                     04 KS-YIL               PIC 9999.
+                     04 KS-AY                PIC 99.
+                     04 KS-GUN               PIC 99.
+               03 KS-SIRA               PIC 9(5).
+           02 KS-HESAPNO            PIC X(15).
+           02 KS-ACIKLAMA           PIC X(60).
+           02 KS-GELIR              PIC 9(13)V99.
+           02 KS-GIDER              PIC 9(13)V99.
+           02 KS-MAKBUZ.
+               03 KS-MTIP           PIC 99.
+               03 KS-MEVRAKNO       PIC X(15).
+           

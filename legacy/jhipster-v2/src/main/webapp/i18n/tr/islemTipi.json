@@ -1,0 +1,14 @@
+{
+  "fikoparApp": {
+    "IslemTipi": {
+      "null": "",
+      "PORTFOY": "Portföyde",
+      "BANKAYA_VERME": "Bankaya verildi",
+      "BANKADAN_TAHSIL": "Bankadan tahsil edildi",
+      "ELDEN_TAHSIL": "Elden tahsil edildi",
+      "CIRO": "Ciro edildi",
+      "PROTESTO": "Protesto Edildi",
+      "IADE": "İade Edildi"
+    }
+  }
+}

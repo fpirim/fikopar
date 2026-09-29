@@ -1,0 +1,12 @@
+       FD CFORMAT.
+       01 CFORMAT-RECORD.
+           02 FORMAT-CHARACTER    PIC 999.
+           02                     PIC X.
+           02 FORMAT-TIMES        PIC 9999.
+           02                     PIC X.
+           02 FORMAT-NEXT-PAGE    PIC X.
+           02                     PIC X.
+           02 SATIR               PIC X(250).
+       FD YAZICI LABEL RECORD OMITTED.
+       01 YAZ               PIC X(140).
+       

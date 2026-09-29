@@ -1,0 +1,25 @@
+{
+  "fikoparApp": {
+    "katalog": {
+      "home": {
+        "title": "Katalogs",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Katalog",
+        "createOrEditLabel": "Create or edit a Katalog",
+        "notFound": "No Katalogs found"
+      },
+      "created": "A new Katalog is created with identifier {{ param }}",
+      "updated": "A Katalog is updated with identifier {{ param }}",
+      "deleted": "A Katalog is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Seçilen katalogları silmek istediğinize emin misiniz?"
+      },
+      "detail": {
+        "title": "Katalog"
+      },
+      "id": "ID",
+      "katalogadi": "Katalogadi",
+      "stoks": "Stoks"
+    }
+  }
+}

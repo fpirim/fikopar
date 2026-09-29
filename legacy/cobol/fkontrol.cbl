@@ -1,0 +1,41 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. 'CEKSENET'.
+       AUTHOR. FIKRET PIRIM.
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. RMCOBOL.
+       OBJECT-COMPUTER. RMCOBOL.
+       INPUT-OUTPUT SECTION.
+	   FILE-CONTROL.
+            SELECT HAREKET-INDEX ASSIGN TO DISK, 'DATA\HARSIC.IDX'
+                   ORGANIZATION INDEXED
+                   ACCESS MODE IS DYNAMIC
+                   ALTERNATE RECORD KEY IS HIDX-HESAPADI WITH DUPLICATES
+                   ALTERNATE RECORD KEY IS HIDX-YETKILI WITH DUPLICATES
+                   RECORD KEY IS HIDX-KEY
+                   FILE STATUS IS ST-HAREKET-INDEX.
+            
+       DATA DIVISION.
+       FILE SECTION.
+       FD HAREKET-INDEX DATA RECORD IS HIDX-KAYIT.
+       01 HIDX-KAYIT.
+           02 HIDX-KEY.
+               03 HIDX-EVRAKNO          PIC X(17).
+           02 HIDX-HESAPADI             PIC X(52).
+           02 HIDX-YETKILI              PIC X(42).    
+           
+       WORKING-STORAGE SECTION.
+       77 DUR           PIC X.
+       copy 'status.cpy'.
+       PROCEDURE DIVISION.
+       BASLA.
+           OPEN INPUT HAREKET-INDEX.
+       OKU.
+           READ HAREKET-INDEX NEXT AT END GO SON.
+           DISPLAY HIDX-KAYIT LINE 1 POSITION 1.
+           ACCEPT DUR NO BEEP LINE 1 POSITION 1.
+           GO OKU.
+       SON.
+           CLOSE HAREKET-INDEX.
+           STOP RUN.
+       

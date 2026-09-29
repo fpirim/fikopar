@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="ceksenetreport" language="groovy" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="9f73fa45-e7f1-4476-b266-2fa5ed4eecd2">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<field name="vade" class="java.lang.String"/>
+	<field name="tarih" class="java.lang.String"/>
+	<field name="evrakno" class="java.lang.String"/>
+	<field name="evraktipi" class="java.lang.String"/>
+	<field name="hesapno" class="java.lang.String"/>
+	<field name="hesapadi" class="java.lang.String"/>
+	<field name="adres" class="java.lang.String"/>
+	<field name="tutar" class="java.math.BigDecimal"/>
+	<field name="chesapno" class="java.lang.String"/>
+	<field name="chesapadi" class="java.lang.String"/>
+	<field name="durum" class="java.lang.String"/>
+	<field name="vadefil" class="java.lang.String"/>
+	<field name="girisfil" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<pageHeader>
+		<band height="72">
+			<staticText>
+				<reportElement x="0" y="0" width="287" height="40" uuid="dfafc46f-ae9e-46da-a034-a99cce1b8d23"/>
+				<box leftPadding="2"/>
+				<textElement>
+					<font fontName="Arial" size="22" isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[ÇEK - SENET LİSTESİ]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="682" y="0" width="80" height="20" uuid="6c998dd1-e19a-4b15-b9c6-9a55bd552208"/>
+				<textElement textAlignment="Right">
+					<font pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Sayfa "+$V{PAGE_NUMBER}+"/"]]></textFieldExpression>
+			</textField>
+			<textField evaluationTime="Report">
+				<reportElement x="762" y="0" width="40" height="20" uuid="46d7f7b3-c6b7-4dd3-b384-5593e3261bb8"/>
+				<textElement>
+					<font pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[" " + $V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="564" y="29" width="69" height="20" uuid="bbba1477-e6f7-4153-8f92-61859cf17781"/>
+				<textElement>
+					<font isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Giriş Tarihi :]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="633" y="29" width="169" height="20" uuid="8ee527fc-b6c9-498d-b423-3216c164f9fb"/>
+				<textElement>
+					<font pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{girisfil}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="564" y="49" width="69" height="20" uuid="9b95bbc8-e157-4453-8c1b-7affd131b0cc"/>
+				<textElement>
+					<font isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Vade Tarihi :]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="633" y="49" width="169" height="20" uuid="20c734fe-bb4b-47a9-b178-2b838b3f33ae"/>
+				<textElement>
+					<font pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{vadefil}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="61" height="20" uuid="793e9ab2-67db-4bd0-9d56-0f0a3cd9090b"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Vade]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="61" y="0" width="61" height="20" uuid="9af02805-8007-4a35-93e7-5a29c8b70a89"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Tarih]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="122" y="0" width="90" height="20" uuid="8532046a-59af-45d2-991f-ec1f09d22409"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Evrak No]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="212" y="0" width="80" height="20" uuid="291dc4e4-e995-497d-ab13-c40003d89f37"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Evrak Tipi]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="292" y="0" width="80" height="20" uuid="36a34418-5ba0-42b1-941f-250f393725d2"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Hesap No]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="372" y="0" width="200" height="20" uuid="1e9d54e2-0eb7-40f7-aa2c-040d88553396"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Hesap Adı / Yetkili]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="572" y="0" width="140" height="20" uuid="8322a784-f6c6-4638-bb02-b10c6e0f4e9c"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Mahalle/İlçe/İl/Ülke]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="712" y="0" width="90" height="20" uuid="ae8ce3f6-4e13-4375-92d5-a2851c2e1b54"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" isBold="true" pdfEncoding="Cp1254"/>
+				</textElement>
+				<text><![CDATA[Tutar]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="61" height="20" uuid="ad5f6b24-60a2-4874-a154-5570d5704525"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" size="8" pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{vade}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="61" y="0" width="61" height="20" uuid="d9fd8762-b280-4eae-9c2d-8110a5dad21b"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Arial" size="8" pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{tarih}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="122" y="0" width="90" height="20" uuid="03675372-6b59-4a76-a765-57902ca83b5d"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Arial" size="8" pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{evrakno}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="292" y="0" width="80" height="20" uuid="55bae02a-258b-4c76-96a2-8778ba035660"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Arial" size="8" pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{hesapno}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="212" y="0" width="80" height="20" uuid="512d4eb8-7a84-4b22-8414-3175e39417d5"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Arial" size="8" pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{evraktipi}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="372" y="0" width="200" height="20" uuid="dff0affb-96e3-4d51-91e2-64c217cca9f5"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Arial" size="8" pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{hesapadi}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="572" y="0" width="140" height="20" uuid="76903e70-4de4-41c5-ae8f-8269857a1edb"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Arial" size="8" pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{adres}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00 TL">
+				<reportElement x="712" y="0" width="90" height="20" uuid="ec6f8304-33cc-42bc-8d35-857867f6a52b"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Arial" size="8" pdfEncoding="Cp1254"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{tutar}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

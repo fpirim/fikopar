@@ -1,0 +1,5 @@
+       FD SICILKOD DATA RECORD SK-KAYIT.
+       01 SK-KAYIT.
+           02 SK-KEY.
+               03 SK-HESAPNO            PIC X(15).
+               03 SK-KOD                PIC 9999.             

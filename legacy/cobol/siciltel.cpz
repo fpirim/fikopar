@@ -1,0 +1,8 @@
+       FD SICILTEL DATA RECORD IS SCT-KAYIT.
+       01 SCT-KAYIT.
+           02 SCT-KEY.
+               03 SCT-HESAPNO            PIC X(15).
+               03 SCT-SIRA               PIC 9(10).
+           02 SCT-TEL                PIC 9(12).
+           02 SCT-DAHILI             PIC X(5).
+           02 SCT-TIP                PIC 9.

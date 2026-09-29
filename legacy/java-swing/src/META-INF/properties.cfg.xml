@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+
+<hibernate-configuration>
+
+    <session-factory>
+    	<!--  <property name="show_sql">true</property> -->
+		<property name="hibernate.dialect">tr.fikopar.swing.db.persistence.SQLiteDialect</property>
+        <property name="hibernate.connection.driver_class">org.sqlite.JDBC</property>
+        <property name="hibernate.connection.url">jdbc:sqlite:fappprop.db</property>
+        <property name="hibernate.connection.username"></property>
+        <property name="hibernate.connection.password"></property>
+
+		<property name="hibernate.hbm2ddl.auto">update</property>
+
+		<mapping class="tr.fikopar.swing.db.models.FTableCellStyle" />
+		<mapping class="tr.fikopar.swing.db.models.FTableStyle" />
+		<mapping class="tr.fikopar.swing.db.models.FUserPropModel" />
+		<mapping class="tr.fikopar.swing.db.models.FUserTrashModel" />
+    </session-factory>
+
+</hibernate-configuration>

@@ -1,0 +1,6 @@
+       FD USERS DATA RECORD US-KAYIT.
+       01 US-KAYIT.
+           02 US-KEY.
+                 03 US-NAME       PIC X(20).
+		   02 US-PASS			PIC X(20).
+		   02 US-ACTIVE			PIC 9.

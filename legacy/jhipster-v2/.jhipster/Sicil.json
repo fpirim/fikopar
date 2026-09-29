@@ -1,0 +1,72 @@
+{
+  "applications": ["fikopar"],
+  "changelogDate": "20230810134908",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "sicil",
+  "fields": [
+    {
+      "fieldName": "hesapno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "hesapadi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "adresi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "ilce",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "sehir",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "telefon",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "vda",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "vno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "tcno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "gun",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "iskonto",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "siciltipi",
+      "fieldType": "SicilTipi",
+      "fieldValues": "MUSTERI,FIRMA,BANKA"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Sicil",
+  "pagination": "infinite-scroll",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "cari",
+      "otherEntityRelationshipName": "sicil",
+      "relationshipName": "caris",
+      "relationshipType": "one-to-many"
+    }
+  ],
+  "service": "serviceImpl"
+}

@@ -1,0 +1,32 @@
+{
+  "fikoparApp": {
+    "cekSenet": {
+      "home": {
+        "title": "Çekler/Senetler",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Cek Senet",
+        "createOrEditLabel": "Create or edit a Cek Senet",
+        "notFound": "No Cek Senets found"
+      },
+      "created": "A new Cek Senet is created with identifier {{ param }}",
+      "updated": "A Cek Senet is updated with identifier {{ param }}",
+      "deleted": "A Cek Senet is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Cek Senet {{ id }}?"
+      },
+      "detail": {
+        "title": "Çek/Senet"
+      },
+      "id": "ID",
+      "ceksenetno": "Çek/Senet No",
+      "evraktipi": "Evrak Tipi",
+      "depotipi": "Depo Tipi",
+      "tarihi": "Tarihi",
+      "vade": "Vade Tarihi",
+      "aciklama": "Açıklama",
+      "tutar": "Tutarı",
+      "sicil": "Hesap Kartı",
+      "cekSenetDetays": "Çek/Senet Detayları"
+    }
+  }
+}

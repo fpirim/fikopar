@@ -1,0 +1,6 @@
+http:
+  middlewares:
+    traefik-auth:
+      basicAuth:
+        users:
+          - 'admin:$2y$05$2MNi60.y7e.fJrBAoUQ87uprA9B5QGd9qnJS8TXDpwscMGwqTbRBC'

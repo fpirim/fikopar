@@ -1,0 +1,14 @@
+{
+  "fikoparApp": {
+    "IslemTipi": {
+      "null": "",
+      "PORTFOY": "PORTFOY",
+      "BANKAYA_VERME": "BANKAYA_VERME",
+      "BANKADAN_TAHSIL": "BANKADAN_TAHSIL",
+      "ELDEN_TAHSIL": "ELDEN_TAHSIL",
+      "CIRO": "CIRO",
+      "PROTESTO": "PROTESTO",
+      "IADE": "IADE"
+    }
+  }
+}

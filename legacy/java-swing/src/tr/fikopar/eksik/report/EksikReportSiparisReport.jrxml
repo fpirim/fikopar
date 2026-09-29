@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="EksikReportSiparisReport" language="groovy" pageWidth="802" pageHeight="555" orientation="Landscape" columnWidth="802" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="915e9c3c-9be5-4690-a8ab-0d7d31af3cf9">
+	<property name="ireport.zoom" value="1.1000000000000008"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<style name="Row" mode="Transparent">
+		<conditionalStyle>
+			<conditionExpression><![CDATA[$V{REPORT_COUNT}%2 != 0]]></conditionExpression>
+			<style backcolor="#EEEEEE"/>
+		</conditionalStyle>
+	</style>
+	<field name="hesapno" class="java.lang.String"/>
+	<field name="hesapadi" class="java.lang.String"/>
+	<field name="yetkili" class="java.lang.String"/>
+	<field name="adres" class="java.lang.String"/>
+	<field name="bakiye" class="java.math.BigDecimal"/>
+	<field name="iskonto1" class="java.math.BigDecimal"/>
+	<field name="iskonto2" class="java.math.BigDecimal"/>
+	<field name="kdv" class="java.math.BigDecimal"/>
+	<field name="fiyat" class="java.math.BigDecimal"/>
+	<field name="tutar" class="java.math.BigDecimal"/>
+	<field name="id" class="java.lang.String"/>
+	<field name="tarih" class="java.lang.String"/>
+	<field name="siparisnot" class="java.lang.String"/>
+	<field name="sevksekli" class="java.lang.String"/>
+	<field name="siparisialan" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="21" y="0" width="70" height="10" uuid="f64d006f-b7e2-4eb6-bb92-297329974dd9"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{hesapno}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="91" y="0" width="181" height="10" uuid="de58fab4-1436-4487-8b35-c297ead4548d"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{hesapadi}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="272" y="0" width="152" height="10" uuid="8283dbc7-9353-48ba-9351-527dc81bfc71"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{yetkili}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="424" y="0" width="142" height="10" uuid="77e61d9f-88e9-448d-a61f-6e08e0063239"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{adres}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="566" y="0" width="45" height="10" uuid="c89b9f92-4a11-4a8c-b5db-f7fb45b4e0f6"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{bakiye}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="611" y="0" width="30" height="10" uuid="47c6f1f0-e75e-402c-81c1-758cedf156d9"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{iskonto1}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="641" y="0" width="30" height="10" uuid="02d6dae8-ad13-4363-a6f6-2dc50eb98aea"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{iskonto2}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="671" y="0" width="30" height="10" uuid="e827c607-1902-4b39-a76c-cd7bdc0e59df"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{kdv}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="701" y="0" width="50" height="10" uuid="57a1089f-950d-48d5-94f8-459159c53b30"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fiyat}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="751" y="0" width="51" height="10" uuid="e974dbad-375f-4d5d-bbe5-01c454278cb8"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{tutar}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement style="Row" mode="Opaque" x="556" y="10" width="55" height="10" uuid="154212a9-58df-4224-b8fc-57902c91c07e"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="true" isItalic="false" isUnderline="true"/>
+				</textElement>
+				<text><![CDATA[S.Alan :]]></text>
+			</staticText>
+			<staticText>
+				<reportElement style="Row" mode="Opaque" x="395" y="10" width="29" height="10" uuid="8e9df496-c135-4c6f-a6c7-9da9d705acbb"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="true" isItalic="false" isUnderline="true"/>
+				</textElement>
+				<text><![CDATA[Sevk :]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="424" y="10" width="132" height="10" uuid="7c876c1c-8ec1-4eb6-bc3e-5621a99cf381"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="false" isItalic="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{sevksekli}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="200" y="10" width="195" height="10" uuid="f46881ef-6fe2-423e-acf5-97a68cf83024"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="false" isItalic="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{siparisnot}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="611" y="10" width="191" height="10" uuid="4c41052c-1804-44c7-abd9-d2da688b3cc6"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="false" isItalic="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{siparisialan}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement style="Row" mode="Opaque" x="179" y="10" width="21" height="10" uuid="63f89574-467b-4211-8e75-2cd2fa01487b"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="true" isItalic="false" isUnderline="true"/>
+				</textElement>
+				<text><![CDATA[Not :]]></text>
+			</staticText>
+			<staticText>
+				<reportElement style="Row" mode="Opaque" x="21" y="10" width="40" height="10" uuid="0ed00c45-1840-4a00-9465-2824ecbdc75d"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="true" isItalic="false" isUnderline="true"/>
+				</textElement>
+				<text><![CDATA[Sipariş No:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="61" y="10" width="48" height="10" uuid="c4cfd4b0-f30a-422d-8566-62620f2ed8ce"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="false" isItalic="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{id}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement style="Row" mode="Opaque" x="109" y="10" width="22" height="10" uuid="6793326c-aaef-4a9e-96cf-74cba7fba71f"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="true" isItalic="false" isUnderline="true"/>
+				</textElement>
+				<text><![CDATA[Tarih:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement style="Row" mode="Opaque" x="131" y="10" width="48" height="10" uuid="a59515ae-8715-4c2a-87da-3e25cd6d11e6"/>
+				<box topPadding="1" leftPadding="1" bottomPadding="1" rightPadding="1"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6" isBold="false" isItalic="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{tarih}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="11" y="10" width="10" height="1" forecolor="#CCCCCC" uuid="43b6b987-2196-4119-8661-590d1f2ecfb4"/>
+				<graphicElement>
+					<pen lineStyle="Dotted"/>
+				</graphicElement>
+			</line>
+			<line>
+				<reportElement x="11" y="0" width="1" height="20" forecolor="#CCCCCC" uuid="a734816c-f2f2-4ecf-826f-8d6b905b5f28"/>
+				<graphicElement>
+					<pen lineStyle="Dotted"/>
+				</graphicElement>
+			</line>
+		</band>
+	</detail>
+</jasperReport>

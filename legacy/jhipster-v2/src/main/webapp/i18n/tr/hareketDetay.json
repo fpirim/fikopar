@@ -1,0 +1,33 @@
+{
+  "fikoparApp": {
+    "hareketDetay": {
+      "home": {
+        "title": "Hareket Detays",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Hareket Detay",
+        "createOrEditLabel": "Create or edit a Hareket Detay",
+        "notFound": "No Hareket Detays found"
+      },
+      "created": "A new Hareket Detay is created with identifier {{ param }}",
+      "updated": "A Hareket Detay is updated with identifier {{ param }}",
+      "deleted": "A Hareket Detay is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Seçilen satırları silmek istediğinize emin misiniz?"
+      },
+      "detail": {
+        "title": "Hareket Detay"
+      },
+      "id": "ID",
+      "stokno": "Stokno",
+      "parcano": "Parcano",
+      "tipi": "Tipi",
+      "cinsi": "Cinsi",
+      "marka": "Marka",
+      "iskonto": "Iskonto",
+      "kdv": "Kdv",
+      "adet": "Adet",
+      "fiyati": "Fiyati",
+      "hareketSicil": "Hareket Sicil"
+    }
+  }
+}

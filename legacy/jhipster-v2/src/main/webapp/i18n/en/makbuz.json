@@ -1,0 +1,32 @@
+{
+  "fikoparApp": {
+    "makbuz": {
+      "home": {
+        "title": "Makbuzs",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Makbuz",
+        "createOrEditLabel": "Create or edit a Makbuz",
+        "notFound": "No Makbuzs found"
+      },
+      "created": "A new Makbuz is created with identifier {{ param }}",
+      "updated": "A Makbuz is updated with identifier {{ param }}",
+      "deleted": "A Makbuz is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Makbuz {{ id }}?"
+      },
+      "detail": {
+        "title": "Makbuz"
+      },
+      "id": "ID",
+      "makbuzno": "Makbuzno",
+      "evraktipi": "Evraktipi",
+      "depotipi": "Depotipi",
+      "tarihi": "Tarihi",
+      "vade": "Vade",
+      "aciklama": "Aciklama",
+      "tutari": "Tutari",
+      "sicil": "Sicil",
+      "cari": "Cari"
+    }
+  }
+}

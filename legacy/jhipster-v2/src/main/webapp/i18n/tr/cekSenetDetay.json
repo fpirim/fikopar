@@ -1,0 +1,60 @@
+{
+  "fikoparApp": {
+    "cekSenetDetay": {
+      "islemler": {
+        "title": "Çek/Senet İşlemleri",
+        "tarihi": "İşlem Tarihi",
+        "sicil": "İşlem Hesabı",
+        "BANKAYA_VERME": {
+          "title": "Bankaya Tahsile Verme İşlemi"
+        },
+        "BANKADAN_TAHSIL": {
+          "title": "Bankadan Tahsil İşlemi"
+        },
+        "ELDEN_TAHSIL": {
+          "title": "Elden Tahsil İşlemi",
+          "question": "Evrak elden tahsil edilecek onaylıyor musunuz?"
+        },
+        "CIRO": {
+          "title": "Ciro İşlemi"
+        },
+        "PROTESTO": {
+          "title": "Protesto İşlemi",
+          "question": "Evrak protesto edilecek onaylıyor musunuz?"
+        },
+        "IADE": {
+          "title": "İade İşlemi"
+        },
+        "CANCEL": {
+          "title": "Son İşlem İptali",
+          "question": "Evrak'a yapılan son işlem iptal edilecek, onaylıyor musunuz?"
+        },
+        "yes": "Evet",
+        "no": "Hayır"
+      },
+      "home": {
+        "title": "Cek Senet Detays",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Cek Senet Detay",
+        "createOrEditLabel": "Create or edit a Cek Senet Detay",
+        "notFound": "No Cek Senet Detays found"
+      },
+      "created": "A new Cek Senet Detay is created with identifier {{ param }}",
+      "updated": "A Cek Senet Detay is updated with identifier {{ param }}",
+      "deleted": "A Cek Senet Detay is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Cek Senet Detay {{ id }}?"
+      },
+      "detail": {
+        "title": "Cek Senet Detay"
+      },
+      "id": "ID",
+      "islemtipi": "Islemtipi",
+      "tarihi": "Tarihi",
+      "tutar": "Tutar",
+      "sicil": "Sicil",
+      "makbuz": "Makbuz",
+      "cekSenet": "Cek Senet"
+    }
+  }
+}

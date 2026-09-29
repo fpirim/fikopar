@@ -1,0 +1,48 @@
+{
+  "applications": ["fikopar"],
+  "changelogDate": "20230810135408",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "cek_senet_detay",
+  "fields": [
+    {
+      "fieldName": "islemtipi",
+      "fieldType": "IslemTipi",
+      "fieldValues": "PORTFOY,BANKAYA_VERME,BANKADAN_TAHSIL,ELDEN_TAHSIL,CIRO,PROTESTO,IADE"
+    },
+    {
+      "fieldName": "tarihi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "tutar",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "CekSenetDetay",
+  "pagination": "infinite-scroll",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "sicil",
+      "ownerSide": true,
+      "relationshipName": "sicil",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "makbuz",
+      "ownerSide": true,
+      "relationshipName": "makbuz",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "cekSenet",
+      "otherEntityRelationshipName": "cekSenetDetays",
+      "relationshipName": "cekSenet",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "serviceImpl"
+}

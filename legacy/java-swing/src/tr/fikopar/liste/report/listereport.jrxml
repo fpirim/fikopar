@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="listereport" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="f0477bcf-a97a-40da-9819-495e026e430a">
+	<property name="ireport.zoom" value="4.279675059165003"/>
+	<property name="ireport.x" value="1601"/>
+	<property name="ireport.y" value="62"/>
+	<parameter name="companyname" class="java.lang.String"/>
+	<parameter name="companylogo" class="javax.swing.ImageIcon"/>
+	<parameter name="reportinfo" class="java.lang.String"/>
+	<field name="stno" class="java.lang.String"/>
+	<field name="prcno" class="java.lang.String"/>
+	<field name="tipi" class="java.lang.String"/>
+	<field name="cinsi" class="java.lang.String"/>
+	<field name="note" class="java.lang.String"/>
+	<field name="marka" class="java.lang.String"/>
+	<field name="fiyat" class="java.math.BigDecimal"/>
+	<field name="baslik" class="java.lang.Boolean"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<pageHeader>
+		<band height="50" splitType="Stretch">
+			<textField>
+				<reportElement x="50" y="0" width="385" height="25" uuid="c342aaa0-4012-4bf7-818b-e67f4e728caa"/>
+				<box topPadding="0" leftPadding="6"/>
+				<textElement verticalAlignment="Middle">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{companyname}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="435" y="0" width="80" height="25" uuid="c2e9c69f-ef03-4ea3-bcf9-a17499dac99a"/>
+				<textElement textAlignment="Right">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Sayfa "+$V{PAGE_NUMBER}+"/"]]></textFieldExpression>
+			</textField>
+			<textField evaluationTime="Report">
+				<reportElement x="515" y="0" width="40" height="25" uuid="eedba809-0837-4ef2-9a97-2b68374894e7"/>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<image vAlign="Middle">
+				<reportElement x="0" y="0" width="50" height="50" uuid="8f08bd1f-5494-44d0-a9fc-36a174bea9fa"/>
+				<imageExpression><![CDATA[$P{companylogo}.getImage()]]></imageExpression>
+			</image>
+			<textField>
+				<reportElement x="50" y="25" width="505" height="25" uuid="0c791b51-3d73-429c-817c-a2eb75473681"/>
+				<box topPadding="0" leftPadding="6">
+					<pen lineColor="#FF0000"/>
+					<topPen lineColor="#FF0000"/>
+					<leftPen lineColor="#FF0000"/>
+					<bottomPen lineColor="#FF0000"/>
+					<rightPen lineColor="#FF0000"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{reportinfo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="16" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="47" height="16" uuid="fec2126a-bbae-4c1d-ba78-36e78b3379a8"/>
+				<box>
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Stok No]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="47" y="0" width="79" height="16" uuid="51f78fb9-ac50-4a1b-9f85-0463c0873b67"/>
+				<box>
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Parça No]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="126" y="0" width="79" height="16" uuid="685fb3f4-c37b-4f06-8b7c-5978db4cbbf2"/>
+				<box>
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipi]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="205" y="0" width="211" height="16" uuid="f1688b4f-be0d-42d7-9252-cc9875373939"/>
+				<box>
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Parça Adı]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="416" y="0" width="79" height="16" uuid="31ec1bc1-e112-44c2-93fe-8f84cb31ae80"/>
+				<box>
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Marka]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="495" y="0" width="60" height="16" uuid="bdd51f23-1934-4119-9f79-9085ad4c0061"/>
+				<box>
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fiyatı]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="16" splitType="Stretch">
+			<printWhenExpression><![CDATA[!$F{baslik}]]></printWhenExpression>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="47" height="16" uuid="dc9b6a83-a8b5-4b5d-918c-74fe4cb91652"/>
+				<box leftPadding="2" rightPadding="2">
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{stno}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="47" y="0" width="79" height="16" uuid="bbceb596-a09a-416e-9561-d808dbe77020"/>
+				<box leftPadding="2" rightPadding="2">
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{prcno}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="126" y="0" width="79" height="16" uuid="fa7ec6eb-1f2d-42ac-83e4-da7bca8b0d75"/>
+				<box leftPadding="2" rightPadding="2">
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{tipi}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="205" y="0" width="179" height="16" uuid="030b683d-e510-4782-a078-1c4ae4ec05c2"/>
+				<box leftPadding="2" rightPadding="2">
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineStyle="Solid"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{cinsi}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="384" y="0" width="32" height="16" uuid="7a4390b4-dc0a-43e9-b837-3340bfb24f24"/>
+				<box leftPadding="2" rightPadding="2">
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isItalic="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{note}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="416" y="0" width="79" height="16" uuid="77321f7a-0dd5-4868-827f-210640e9557b"/>
+				<box leftPadding="2" rightPadding="2">
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{marka}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="495" y="0" width="60" height="16" uuid="23fb5a63-ec74-4cac-a7e2-7e903bb1d817"/>
+				<box leftPadding="2" rightPadding="2">
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fiyat} != null ? ($F{fiyat}.compareTo(BigDecimal.ZERO) == 0 ? null : $F{fiyat}) : null]]></textFieldExpression>
+			</textField>
+		</band>
+		<band height="22">
+			<printWhenExpression><![CDATA[$F{baslik}]]></printWhenExpression>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="555" height="22" uuid="cc8bd42e-f495-4b34-a930-b838b604438e"/>
+				<box>
+					<pen lineStyle="Solid"/>
+					<topPen lineWidth="0.75" lineStyle="Solid"/>
+					<leftPen lineWidth="0.5" lineStyle="Solid"/>
+					<bottomPen lineWidth="0.75" lineStyle="Solid"/>
+					<rightPen lineWidth="0.5" lineStyle="Solid"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{cinsi}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

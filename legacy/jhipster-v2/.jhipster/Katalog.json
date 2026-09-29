@@ -1,0 +1,27 @@
+{
+  "applications": ["fikopar"],
+  "changelogDate": "20230810134608",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "katalog",
+  "fields": [
+    {
+      "fieldName": "katalogadi",
+      "fieldType": "String"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Katalog",
+  "pagination": "infinite-scroll",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "stok",
+      "otherEntityRelationshipName": "katalog",
+      "relationshipName": "stoks",
+      "relationshipType": "one-to-many"
+    }
+  ],
+  "service": "serviceImpl"
+}

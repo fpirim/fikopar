@@ -1,0 +1,77 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+
+<hibernate-configuration>
+
+    <session-factory>
+
+        <!-- Database connection settings -->
+        <property name="hibernate.connection.driver_class">com.mysql.jdbc.Driver</property>
+        <property name="hibernate.connection.url">jdbc:mysql://${FIKOPAR_DB_HOST}:3306/?tinyInt1isBit=false</property>
+        <property name="hibernate.connection.username">${FIKOPAR_DB_USER}</property>
+        <property name="hibernate.connection.password">${FIKOPAR_DB_PASSWORD}</property>
+
+        <!-- JDBC connection pool (use the built-in) -->
+        <!-- <property name="connection.pool_size">1</property> -->
+
+        <!-- SQL dialect -->
+        <property name="hibernate.dialect">org.hibernate.dialect.MySQL5Dialect</property>
+		<!-- Enable Hibernate's automatic session context management -->
+		
+		<property name="hibernate.current_session_context_class">thread</property>
+
+        <property name="hibernate.cache.provider_class">org.hibernate.connection.C3P0ConnectionProvider</property>
+
+		<property name="hibernate.c3p0.min_size">5</property>
+		<property name="hibernate.c3p0.max_size">20</property>
+		<property name="hibernate.c3p0.timeout">1800</property>
+		<property name="hibernate.c3p0.max_statements">50</property>
+
+		<!-- Disable the second-level cache  -->
+        <property name="hibernate.cache.use_second_level_cache">false</property>
+		<property name="hibernate.cache.use_query_cache">false</property>
+
+        <!-- Echo all executed SQL to stdout -->
+        <!--  <property name="hibernate.format_sql">true</property> -->
+        <!-- <property name="hibernate.show_sql">true</property> -->
+
+        <!-- Drop and re-create the database schema on startup -->
+        <property name="hibernate.hbm2ddl.auto">validate</property>
+					
+		<mapping class="tr.fikopar.db.models.cobol.plasiyer.PlasiyerModel" />
+		
+		<mapping class="tr.fikopar.db.models.cobol.sicil.SicilModel" />
+		<mapping class="tr.fikopar.db.models.cobol.sicil.SiciltelModel" />
+		<mapping class="tr.fikopar.db.models.cobol.sicil.SicilHareket" />
+		
+		<mapping class="tr.fikopar.db.models.cobol.stok.StokModel" />
+		<mapping class="tr.fikopar.db.models.cobol.stok.StkadtModel" />
+		<mapping class="tr.fikopar.db.models.cobol.stok.KatlogModel" />
+		
+		<mapping class="tr.fikopar.db.models.windows.stok.KampanyaModel" />
+		
+		<mapping class="tr.fikopar.db.models.windows.excel.ExcelModel" />
+		<mapping class="tr.fikopar.db.models.windows.excel.ExcelDetayModel" />
+
+		<mapping class="tr.fikopar.db.models.windows.kur.KurModel" />
+
+		<mapping class="tr.fikopar.db.models.windows.alim.AlimModel" />
+		<mapping class="tr.fikopar.db.models.windows.alim.AlimDetayModel" />
+
+		<mapping class="tr.fikopar.db.models.windows.sayim.SayimModel" />
+		<mapping class="tr.fikopar.db.models.windows.sayim.SayimDetayModel" />
+	
+		<mapping class="tr.fikopar.db.models.windows.sevksekli.SevksekliModel" />
+	
+		<mapping class="tr.fikopar.db.models.windows.siparis.SiparisModel" />
+		<mapping class="tr.fikopar.db.models.windows.siparis.SiparisDetayModel" />
+		
+		<mapping class="tr.fikopar.db.models.windows.depo.DepoModel" />
+		<mapping class="tr.fikopar.db.models.windows.depo.DepoDetayModel" />
+		
+		
+    </session-factory>
+
+</hibernate-configuration>

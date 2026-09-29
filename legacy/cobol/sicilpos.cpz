@@ -1,0 +1,6 @@
+       FD SICILPOS DATA RECORD IS SP-KAYIT.
+       01 SP-KAYIT.
+           02 SP-KEY.
+               03 SP-HESAPNO            PIC X(15).
+			   03 SP-SIRA				PIC 9(10).
+           02 SP-MAIL               PIC X(65).

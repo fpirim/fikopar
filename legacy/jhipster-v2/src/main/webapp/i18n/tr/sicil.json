@@ -1,0 +1,36 @@
+{
+  "fikoparApp": {
+    "sicil": {
+      "home": {
+        "title": "Hesap Kartları",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Sicil",
+        "createOrEditLabel": "Create or edit a Sicil",
+        "notFound": "No Sicils found"
+      },
+      "created": "A new Sicil is created with identifier {{ param }}",
+      "updated": "A Sicil is updated with identifier {{ param }}",
+      "deleted": "A Sicil is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Seçilen hesapları silmek istediğinize emin misiniz?"
+      },
+      "detail": {
+        "title": "Hesap Kartı"
+      },
+      "id": "ID",
+      "hesapno": "Hesap No",
+      "hesapadi": "Hesap Adı",
+      "adresi": "Adresi",
+      "ilce": "İlçe",
+      "sehir": "Sehir",
+      "telefon": "Telefon",
+      "vda": "V.Dairesi",
+      "vno": "V.No.",
+      "tcno": "TC No.",
+      "gun": "Gün",
+      "iskonto": "İskonto",
+      "siciltipi": "Hesap Tipi",
+      "caris": "Cariler"
+    }
+  }
+}

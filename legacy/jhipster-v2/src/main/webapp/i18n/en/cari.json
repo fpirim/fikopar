@@ -1,0 +1,33 @@
+{
+  "fikoparApp": {
+    "cari": {
+      "home": {
+        "title": "Caris",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Cari",
+        "createOrEditLabel": "Create or edit a Cari",
+        "notFound": "No Caris found"
+      },
+      "created": "A new Cari is created with identifier {{ param }}",
+      "updated": "A Cari is updated with identifier {{ param }}",
+      "deleted": "A Cari is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Cari {{ id }}?"
+      },
+      "detail": {
+        "title": "Cari"
+      },
+      "id": "ID",
+      "tipi": "Tipi",
+      "evrakno": "Evrakno",
+      "depotipi": "Depotipi",
+      "tarih": "Tarih",
+      "vade": "Vade",
+      "gun": "Gun",
+      "aciklama": "Aciklama",
+      "borc": "Borc",
+      "alacak": "Alacak",
+      "sicil": "Sicil"
+    }
+  }
+}

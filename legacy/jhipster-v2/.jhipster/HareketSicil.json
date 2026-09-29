@@ -1,0 +1,125 @@
+{
+  "applications": ["fikopar"],
+  "changelogDate": "20230810135008",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "hareket_sicil",
+  "fields": [
+    {
+      "fieldName": "evraktipi",
+      "fieldType": "EvrakTipi",
+      "fieldValues": "IRSALIYELI_SATIS_FATURASI,SATIS_FATURASI,SATIS_IRSALIYESI,IRSALIYELI_ALIS_FATURASI,ALIS_FATURASI,ALIS_IRSALIYESI,TAHSILAT_MAKBUZU,TEDIYE_MAKBUZU,ALACAK_CEKI,ALACAK_SENETI,BORC_CEKI,BORC_SENETI,DEVIR"
+    },
+    {
+      "fieldName": "evrakno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "tarihi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "sevktarihi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "saati",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "hesapno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "hesapadi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "adresi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "ilce",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "sehir",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "vda",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "tcno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "vno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "telefon",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "gun",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "tutari",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "notlar",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "depotipi",
+      "fieldType": "DepoTipi",
+      "fieldValues": "DEPO1,DEPO2"
+    },
+    {
+      "fieldName": "toplam",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "isktoplam",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "kdvtoplam",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "aratoplam",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "HareketSicil",
+  "pagination": "infinite-scroll",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "sicil",
+      "ownerSide": true,
+      "relationshipName": "sicil",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "cari",
+      "ownerSide": true,
+      "relationshipName": "cari",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "hareketDetay",
+      "otherEntityRelationshipName": "hareketSicil",
+      "relationshipName": "hareketDetays",
+      "relationshipType": "one-to-many"
+    }
+  ],
+  "service": "serviceImpl"
+}

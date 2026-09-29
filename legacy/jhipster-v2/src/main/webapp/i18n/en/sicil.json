@@ -1,0 +1,36 @@
+{
+  "fikoparApp": {
+    "sicil": {
+      "home": {
+        "title": "Sicils",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Sicil",
+        "createOrEditLabel": "Create or edit a Sicil",
+        "notFound": "No Sicils found"
+      },
+      "created": "A new Sicil is created with identifier {{ param }}",
+      "updated": "A Sicil is updated with identifier {{ param }}",
+      "deleted": "A Sicil is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Sicil {{ id }}?"
+      },
+      "detail": {
+        "title": "Sicil"
+      },
+      "id": "ID",
+      "hesapno": "Hesapno",
+      "hesapadi": "Hesapadi",
+      "adresi": "Adresi",
+      "ilce": "Ilce",
+      "sehir": "Sehir",
+      "telefon": "Telefon",
+      "vda": "Vda",
+      "vno": "Vno",
+      "tcno": "Tcno",
+      "gun": "Gun",
+      "iskonto": "Iskonto",
+      "siciltipi": "Siciltipi",
+      "caris": "Caris"
+    }
+  }
+}

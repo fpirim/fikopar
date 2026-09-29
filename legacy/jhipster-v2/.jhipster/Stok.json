@@ -1,0 +1,47 @@
+{
+  "applications": ["fikopar"],
+  "changelogDate": "20230810134708",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "stok",
+  "fields": [
+    {
+      "fieldName": "stokno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "parcano",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "tipi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "cinsi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "marka",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "fiyati",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Stok",
+  "pagination": "infinite-scroll",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "katalog",
+      "otherEntityRelationshipName": "stoks",
+      "relationshipName": "katalog",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "serviceImpl"
+}

@@ -1,0 +1,59 @@
+{
+  "applications": ["fikopar"],
+  "changelogDate": "20230810135308",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "cek_senet",
+  "fields": [
+    {
+      "fieldName": "ceksenetno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "evraktipi",
+      "fieldType": "EvrakTipi",
+      "fieldValues": "IRSALIYELI_SATIS_FATURASI,SATIS_FATURASI,SATIS_IRSALIYESI,IRSALIYELI_ALIS_FATURASI,ALIS_FATURASI,ALIS_IRSALIYESI,TAHSILAT_MAKBUZU,TEDIYE_MAKBUZU,ALACAK_CEKI,ALACAK_SENETI,BORC_CEKI,BORC_SENETI,DEVIR"
+    },
+    {
+      "fieldName": "depotipi",
+      "fieldType": "DepoTipi",
+      "fieldValues": "DEPO1,DEPO2"
+    },
+    {
+      "fieldName": "tarihi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "vade",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "aciklama",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "tutar",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "CekSenet",
+  "pagination": "infinite-scroll",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "sicil",
+      "ownerSide": true,
+      "relationshipName": "sicil",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "cekSenetDetay",
+      "otherEntityRelationshipName": "cekSenet",
+      "relationshipName": "cekSenetDetays",
+      "relationshipType": "one-to-many"
+    }
+  ],
+  "service": "serviceImpl"
+}

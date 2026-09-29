@@ -1,0 +1,690 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. 'SICIL'.
+       AUTHOR. FIKRET PIRIM.
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. RMCOBOL.
+       OBJECT-COMPUTER. RMCOBOL.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+       copy 'sicil.cpy'.
+       copy 'siciltel.cpy'.
+       copy 'sicilkod.cpy'.
+       copy 'sicilpos.cpy'.
+       copy 'carhar.cpy'.
+       DATA DIVISION.
+       FILE SECTION.
+       copy 'sicil.cpz'.
+       copy 'siciltel.cpz'.
+       copy 'sicilkod.cpz'.
+       copy 'sicilpos.cpz'.
+       copy 'carhar.cpz'.
+       WORKING-STORAGE SECTION.
+       01 EKRAN-DEGIS.
+           02 F                 PIC 99.
+           02 CIZ               PIC 99.
+           02 Z-KREDI           PIC ZZ.ZZZ.ZZZ.ZZZ.ZZZ,ZZZZ.
+           02 Z-GUN             PIC ZZ.ZZZ.
+           02 Z-ISKONTO         PIC Z.ZZZ,ZZZZ.
+           02 T-KOD             PIC S9999.
+           02 T-ADI             PIC X(40).
+           02 YENI              PIC 9.
+       copy 'status.cpy'.
+       copy 'onayvar.cpy'.
+       copy 'win.cpy'.
+	   copy 'fileop.var'.
+	   LINKAGE SECTION.
+	   01  MAIN-ARGUMENT.
+           02  MAIN-ARGUMENT-SIZE      PIC 9(4) BINARY.
+           02  MAIN-ARGUMENT-VALUE.
+               03  PIC X OCCURS 1 TO 100
+                   DEPENDING ON MAIN-ARGUMENT-SIZE.
+       SCREEN SECTION.
+       01 SCR.
+           02 LINE 1 COLUMN 1 BACKGROUND BLUE FOREGROUND WHITE
+              'É' HIGHLIGHT. 02 PIC X(118) FROM ALL 'Í' HIGHLIGHT.
+           02 '»' HIGHLIGHT.
+           02 LINE 2 COLUMN 1 BACKGROUND BLUE FOREGROUND WHITE
+              'º' HIGHLIGHT. 
+           02 PIC X(118) FROM ' S˜C˜L HESAP KARTI ' HIGHLIGHT.
+           02 'º' HIGHLIGHT.
+           02 LINE 3 COLUMN 1 BACKGROUND BLUE FOREGROUND WHITE
+              'Ì' HIGHLIGHT. 02 PIC X(66) FROM ALL 'Í' HIGHLIGHT.
+           02 'Ë' HIGHLIGHT.
+           02 PIC X(51) FROM ALL 'Í' HIGHLIGHT.
+           02 '¹' HIGHLIGHT.
+           02 LINE 5 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'HESAP NO    [' HIGHLIGHT. 
+           02 PIC X(15) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 7 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'HESAP ADI   [' HIGHLIGHT. 
+           02 PIC X(50) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 8 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'YETK˜L˜     [' HIGHLIGHT. 
+           02 PIC X(40) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 10 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'ADRES˜      [' HIGHLIGHT. 
+           02 PIC X(40) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 11 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              '            [' HIGHLIGHT. 
+           02 PIC X(40) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 12 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              '            [' HIGHLIGHT. 
+           02 PIC X(40) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 14 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'POSTA KODU  [      ]' HIGHLIGHT. 
+           02 LINE 15 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'MAHALLE/K™Y [' HIGHLIGHT. 
+           02 PIC X(20) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 16 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              '˜L€E        [' HIGHLIGHT. 
+           02 PIC X(20) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 17 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'žEH˜R       [' HIGHLIGHT.         
+           02 PIC X(20) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 18 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'šLKE        [' HIGHLIGHT. 
+           02 PIC X(20) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 20 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'V.DA˜RES˜   [' HIGHLIGHT. 
+           02 PIC X(30) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 21 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'VERG˜ NO.   [' HIGHLIGHT. 
+           02 PIC X(10) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 22 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'S˜C˜L NO.   [' HIGHLIGHT. 
+           02 PIC X(11) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 24 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'T.S˜C˜L NO. [' HIGHLIGHT. 
+           02 PIC X(20) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 25 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'MERS˜S NO.  [' HIGHLIGHT. 
+           02 PIC X(20) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 27 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'D™V˜Z       [   ]' HIGHLIGHT.
+           02 LINE 28 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'KRED˜       [                       ]' HIGHLIGHT.
+           02 LINE 29 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'VADE (GšN)  [      ]' HIGHLIGHT.
+           02 LINE 30 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              '1.˜SKONTO   [          ]' HIGHLIGHT.
+           02 LINE 31 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              '2.˜SKONTO   [          ]' HIGHLIGHT.
+           02 LINE 33 COLUMN 3 BACKGROUND BLUE FOREGROUND WHITE
+              'PLAS˜YER    [' HIGHLIGHT. 
+           02 PIC X(30) FROM ALL ' '. 02 ']' HIGHLIGHT.
+           02 LINE 36 COLUMN 1 BACKGROUND BLUE FOREGROUND WHITE
+              'È' HIGHLIGHT. 02 PIC X(66) FROM ALL 'Í' HIGHLIGHT.
+           02 PIC X FROM 'Ê' HIGHLIGHT.
+           02 PIC X(51) FROM ALL 'Í' HIGHLIGHT.
+           02 '¼' HIGHLIGHT. 
+           02 LINE 3 COLUMN 94 BACKGROUND BLUE FOREGROUND WHITE
+               PIC X FROM 'Ë' HIGHLIGHT.
+           02 LINE 4 COLUMN 69 BACKGROUND BLUE FOREGROUND WHITE
+               PIC X(25) FROM ' TELEFON & FAX' HIGHLIGHT. 
+           02 'º' HIGHLIGHT. 
+           02 PIC X(25) FROM ' HESAP T˜P˜ ' HIGHLIGHT.
+           02 LINE 5 COLUMN 68 BACKGROUND BLUE FOREGROUND WHITE
+               'Ì' HIGHLIGHT. 02 PIC X(25) FROM ALL 'Í' HIGHLIGHT.
+           02 PIC X FROM 'Î' HIGHLIGHT.
+           02 PIC X(25) FROM ALL 'Í' HIGHLIGHT.
+           02 '¹' HIGHLIGHT.
+           02 LINE 20 COLUMN 68 BACKGROUND BLUE FOREGROUND WHITE
+               'Ì' HIGHLIGHT. 02 PIC X(25) FROM ALL 'Í' HIGHLIGHT.
+           02 PIC X FROM 'Ê' HIGHLIGHT.
+           02 PIC X(25) FROM ALL 'Í' HIGHLIGHT.
+           02 '¹' HIGHLIGHT.
+           02 LINE 21 COLUMN 69 
+                PIC X(51) FROM ' @ E-MAIL ' HIGHLIGHT.
+           02 LINE 22 COLUMN 68 BACKGROUND BLUE FOREGROUND WHITE
+               'Ì' HIGHLIGHT. 02 PIC X(51) FROM ALL 'Í' HIGHLIGHT.
+           02 '¹' HIGHLIGHT.
+           02 LINE 34 COLUMN 68 BACKGROUND BLUE FOREGROUND WHITE
+               'Ì' HIGHLIGHT. 02 PIC X(51) FROM ALL 'Í' HIGHLIGHT.
+           02 '¹' HIGHLIGHT.
+       01 SCR01.
+           02 LINE 7 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(50) USING SC-HESAPADI HIGHLIGHT.
+           02 LINE 8 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(40) USING SC-YETKILI HIGHLIGHT.
+           02 LINE 10 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(40) USING SC-ADRES1 HIGHLIGHT.
+           02 LINE 11 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(40) USING SC-ADRES2 HIGHLIGHT.
+           02 LINE 12 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(40) USING SC-ADRES3 HIGHLIGHT.
+           02 LINE 14 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(6) USING SC-POSKOD HIGHLIGHT.
+           02 LINE 15 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(20) USING SC-MAHALLE HIGHLIGHT.
+           02 LINE 16 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(20) USING SC-ILCE HIGHLIGHT.
+           02 LINE 17 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(20) USING SC-IL HIGHLIGHT.
+           02 LINE 18 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(20) USING SC-ULKE HIGHLIGHT.
+           02 LINE 20 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(30) USING SC-VDA HIGHLIGHT.
+           02 LINE 21 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(10) USING SC-VNO HIGHLIGHT.
+           02 LINE 22 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(11) USING SC-TCNO HIGHLIGHT.
+           02 LINE 24 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(11) USING SC-TSNO HIGHLIGHT.
+           02 LINE 25 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(20) USING SC-MERSIS HIGHLIGHT.
+           02 LINE 27 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC X(3) USING SC-TUR HIGHLIGHT.
+           02 LINE 28 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC ZZ.ZZZ.ZZZ.ZZZ.ZZZ,ZZZZ USING SC-KREDI HIGHLIGHT.
+           02 LINE 29 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC ZZ.ZZZ USING SC-GUN HIGHLIGHT.
+           02 LINE 30 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC Z.ZZZ,ZZZZ USING SC-ISKONTO1 HIGHLIGHT.
+           02 LINE 31 COLUMN 16 BACKGROUND BLUE FOREGROUND WHITE
+                PIC Z.ZZZ,ZZZZ USING SC-ISKONTO2 HIGHLIGHT.
+           02 LINE 33 COLUMN 16 BACKGROUND BLUE FOREGROUND BROWN
+                PIC X(30) USING T-ADI HIGHLIGHT.
+       copy 'onayscr.cpy'.
+                
+       PROCEDURE DIVISION USING MAIN-ARGUMENT.
+       START-PROGRAM.
+       BEGIN-PROGRAM.
+           MOVE WCB TO NESTED-WCB (1).
+           DISPLAY NESTED-WCB (1)
+              LINE 1 POSITION 1 CONTROL 'WINDOW-CREATE'.
+           PERFORM VARYING CIZ FROM 4 BY 1 UNTIL CIZ > 35
+                DISPLAY 'º' LINE CIZ POSITION 1
+                 CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'
+                SPACES SIZE 66 'º' SPACES SIZE 51 'º'
+           END-PERFORM.
+           DISPLAY SCR.
+           
+           DISPLAY SPACES LINE 37 POSITION 1
+                    CONTROL 'BCOLOR=BLUE' SIZE 120.
+           DISPLAY ' F1 ' LINE 37 POSITION 1
+                CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'
+                'S˜C˜LLER' REVERSE LOW 
+                ' F2 ' 'TELEFON & FAX' REVERSE LOW
+                ' F3 ' 'HESAP T˜P˜' REVERSE LOW
+                ' F4 ' '@ E-MAIL' REVERSE LOW
+				' F5 ' 'PLAS˜YERLER' REVERSE LOW
+				' F10 ' 'S˜L' REVERSE LOW.
+       HESAPNO-AL.
+           PERFORM VARYING CIZ FROM 6 BY 1 UNTIL CIZ > 33
+              IF CIZ < 20
+                 DISPLAY 'º' LINE CIZ POSITION 68 SPACES SIZE 25
+                   CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'
+                   'º' SPACES SIZE 25 
+              END-IF
+              IF CIZ > 22
+                 DISPLAY 'º' LINE CIZ POSITION 68 SPACES SIZE 51
+                   CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'
+              END-IF
+           END-PERFORM.
+           ACCEPT SC-HESAPNO LINE 5 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           IF F = 27 GO STOP-PROGRAM.
+           IF F = 1 CALL 'SICPEN' USING SC-HESAPNO
+                    CANCEL 'SICPEN' GO HESAPNO-AL.
+           IF SC-HESAPNO = SPACES GO HESAPNO-AL.
+           PERFORM HESAP-OKU THRU HESAP-OKU-SON.
+           CALL 'TELPEN' USING SC-HESAPNO 1. CANCEL 'TELPEN'.
+           CALL 'TIPPEN' USING SC-HESAPNO 1. CANCEL 'TIPPEN'.
+           CALL 'MALPEN' USING SC-HESAPNO 1. CANCEL 'MALPEN'.
+       HESAPADI-AL.
+           ACCEPT SC-HESAPADI LINE 7 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27 WHEN 52      PERFORM HESAP-SIFIRLA DISPLAY SCR01
+                                GO HESAPNO-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO YETKILI-AL                     
+           END-EVALUATE.
+		   GO HESAPADI-AL.
+       YETKILI-AL.
+           ACCEPT SC-YETKILI LINE 8 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO HESAPADI-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO ADRES1-AL                     
+           END-EVALUATE.
+		   GO YETKILI-AL.
+       ADRES1-AL.
+           ACCEPT SC-ADRES1 LINE 10 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB 
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO YETKILI-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO ADRES2-AL                     
+           END-EVALUATE.
+		   GO ADRES1-AL.
+       ADRES2-AL.
+           ACCEPT SC-ADRES2 LINE 11 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB 
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO ADRES1-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO ADRES3-AL                     
+           END-EVALUATE.
+		   GO ADRES2-AL.
+       ADRES3-AL.
+           ACCEPT SC-ADRES3 LINE 12 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB 
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO ADRES2-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN 
+		   WHEN 13 WHEN 53      GO POSKOD-AL                     
+           END-EVALUATE.
+           GO ADRES3-AL.
+       POSKOD-AL.
+           ACCEPT SC-POSKOD LINE 14 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB 
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO ADRES3-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO MAHALLE-AL                     
+           END-EVALUATE.
+		   GO POSKOD-AL.
+       MAHALLE-AL.
+           ACCEPT SC-MAHALLE LINE 15 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB 
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO POSKOD-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN 
+		   WHEN 13 WHEN 53      GO ILCE-AL                     
+           END-EVALUATE.
+		   GO MAHALLE-AL.
+       ILCE-AL.
+           ACCEPT SC-ILCE LINE 16 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO MAHALLE-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN 
+		   WHEN 13 WHEN 53      GO IL-AL                     
+           END-EVALUATE.
+		   GO ILCE-AL.
+       IL-AL.
+           ACCEPT SC-IL LINE 17 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB 
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO ILCE-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO ULKE-AL                     
+           END-EVALUATE.
+		   GO IL-AL.
+       ULKE-AL.
+           ACCEPT SC-ULKE LINE 18 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO IL-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN 
+		   WHEN 13 WHEN 53      GO VDA-AL                     
+           END-EVALUATE.
+		   GO ULKE-AL.
+       VDA-AL.
+           ACCEPT SC-VDA LINE 20 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB 
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO ULKE-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN 
+		   WHEN 13 WHEN 53      GO VNO-AL                     
+           END-EVALUATE.
+		   GO VDA-AL.
+       VNO-AL.
+           ACCEPT SC-VNO LINE 21 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB 
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO VDA-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO TCNO-AL                     
+           END-EVALUATE.
+		   GO VNO-AL.
+       TCNO-AL.
+           ACCEPT SC-TCNO LINE 22 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO VNO-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO TSNO-AL                     
+           END-EVALUATE.
+		   GO TCNO-AL.
+
+       TSNO-AL.
+           ACCEPT SC-TSNO LINE 24 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO TCNO-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO MERSIS-AL                     
+           END-EVALUATE.
+		   GO TSNO-AL.
+       MERSIS-AL.
+           ACCEPT SC-MERSIS LINE 25 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO TSNO-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO TUR-AL                     
+           END-EVALUATE.
+		   GO MERSIS-AL.
+       TUR-AL.
+           ACCEPT SC-TUR LINE 27 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO MERSIS-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO KREDI-AL                     
+           END-EVALUATE.
+		   GO TUR-AL.
+       KREDI-AL.
+           DISPLAY SPACES LINE 28 POSITION 16
+                CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE' SIZE 23.
+           ACCEPT SC-KREDI LINE 28 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           MOVE SC-KREDI TO Z-KREDI.
+           DISPLAY Z-KREDI LINE 28 POSITION 16
+                CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO TUR-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO GUN-AL                     
+           END-EVALUATE.
+		   GO KREDI-AL.
+		   
+       GUN-AL.
+           DISPLAY SPACES LINE 29 POSITION 16
+                CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE' SIZE 6.
+           ACCEPT SC-GUN LINE 29 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           MOVE SC-GUN TO Z-GUN.
+           DISPLAY Z-GUN LINE 29 POSITION 16
+                CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO KREDI-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO ISKONTO1-AL                     
+           END-EVALUATE.
+		   GO GUN-AL.
+       ISKONTO1-AL.
+           DISPLAY SPACES LINE 30 POSITION 16
+                CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE' SIZE 10.
+           ACCEPT SC-ISKONTO1 LINE 30 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           MOVE SC-ISKONTO1 TO Z-ISKONTO.
+           DISPLAY Z-ISKONTO LINE 30 POSITION 16
+                CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO GUN-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO ISKONTO2-AL                     
+           END-EVALUATE.
+		   GO ISKONTO1-AL.
+       ISKONTO2-AL.
+           DISPLAY SPACES LINE 31 POSITION 16
+                CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE' SIZE 10.
+           ACCEPT SC-ISKONTO2 LINE 31 POSITION 16 NO BEEP UPDATE
+             CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           ACCEPT F FROM ESCAPE KEY.
+           MOVE SC-ISKONTO2 TO Z-ISKONTO.
+           DISPLAY Z-ISKONTO LINE 31 POSITION 16
+                CONTROL 'BCOLOR=BLUE, FCOLOR=WHITE'.
+           EVALUATE F
+           WHEN 2 WHEN 3 WHEN 4 PERFORM CHECK-SUB
+           WHEN 27              GO HESAPNO-AL
+           WHEN 52              GO ISKONTO1-AL
+		   WHEN 10              IF YENI = 0 GO HESAP-SIL END-IF
+		   WHEN 5               PERFORM PLASIYER-PEN
+		   WHEN 13 WHEN 53      GO PLASIYER-AL                     
+           END-EVALUATE.
+		   GO ISKONTO2-AL.
+       PLASIYER-AL.
+           MOVE SC-PLKOD TO T-KOD.
+           CALL 'PLASSEC' USING 0 T-KOD T-ADI 0016 0024 0040 0032.
+           CANCEL 'PLASSEC'.
+           IF T-KOD = -1 GO ISKONTO2-AL.
+           MOVE T-KOD TO SC-PLKOD.
+           DISPLAY T-ADI LINE 33 POSITION 16 SIZE 30
+            CONTROL 'BCOLOR=BLUE, FCOLOR=BROWN'.
+           
+           
+           OPEN I-O SICIL.
+           IF YENI = 1 PERFORM WRITE-SICIL
+             ELSE PERFORM REWRITE-SICIL.
+           CLOSE SICIL.
+           PERFORM HESAP-SIFIRLA.
+           DISPLAY SCR01.
+           GO HESAPNO-AL.
+       copy 'onayper.cpy'.
+	   HESAP-SIL.
+	       MOVE 'HESAP KARTI S˜L˜NECEK EM˜N M˜S˜N˜Z ?'
+                TO ONAY-MESSAGE.
+           MOVE 'H' TO E-ONAY.
+           PERFORM ONAY-AL THRU ONAY-AL-SON.
+           IF E-ONAY = 'h' OR E-ONAY = 'H'
+                  GO HESAPNO-AL.
+           OPEN INPUT CARHAR.
+           MOVE SC-HESAPNO TO CH-HESAPNO.
+           START CARHAR KEY IS EQUAL TO CH-HESAPNO
+            INVALID KEY CLOSE CARHAR GO HESAP-SIL-CONT.
+           CLOSE CARHAR.
+           MOVE '˜žLEM G™REN AKT˜F HESAP KARTI S˜L˜NEMEZ!!!' TO
+                ONAY-MESSAGE.
+           PERFORM WARN-MESSAGE.
+           PERFORM HESAP-SIFIRLA. DISPLAY SCR01.
+           GO HESAPNO-AL.
+       HESAP-SIL-CONT.
+           PERFORM CHECK-DEL-BEFORE THRU CHECK-DEL-BEFORE-SON.
+           OPEN I-O SICIL.
+           READ SICIL.
+		   PERFORM DELETE-SICIL.
+           CLOSE SICIL.
+           PERFORM HESAP-SIFIRLA.
+		   DISPLAY SCR01.
+		   GO HESAPNO-AL.
+           
+       CHECK-DEL-BEFORE.
+           OPEN I-O SICILTEL SICILPOS SICILKOD.
+           MOVE SC-HESAPNO TO SK-HESAPNO SCT-HESAPNO SP-HESAPNO.
+           START SICILTEL KEY IS EQUAL TO SCT-HESAPNO
+                INVALID KEY GO CHECK-DEL-POS-BEFORE.
+       CHECK-DEL-TEL-OKU.
+           READ SICILTEL NEXT AT END GO CHECK-DEL-POS-BEFORE.
+           IF SCT-HESAPNO NOT = SC-HESAPNO GO CHECK-DEL-POS-BEFORE.
+           PERFORM DELETE-SICILTEL.
+		   GO CHECK-DEL-TEL-OKU.
+       CHECK-DEL-POS-BEFORE.
+           START SICILPOS KEY IS EQUAL TO SP-HESAPNO
+                INVALID KEY GO CHECK-DEL-KOD-BEFORE.
+       CHECK-DEL-POS-OKU.
+           READ SICILPOS NEXT AT END GO CHECK-DEL-KOD-BEFORE.
+           IF SP-HESAPNO NOT = SC-HESAPNO GO CHECK-DEL-KOD-BEFORE.
+           PERFORM DELETE-SICILPOS.
+		   GO CHECK-DEL-POS-OKU.
+       CHECK-DEL-KOD-BEFORE.
+           START SICILKOD KEY IS EQUAL TO SK-HESAPNO
+                INVALID KEY GO CHECK-DEL-BEFORE-SON.
+       CHECK-DEL-KOD-OKU.
+           READ SICILKOD NEXT AT END GO CHECK-DEL-BEFORE-SON.
+           IF SK-HESAPNO NOT = SC-HESAPNO GO CHECK-DEL-BEFORE-SON.
+           PERFORM DELETE-SICILKOD.
+		   GO CHECK-DEL-KOD-OKU.
+       CHECK-DEL-BEFORE-SON.
+           CLOSE SICILTEL SICILPOS SICILKOD.
+       
+       HESAP-OKU.
+	       OPEN INPUT SICIL.
+           READ SICIL INVALID KEY PERFORM HESAP-SIFIRLA 
+                    GO HESAP-OKU-SON.
+           MOVE SC-PLKOD TO T-KOD.
+           CALL 'PLASSEC' USING 1 T-KOD T-ADI 0000 0000 0000 0000.
+           CANCEL 'PLASSEC'.
+           MOVE 0 TO YENI.
+       HESAP-OKU-SON.
+	       CLOSE SICIL.
+           DISPLAY SCR01.
+       HESAP-SIFIRLA.      
+           MOVE SPACES TO SC-HESAPADI
+              SC-YETKILI SC-ADRES1 SC-ADRES2 SC-ADRES3
+              SC-POSKOD SC-MAHALLE
+              SC-ILCE SC-IL SC-VDA SC-VNO SC-TCNO
+              SC-TSNO SC-MERSIS.
+           MOVE 'TL ' TO SC-TUR.
+           MOVE 'TšRK˜YE' TO SC-ULKE.
+           MOVE ZEROS TO SC-KREDI SC-GUN SC-ISKONTO1 
+                    SC-ISKONTO2 SC-PLKOD.
+           MOVE SC-PLKOD TO T-KOD.
+           CALL 'PLASSEC' USING 1 T-KOD T-ADI 0000 0000 0000 0000.
+           CANCEL 'PLASSEC'.
+           MOVE 1 TO YENI.
+       PLASIYER-PEN.
+	       CALL 'PLASIYER' USING 1 SC-PLKOD.
+		   CANCEL 'PLASIYER'.
+		   MOVE SC-PLKOD TO T-KOD.
+		   CALL 'PLASSEC' USING 1 T-KOD T-ADI 0000 0000 0000 0000.
+           CANCEL 'PLASSEC'.
+           DISPLAY T-ADI LINE 33 POSITION 16 SIZE 30
+            CONTROL 'BCOLOR=BLUE, FCOLOR=BROWN'.
+           OPEN I-O SICIL.
+           IF YENI = 0
+             PERFORM REWRITE-SICIL
+           ELSE
+             IF SC-PLKOD NOT = ZEROS
+                PERFORM WRITE-SICIL
+                MOVE 0 TO YENI
+             END-IF
+           END-IF.
+           CLOSE SICIL.
+       CHECK-SUB.
+           EVALUATE F
+           WHEN 2 CALL 'TELPEN' USING SC-HESAPNO 0 CANCEL 'TELPEN'
+                  CALL 'TELPEN' USING SC-HESAPNO 1 CANCEL 'TELPEN'
+           WHEN 3 CALL 'TIPPEN' USING SC-HESAPNO 0 CANCEL 'TIPPEN'
+                  CALL 'TIPPEN' USING SC-HESAPNO 1 CANCEL 'TIPPEN'
+           WHEN 4 CALL 'MALPEN' USING SC-HESAPNO 0 CANCEL 'MALPEN'
+                  CALL 'MALPEN' USING SC-HESAPNO 1 CANCEL 'MALPEN'
+           END-EVALUATE.
+           PERFORM CHECK-SUB-AFTER THRU CHECK-SUB-AFTER-SON.
+       
+       CHECK-SUB-AFTER.
+           OPEN I-O SICIL INPUT SICILKOD SICILTEL SICILPOS.
+           IF YENI = 0 GO CHECK-SUB-AFTER-SON.
+           
+           MOVE SC-HESAPNO TO SK-HESAPNO SCT-HESAPNO SP-HESAPNO
+           START SICILKOD KEY IS EQUAL TO SK-HESAPNO
+            INVALID KEY GO CHECK-SUB-TEL-AFTER.
+           GO CHECK-SUB-AFTER-YAZ.
+       CHECK-SUB-TEL-AFTER.
+           START SICILTEL KEY IS EQUAL TO SCT-HESAPNO
+            INVALID KEY GO CHECK-SUB-POS-AFTER.
+           GO CHECK-SUB-AFTER-YAZ.
+       CHECK-SUB-POS-AFTER.    
+           START SICILPOS KEY IS EQUAL TO SP-HESAPNO
+            INVALID KEY GO CHECK-SUB-AFTER-SON.
+       CHECK-SUB-AFTER-YAZ.
+           MOVE 0 TO YENI.
+           PERFORM WRITE-SICIL.
+       CHECK-SUB-AFTER-SON.
+           CLOSE SICIL SICILKOD SICILTEL SICILPOS.
+           
+           
+           
+       STOP-PROGRAM.
+           MOVE WCB TO NESTED-WCB (1).
+           DISPLAY NESTED-WCB (1)
+              LINE 1 POSITION 1 CONTROL 'WINDOW-REMOVE'.
+           EXIT PROGRAM.
+           STOP RUN.
+       copy fileop.cpy REPLACING ==%T%== BY ==SICIL==
+                                  "%T%"  BY "SICIL"
+                                 ==%R%== BY ==SC-KAYIT==.
+       copy fileop.cpy REPLACING ==%T%== BY ==SICILTEL==
+                                  "%T%"  BY "SICILTEL"
+                                 ==%R%== BY ==SCT-KAYIT==.
+       copy fileop.cpy REPLACING ==%T%== BY ==SICILPOS==
+                                  "%T%"  BY "SICILPOS"
+                                 ==%R%== BY ==SP-KAYIT==.
+       copy fileop.cpy REPLACING ==%T%== BY ==SICILKOD==
+                                  "%T%"  BY "SICILKOD"
+                                 ==%R%== BY ==SK-KAYIT==.
+       
+       

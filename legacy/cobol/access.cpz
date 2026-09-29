@@ -1,0 +1,9 @@
+       FD USERACCESS DATA RECORD UA-KAYIT.
+       01 UA-KAYIT.
+           02 UA-KEY.
+                 03 UA-NAME       PIC X(20).
+				 03 UA-CODE		  PIC X(20).
+		   02 UA-READ			PIC 9.
+		   02 UA-WRITE   		PIC 9.
+		   02 UA-UPDATE			PIC 9.
+		   02 UA-DELETE			PIC 9.

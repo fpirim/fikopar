@@ -1,0 +1,6 @@
+       FD KATLOG DATA RECORD IS KT-KAYIT.
+       01 KT-KAYIT.
+           02 KT-KEY.
+                03 KT-KATNO    PIC 9999.
+           02 KT-ACIKLAMA      PIC X(60).
+           02 KT-HESAPNO       PIC X(15).

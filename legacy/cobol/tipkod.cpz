@@ -1,0 +1,6 @@
+       FD TIPKOD DATA RECORD TK-KAYIT.
+       01 TK-KAYIT.
+           02 TK-KEY.
+               03 TK-KOD            PIC 9999.
+           02 TK-TIP            PIC X(40).     
+               

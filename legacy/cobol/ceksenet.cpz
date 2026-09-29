@@ -1,0 +1,40 @@
+       FD CEKSENET DATA RECORD CS-KAYIT.
+       01 CS-KAYIT.
+           02 CS-KEY.
+               03 CS-EVRAKNO       PIC X(15).
+               03 CS-TIP           PIC 99.
+           02 CS-HESAPNO           PIC X(15).           
+           02 CS-DEPONO            PIC 9999.
+           02 CS-VADE.
+               03 CS-VYIL          PIC 9999.
+               03 CS-VAY           PIC 99.
+               03 CS-VGUN          PIC 99.
+           02 CS-TARIH.
+               03 CS-YIL           PIC 9999.
+               03 CS-AY            PIC 99.
+               03 CS-GUN           PIC 99.
+           02 CS-TUTAR             PIC 9(13)V99.
+           02 CS-KHESAPNO          PIC X(15).
+           02 CS-KHESAPADI         PIC X(50).
+           02 CS-KYETKILI          PIC X(40).
+           02 CS-KBANKASEHIR       PIC X(20).
+           02 CS-KSUBEILCE         PIC X(20).
+           02 CS-KBANKANOTCNO      PIC X(20).
+           02 CS-KCEKSENETNO       PIC X(20).
+       FD CEKSENETLOG DATA RECORD CSL-KAYIT.
+       01 CSL-KAYIT.
+           02 CSL-KEY.
+               03 CSL-EVRAKNO       PIC X(15).
+               03 CSL-CTIP          PIC 99.
+               03 CSL-SIRA         PIC 9(10).
+           02 CSL-TARIH.
+               03 CSL-YIL           PIC 9999.
+               03 CSL-AY            PIC 99.
+               03 CSL-GUN           PIC 99.
+           02 CSL-SONUC            PIC 9999.
+           02 CSL-MAKBUZ.
+               03 CSL-MAKBUZNO         PIC X(15).
+               03 CSL-TIP              PIC 99.
+           02 CSL-OPTIME           PIC 9(16).
+               
+           

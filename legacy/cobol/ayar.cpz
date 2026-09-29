@@ -1,0 +1,11 @@
+       FD AYAR DATA RECORD AY-KAYIT.
+       01 AY-KAYIT.
+           02 AY-KEY.
+               03 AY-TIP            PIC 99.
+               03 AY-DEPONO         PIC 9999.
+           02 AY-EVRAKNO         PIC X(15).
+           02 AY-EVRAKFORMAT     PIC X(30).
+           02 AY-ACIKLAMA        PIC X(60).
+           02 AY-YAZDOS          PIC X(12).
+           02 AY-YAZPORT         PIC X(12).
+       

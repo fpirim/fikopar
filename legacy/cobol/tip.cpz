@@ -1,0 +1,6 @@
+       FD DTIP DATA RECORD DTIP-KAYIT.
+       01 DTIP-KAYIT.
+           02 DTIP-KEY.
+               03 DTIP-NO            PIC 99.
+           02 DTIP-ADI           PIC X(60).
+           

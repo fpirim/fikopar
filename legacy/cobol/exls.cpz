@@ -1,0 +1,2 @@
+       FD EXLS LABEL RECORD IS OMITTED.
+       01 XLS                   PIC X(1000).

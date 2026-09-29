@@ -1,0 +1,59 @@
+{
+  "applications": ["fikopar"],
+  "changelogDate": "20230810135508",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "makbuz",
+  "fields": [
+    {
+      "fieldName": "makbuzno",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "evraktipi",
+      "fieldType": "EvrakTipi",
+      "fieldValues": "IRSALIYELI_SATIS_FATURASI,SATIS_FATURASI,SATIS_IRSALIYESI,IRSALIYELI_ALIS_FATURASI,ALIS_FATURASI,ALIS_IRSALIYESI,TAHSILAT_MAKBUZU,TEDIYE_MAKBUZU,ALACAK_CEKI,ALACAK_SENETI,BORC_CEKI,BORC_SENETI,DEVIR"
+    },
+    {
+      "fieldName": "depotipi",
+      "fieldType": "DepoTipi",
+      "fieldValues": "DEPO1,DEPO2"
+    },
+    {
+      "fieldName": "tarihi",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "vade",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "aciklama",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "tutari",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Makbuz",
+  "pagination": "infinite-scroll",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "sicil",
+      "ownerSide": true,
+      "relationshipName": "sicil",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "cari",
+      "ownerSide": true,
+      "relationshipName": "cari",
+      "relationshipType": "one-to-one"
+    }
+  ],
+  "service": "serviceImpl"
+}

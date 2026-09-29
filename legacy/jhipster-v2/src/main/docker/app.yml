@@ -1,0 +1,66 @@
+# This configuration is intended for development purpose, it's **your** responsibility to harden it for production
+version: '3.8'
+services:
+  fikopar-app:
+    image: fikopar
+    container_name: fikopar-app
+    networks:
+      - fikopar
+    environment:
+      - _JAVA_OPTIONS=-Xmx2048m -Xms256m
+      - JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+      - SPRING_PROFILES_ACTIVE=prod,api-docs
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/fikopar
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_LIQUIBASE_URL=jdbc:postgresql://postgresql:5432/fikopar
+      - JHIPSTER_SLEEP=1
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.fikopar.entrypoints=web'
+      - 'traefik.http.routers.fikopar.rule=Host(`fikopar.${domain}`)'
+      - 'traefik.http.routers.fikopar-secure.entrypoints=websecure'
+      - 'traefik.http.routers.fikopar-secure.rule=Host(`fikopar.${domain}`)'
+      - 'traefik.http.routers.fikopar-secure.tls=true'
+      - 'traefik.http.routers.fikopar-secure.service=fikopar-app'
+      - 'traefik.http.services.fikopar-app.loadbalancer.server.port=8080'
+      - 'traefik.tcp.routers.fikopar-debug.entrypoints=fikopar-debug'
+      - 'traefik.tcp.routers.fikopar-debug.rule=HostSNI(`*`)'
+      - 'traefik.tcp.routers.fikopar-debug.service=fikopar-debug'
+      - 'traefik.tcp.services.fikopar-debug.loadbalancer.server.port=5005'
+      - 'traefik.docker.network=fikopar'
+
+  np-fikopar-app:
+    image: fikopar
+    container_name: np-fikopar-app
+    networks:
+      - fikopar
+    environment:
+      - _JAVA_OPTIONS=-Xmx2048m -Xms256m
+      - JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+      - SPRING_PROFILES_ACTIVE=prod,api-docs
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/np
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_LIQUIBASE_URL=jdbc:postgresql://postgresql:5432/np
+      - JHIPSTER_SLEEP=1
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.np-fikopar.entrypoints=web'
+      - 'traefik.http.routers.np-fikopar.rule=Host(`np.${domain}`)'
+      - 'traefik.http.routers.np-fikopar-secure.entrypoints=websecure'
+      - 'traefik.http.routers.np-fikopar-secure.rule=Host(`np.${domain}`)'
+      - 'traefik.http.routers.np-fikopar-secure.tls=true'
+      - 'traefik.http.routers.np-fikopar-secure.service=np-fikopar-app'
+      - 'traefik.http.services.np-fikopar-app.loadbalancer.server.port=8080'
+      - 'traefik.tcp.routers.np-fikopar-debug.entrypoints=np-fikopar-debug'
+      - 'traefik.tcp.routers.np-fikopar-debug.rule=HostSNI(`*`)'
+      - 'traefik.tcp.routers.np-fikopar-debug.service=np-fikopar-debug'
+      - 'traefik.tcp.services.np-fikopar-debug.loadbalancer.server.port=5005'
+      - 'traefik.docker.network=fikopar'
+
+networks:
+  fikopar:
+    external: true

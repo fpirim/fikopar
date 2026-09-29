@@ -1,0 +1,5 @@
+       FD ODEME DATA RECORD IS OD-KAYIT.
+       01 OD-KAYIT.
+           02 OD-KEY.
+                03 OD-NO    PIC 9999.
+           02 OD-ADI      PIC X(60).

@@ -1,0 +1,17 @@
+       FD CARHAR DATA RECORD IS CH-KAYIT.
+       01 CH-KAYIT.
+           02 CH-KEY.
+               03 CH-HESAPNO            PIC X(15).
+               03 CH-DEPONO             PIC 9999.    
+               03 CH-TARIH.
+                     04 CH-YIL               PIC 9999.
+                     04 CH-AY                PIC 99.
+                     04 CH-GUN               PIC 99.
+               03 CH-SIRA               PIC 9(10).
+           02 CH-TIP                PIC 99.
+           02 CH-EVRAKNO            PIC X(15).
+           02 CH-ACIKLAMA           PIC X(60).
+           02 CH-VADE               PIC X(15).
+           02 CH-BORC               PIC 9(13)V99.
+           02 CH-ALACAK             PIC 9(13)V99.
+           
