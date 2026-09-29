@@ -39,7 +39,6 @@ type Dashboard struct {
 	Payables         BalanceTile                `json:"payables"`
 	Cash             CashTile                   `json:"cash"`
 	InstrumentsDue30 DueTile                    `json:"instrumentsDue30"`
-	Latest           []repository.Activity      `json:"latest"`
 	DueThisWeek      []repository.InstrumentDue `json:"dueThisWeek"`
 	BelowMin         []models.StockLevel        `json:"belowMin"`
 	BelowMinCount    int64                      `json:"belowMinCount"`
@@ -87,9 +86,6 @@ func (s *ReportService) Dashboard(ctx context.Context, orgID uint, depotID uint,
 			return err
 		}
 		if d.DueThisWeek, err = q.InstrumentsDueList(orgID, d.Date, 7, depot, 20); err != nil {
-			return err
-		}
-		if d.Latest, err = q.LatestActivity(orgID, d.Date, depot, 10); err != nil {
 			return err
 		}
 		rows, err := q.StockLevels(orgID, repository.LevelFilter{DepotID: depotID, Only: "BELOW_MIN_OR_NEGATIVE", Limit: 10})
