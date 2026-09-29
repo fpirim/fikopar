@@ -12,7 +12,11 @@ async function openRow(code: string, depot: string) {
   await waitFor(() => expect(within(grid()).getAllByText(code)).toHaveLength(2))
   const row = within(grid())
     .getAllByRole('row')
-    .find((r) => r.textContent?.includes(code) && r.querySelector(`[col-id="depotId"]`)?.textContent === depot)!
+    .find(
+      (r) =>
+        r.textContent?.includes(code) &&
+        r.querySelector(`[col-id="depotId"]`)?.textContent === depot,
+    )!
   await userEvent.dblClick(within(row).getByText(code))
   return screen.findByRole('dialog')
 }
@@ -20,8 +24,10 @@ async function openRow(code: string, depot: string) {
 describe('CarryForwardPage', () => {
   it('previews the opening entries with checks and totals', async () => {
     renderApp('/carry-forward/2026')
-    expect(await screen.findByRole('heading', { name: 'Cari devir 2025 → 2026' })).toBeInTheDocument()
-    const steps = screen.getByRole('list', { name: 'Yıl sonu adımları' })
+    expect(
+      await screen.findByRole('heading', { name: 'Cari devir 2025 → 2026' }),
+    ).toBeInTheDocument()
+    const steps = await screen.findByRole('list', { name: 'Yıl sonu adımları' })
     expect(within(steps).getByText('2025 belgelerini kapat')).toBeInTheDocument()
     await waitFor(() =>
       expect(within(steps).getByText('Cari bakiyeler').closest('li')).toHaveAttribute(
@@ -55,7 +61,9 @@ describe('CarryForwardPage', () => {
       credit: '0.00',
       reason: 'Disputed invoice',
     })
-    await waitFor(() => expect(within(grid()).getByText('DÜZELTİLDİ')).toBeInTheDocument())
+    await waitFor(() =>
+      expect(within(grid()).getByText('DÜZELTİLDİ', { selector: 'span' })).toBeInTheDocument(),
+    )
   })
 
   it('removes an override', async () => {
@@ -66,7 +74,11 @@ describe('CarryForwardPage', () => {
     await waitFor(() => expect(dels).toHaveLength(1))
     expect(dels[0].url.searchParams.get('accountId')).toBe('5001')
     expect(dels[0].url.searchParams.get('depotId')).toBe('1')
-    await waitFor(() => expect(within(grid()).queryByText('DÜZELTİLDİ')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        within(grid()).queryByText('DÜZELTİLDİ', { selector: 'span' }),
+      ).not.toBeInTheDocument(),
+    )
   })
 
   it('posts after confirmation and locks the preview', async () => {

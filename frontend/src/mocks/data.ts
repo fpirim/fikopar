@@ -265,6 +265,7 @@ function synthParties(): Omit<Party, 'sicilId' | 'accountId'>[] {
   const r = rng(412)
   const out: Omit<Party, 'sicilId' | 'accountId'>[] = []
   const used = new Set(FEATURED.map((f) => f.name))
+  const codes = new Set(FEATURED.map((f) => f.code))
   const pick = <T>(a: T[]) => a[Math.floor(r() * a.length)]
   const date = () => {
     const d = 1 + Math.floor(r() * 270)
@@ -288,10 +289,14 @@ function synthParties(): Omit<Party, 'sicilId' | 'accountId'>[] {
       d1 - Math.round(bal * 0.7),
       turnover - d1 - (bal - Math.round(bal * 0.7)),
     ]
+    let code = supplier
+      ? `320.${String(sup++).padStart(5, '0')}`
+      : `120.${cust + Math.floor(r() * 9)}`
+    while (codes.has(code))
+      code = `${code.slice(0, 4)}${String(Number(code.slice(4)) + 1).padStart(5, '0')}`
+    codes.add(code)
     out.push({
-      code: supplier
-        ? `320.${String(sup++).padStart(5, '0')}`
-        : `120.${cust + Math.floor(r() * 9)}`,
+      code,
       name,
       city,
       tipi: supplier ? 'FIRMA' : 'MUSTERI',
