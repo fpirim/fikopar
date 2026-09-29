@@ -24,6 +24,42 @@ describe('ReceiptPage', () => {
     expect(await screen.findByText('TED-2026-2-000065')).toBeInTheDocument()
   })
 
+  it('defaults to the first depot by code and shows codes, not ids', async () => {
+    // ids run against the codes, as on a real database
+    server.use(
+      http.get('/api/orgs/:orgId/depots', () =>
+        HttpResponse.json([
+          { id: 1, code: '2', name: 'Şube', vatRate: '20', allowNegativeStock: false, version: 1 },
+          {
+            id: 2,
+            code: '1',
+            name: 'Merkez',
+            vatRate: '20',
+            allowNegativeStock: false,
+            version: 1,
+          },
+        ]),
+      ),
+    )
+    const series = capture('get', '/api/orgs/:orgId/number-series')
+    const posts = capture('post', '/api/orgs/:orgId/receipts')
+    renderApp('/receipts')
+    const methods = await screen.findByRole('radiogroup', { name: 'Ödeme şekli' })
+    await waitFor(() =>
+      expect(within(methods).getByText('Kasa defteri · Depo 1')).toBeInTheDocument(),
+    )
+    expect(screen.getByRole('combobox', { name: 'Depo' })).toHaveValue('2')
+    expect(series.map((c) => c.url.searchParams.get('depotId'))).not.toContain('1')
+    await pickKaya()
+    await userEvent.type(screen.getByLabelText('Tutar'), '100')
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet ve yazdır' }))
+    await waitFor(() => expect(posts).toHaveLength(1))
+    expect(posts[0].body).toMatchObject({ depotId: 2 })
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Depo' }), '1')
+    expect(await within(methods).findByText('Kasa defteri · Depo 2')).toBeInTheDocument()
+  })
+
   it('offers cash and bank transfer; cheque and note are off', async () => {
     renderApp('/receipts')
     const methods = await screen.findByRole('radiogroup', { name: 'Ödeme şekli' })

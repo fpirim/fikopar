@@ -22,6 +22,16 @@ test('recent receipts list the seeded collections', async ({ page }) => {
   await expect(recent).toContainText(/TAH-2026-1-0+5/)
 })
 
+test('receipts under All depots default to depot 1 by code', async ({ page }) => {
+  expect(depot1()).not.toBe(1)
+  await page.goto('/receipts')
+  await expect(page.getByRole('combobox', { name: 'Depot', exact: true })).toHaveValue(
+    String(depot1()),
+  )
+  await expect(page.getByText('Cash book · Depot 1')).toBeVisible()
+  await expect(page.getByText(/^TAH-2026-1-\d{6}$/)).toBeVisible()
+})
+
 // Needs globalSearch, which the F1 backend does not serve yet.
 test('cash collection posts and shows in the cash book', V11, async ({ page }) => {
   await page.goto(`/receipts?depot=${depot1()}`)
