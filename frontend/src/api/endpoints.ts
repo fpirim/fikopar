@@ -13,11 +13,30 @@ import type {
   CashCountCreate,
   CashVoucher,
   CashVoucherCreate,
+  Catalog,
+  CatalogSearchResult,
+  CountLinesRequest,
+  Dashboard,
   Depot,
   GridResponse,
+  ImportApply,
+  ImportRowsRequest,
   JournalEntry,
   JournalEntryPage,
+  MovementsRequest,
+  MovementsResponse,
   NumberSeries,
+  Part,
+  PartDepotSettings,
+  PartRow,
+  PartsRequest,
+  PartStock,
+  Price,
+  PriceImport,
+  MappingWrite,
+  PriceImportPreset,
+  PriceImportRow,
+  PriceWrite,
   Receipt,
   ReceiptCreate,
   ReceiptsRequest,
@@ -27,6 +46,13 @@ import type {
   SicilSummary,
   SicilUpdate,
   Statement,
+  StockCount,
+  StockCountFinalized,
+  StockCountLine,
+  StockCountOpen,
+  StockLevel,
+  StockTransfer,
+  StockTransferCreate,
   TrailItem,
 } from './types'
 
@@ -227,5 +253,270 @@ export const reverseJournalEntry = (
     apiRequest<JournalEntry>('POST', `${org(orgId)}/ledger/entries/${entryId}/reversal`, {
       body: { reason },
       idempotencyKey,
+    }),
+  )
+
+export const getDashboard = (orgId: number, depotId?: number | null) =>
+  data(apiRequest<Dashboard>('GET', `${org(orgId)}/dashboard`, { query: { depotId } }))
+
+const cat = (orgId: number) => `${org(orgId)}/catalog`
+const stock = (orgId: number) => `${org(orgId)}/stock`
+
+export const listCatalogs = (orgId: number) =>
+  data(apiRequest<Catalog[]>('GET', `${cat(orgId)}/catalogs`))
+
+export const gridParts = (orgId: number, body: PartsRequest) =>
+  data(apiRequest<GridResponse<PartRow>>('POST', `${cat(orgId)}/parts/grid`, { body, safe: true }))
+
+export const exportParts = (orgId: number, body: PartsRequest) =>
+  apiBlob('POST', `${cat(orgId)}/parts/grid`, XLSX, { body })
+
+export interface CatalogSearchQuery {
+  q: string
+  catalogId?: number | null
+  date?: string
+  inStockDepotId?: number | null
+  limit?: number
+  cursor?: string | null
+}
+
+export const searchCatalog = (orgId: number, query: CatalogSearchQuery, signal?: AbortSignal) =>
+  data(
+    apiRequest<CatalogSearchResult>('GET', `${cat(orgId)}/search`, {
+      query: { ...query },
+      signal,
+    }),
+  )
+
+export const getPart = (orgId: number, partId: number) =>
+  apiRequest<Part>('GET', `${cat(orgId)}/parts/${partId}`)
+
+export const getPartStock = (orgId: number, partId: number) =>
+  data(apiRequest<PartStock>('GET', `${cat(orgId)}/parts/${partId}/stock`))
+
+// `version` 0 creates the depot row.
+export const setPartDepotSettings = (
+  orgId: number,
+  partId: number,
+  depotId: number,
+  body: PartDepotSettings,
+  version: number,
+) =>
+  data(
+    apiRequest<StockLevel>('PUT', `${cat(orgId)}/parts/${partId}/depots/${depotId}`, {
+      body,
+      ifMatch: ifMatch(version),
+    }),
+  )
+
+export const getPartPriceHistory = (orgId: number, partId: number) =>
+  data(apiRequest<Price[]>('GET', `${cat(orgId)}/parts/${partId}/prices`))
+
+export const setPartPrice = (
+  orgId: number,
+  partId: number,
+  body: PriceWrite,
+  idempotencyKey: string,
+) =>
+  data(apiRequest<Price>('POST', `${cat(orgId)}/parts/${partId}/prices`, { body, idempotencyKey }))
+
+export const gridStockMovements = (orgId: number, body: MovementsRequest) =>
+  data(
+    apiRequest<MovementsResponse>('POST', `${stock(orgId)}/movements/grid`, { body, safe: true }),
+  )
+
+export const exportStockMovements = (orgId: number, body: MovementsRequest) =>
+  apiBlob('POST', `${stock(orgId)}/movements/grid`, XLSX, { body })
+
+export const transferStock = (orgId: number, body: StockTransferCreate, idempotencyKey: string) =>
+  data(apiRequest<StockTransfer>('POST', `${stock(orgId)}/transfers`, { body, idempotencyKey }))
+
+export const listStockLevels = (
+  orgId: number,
+  query: {
+    partId?: number
+    depotId?: number | null
+    only?: 'ALL' | 'BELOW_MIN' | 'NEGATIVE' | 'BELOW_MIN_OR_NEGATIVE'
+    limit?: number
+    cursor?: string | null
+  },
+) =>
+  data(
+    apiRequest<{ items: StockLevel[]; nextCursor?: string | null }>(
+      'GET',
+      `${stock(orgId)}/levels`,
+      {
+        query,
+      },
+    ),
+  )
+
+export const listStockCounts = (
+  orgId: number,
+  query: { year?: number; depotId?: number | null; status?: StockCount['status'] } = {},
+) => data(apiRequest<StockCount[]>('GET', `${stock(orgId)}/counts`, { query }))
+
+export const openStockCount = (orgId: number, body: StockCountOpen, idempotencyKey: string) =>
+  data(apiRequest<StockCount>('POST', `${stock(orgId)}/counts`, { body, idempotencyKey }))
+
+export const getStockCount = (orgId: number, countId: number) =>
+  data(apiRequest<StockCount>('GET', `${stock(orgId)}/counts/${countId}`))
+
+export const printCountSheet = (
+  orgId: number,
+  countId: number,
+  query: {
+    sheet?: 'BLIND' | 'WITH_SYSTEM'
+    only?: 'ALL' | 'NOT_COUNTED'
+    shelfFrom?: string
+    shelfTo?: string
+  },
+) => apiBlob('GET', `${stock(orgId)}/counts/${countId}`, PDF, { query })
+
+export const gridStockCountLines = (orgId: number, countId: number, body: CountLinesRequest) =>
+  data(
+    apiRequest<GridResponse<StockCountLine>>(
+      'POST',
+      `${stock(orgId)}/counts/${countId}/lines/grid`,
+      { body, safe: true },
+    ),
+  )
+
+export const exportStockCountLines = (orgId: number, countId: number, body: CountLinesRequest) =>
+  apiBlob('POST', `${stock(orgId)}/counts/${countId}/lines/grid`, XLSX, { body })
+
+export const addStockCountLine = (
+  orgId: number,
+  countId: number,
+  body: { partId: number; shelf?: string; countedQty?: string },
+  idempotencyKey: string,
+) =>
+  data(
+    apiRequest<StockCountLine>('POST', `${stock(orgId)}/counts/${countId}/lines`, {
+      body,
+      idempotencyKey,
+    }),
+  )
+
+export const setStockCountLine = (
+  orgId: number,
+  countId: number,
+  line: { id: number; version: number },
+  body: { countedQty: string | null; shelf?: string },
+) =>
+  data(
+    apiRequest<StockCountLine>('PATCH', `${stock(orgId)}/counts/${countId}/lines/${line.id}`, {
+      body,
+      ifMatch: ifMatch(line.version),
+    }),
+  )
+
+export const finalizeStockCount = (
+  orgId: number,
+  count: { id: number; version: number },
+  uncounted: 'SKIP' | 'ZERO',
+  idempotencyKey: string,
+) =>
+  data(
+    apiRequest<StockCountFinalized>('POST', `${stock(orgId)}/counts/${count.id}/finalize`, {
+      body: { uncounted },
+      ifMatch: ifMatch(count.version),
+      idempotencyKey,
+    }),
+  )
+
+export const cancelStockCount = (
+  orgId: number,
+  count: { id: number; version: number },
+  reason: string,
+) =>
+  data(
+    apiRequest<StockCount>('POST', `${stock(orgId)}/counts/${count.id}/cancel`, {
+      body: { reason },
+      ifMatch: ifMatch(count.version),
+      safe: true,
+    }),
+  )
+
+export const listPriceImportPresets = (orgId: number) =>
+  data(
+    apiRequest<{ presets: PriceImportPreset[]; aliases: Record<string, string[]> }>(
+      'GET',
+      `${cat(orgId)}/import-presets`,
+    ),
+  )
+
+export const listPriceImports = (orgId: number, catalogId?: number | null) =>
+  data(
+    apiRequest<{ items: PriceImport[]; nextCursor?: string | null }>(
+      'GET',
+      `${cat(orgId)}/imports`,
+      { query: { catalogId } },
+    ),
+  )
+
+export interface PriceImportUpload {
+  file: File
+  catalogId: number
+  validFrom: string
+  mapping?: MappingWrite
+}
+
+export const createPriceImport = (orgId: number, up: PriceImportUpload, idempotencyKey: string) => {
+  const form = new FormData()
+  form.append('file', up.file)
+  form.append('catalogId', String(up.catalogId))
+  form.append('validFrom', up.validFrom)
+  if (up.mapping) {
+    form.append('mapping', new Blob([JSON.stringify(up.mapping)], { type: 'application/json' }))
+  }
+  return data(
+    apiRequest<PriceImport>('POST', `${cat(orgId)}/imports`, { body: form, idempotencyKey }),
+  )
+}
+
+export const getPriceImport = (orgId: number, importId: number) =>
+  data(apiRequest<PriceImport>('GET', `${cat(orgId)}/imports/${importId}`))
+
+export const updatePriceImport = (
+  orgId: number,
+  job: { id: number; version: number },
+  body: { mapping?: MappingWrite; validFrom?: string },
+) =>
+  data(
+    apiRequest<PriceImport>('PATCH', `${cat(orgId)}/imports/${job.id}`, {
+      body,
+      ifMatch: ifMatch(job.version),
+    }),
+  )
+
+export const gridPriceImportRows = (orgId: number, importId: number, body: ImportRowsRequest) =>
+  data(
+    apiRequest<GridResponse<PriceImportRow>>(
+      'POST',
+      `${cat(orgId)}/imports/${importId}/rows/grid`,
+      { body, safe: true },
+    ),
+  )
+
+export const applyPriceImport = (
+  orgId: number,
+  job: { id: number; version: number },
+  body: ImportApply,
+  idempotencyKey: string,
+) =>
+  data(
+    apiRequest<PriceImport>('POST', `${cat(orgId)}/imports/${job.id}/apply`, {
+      body,
+      ifMatch: ifMatch(job.version),
+      idempotencyKey,
+    }),
+  )
+
+export const discardPriceImport = (orgId: number, job: { id: number; version: number }) =>
+  data(
+    apiRequest<PriceImport>('POST', `${cat(orgId)}/imports/${job.id}/discard`, {
+      ifMatch: ifMatch(job.version),
+      safe: true,
     }),
   )
