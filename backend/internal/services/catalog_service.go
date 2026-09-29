@@ -203,6 +203,7 @@ func (w *PartWrite) validate() (repository.PartWrite, error) {
 	if v, err := models.ParseQuantity(r.VatPct); err != nil || v > 100*10000 {
 		return r, apierror.WithField(apierror.InvalidRequest, "vatPct")
 	}
+	seen := map[string]bool{}
 	for i := range w.Codes {
 		c := &w.Codes[i]
 		c.Code = strings.TrimSpace(c.Code)
@@ -215,6 +216,12 @@ func (w *PartWrite) validate() (repository.PartWrite, error) {
 		}
 		if (c.Kind == models.CodeEquivalent) != (c.EquivalentPartID != nil) {
 			return r, apierror.WithField(apierror.InvalidRequest, field+".equivalentPartId")
+		}
+		if key := c.Kind + " " + NormalizeCode(c.Code); c.Kind != models.CodeEquivalent {
+			if seen[key] {
+				return r, apierror.WithField(apierror.DuplicateLine, field+".code")
+			}
+			seen[key] = true
 		}
 	}
 	return r, nil

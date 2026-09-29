@@ -12,6 +12,29 @@ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
   SELECT pg_catalog.lower(pg_catalog.translate(s, 'ıİşŞğĞüÜöÖçÇ', 'iIsSgGuUoOcC'))
 $$;
 
+-- Codes of one part and kind that fold alike (ŞALTER / SALTER) become one: the lowest id stays, the others are
+-- recorded with their spelling and removed.
+CREATE TABLE part_code_fold_duplicates (
+  id         bigint      PRIMARY KEY,
+  org_id     bigint      NOT NULL,
+  part_id    bigint      NOT NULL,
+  kind       text        NOT NULL,
+  code       text        NOT NULL,
+  kept_id    bigint      NOT NULL,
+  kept_code  text        NOT NULL,
+  removed_at timestamptz NOT NULL DEFAULT now()
+);
+REVOKE INSERT, UPDATE, DELETE ON part_code_fold_duplicates FROM fikopar_app;
+
+INSERT INTO part_code_fold_duplicates (id, org_id, part_id, kind, code, kept_id, kept_code)
+SELECT id, org_id, part_id, kind, code, kept_id, kept_code FROM (
+  SELECT pc.id, pc.org_id, pc.part_id, pc.kind, pc.code,
+         first_value(pc.id) OVER w AS kept_id, first_value(pc.code) OVER w AS kept_code
+  FROM part_codes pc WHERE pc.kind <> 'EQUIVALENT'
+  WINDOW w AS (PARTITION BY pc.part_id, pc.kind, fold_code(pc.code) ORDER BY pc.id)) d
+WHERE id <> kept_id;
+DELETE FROM part_codes WHERE id IN (SELECT id FROM part_code_fold_duplicates);
+
 -- PostgreSQL 16 cannot change a generated expression: drop and re-add, then rebuild the indexes.
 ALTER TABLE parts DROP COLUMN stock_no_norm, DROP COLUMN name_fold;
 ALTER TABLE parts

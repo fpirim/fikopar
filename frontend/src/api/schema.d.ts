@@ -1495,8 +1495,9 @@ export interface paths {
     /**
      * Create part in a catalog, optionally with its first list price
      * @description 409 ERR_PART_CODE_EXISTS when the stock no exists in the catalog; 422 ERR_CATALOG_NOT_FOUND (`catalogId`),
-     *     ERR_PART_NOT_FOUND / ERR_DUPLICATE_LINE (`codes[i].equivalentPartId`, a second link to the same part). The same
-     *     stock no may exist in another catalog.
+     *     ERR_PART_NOT_FOUND / ERR_DUPLICATE_LINE (`codes[i].equivalentPartId`, a second link to the same part),
+     *     ERR_DUPLICATE_LINE (`codes[i].code`, a code of the same kind with the same normalized form). The same stock no
+     *     may exist in another catalog.
      *     `initialPrice` is a MANUAL price row and emits `PriceChanged` like `setPartPrice`.
      */
     post: operations['createPart']
@@ -1543,7 +1544,8 @@ export interface paths {
      * Update part; `codes` replaces the code list; deactivate with `isActive` false (parts are never deleted)
      * @description `catalogId` must stay the same (422 ERR_PART_CATALOG_IMMUTABLE); `initialPrice` is ignored, prices change
      *     through `setPartPrice`. 409 ERR_PART_CODE_EXISTS on a stock no taken in the catalog; 422 ERR_DUPLICATE_LINE
-     *     (`codes[i].equivalentPartId`) on a second link to the same part.
+     *     (`codes[i].equivalentPartId`) on a second link to the same part, (`codes[i].code`) on a code of the same kind
+     *     with the same normalized form.
      */
     put: operations['updatePart']
     post?: never

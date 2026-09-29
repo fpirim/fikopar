@@ -48,7 +48,10 @@ fills the document fields of movements.
 - Codes and names fold the Turkish letters to ASCII before matching (ı İ i → I, ş → S, ğ → G, ü → U, ö → O,
   ç → C): `NormalizeCode("ısı")` is `ISI`, not `S`; `cig` finds "Çığ mili", `salter` finds "Şalter". Migration
   `0011` rebuilds `stock_no_norm`, `normalized_code` and `name_fold` with `fold_code()` / `fold_name()`. This widens
-  "case- and Turkish-dotless-i-insensitive" to Turkish-letter-insensitive.
+  "case- and Turkish-dotless-i-insensitive" to Turkish-letter-insensitive. Codes of one part and kind that now fold
+  alike (ŞALTER / SALTER) keep the lowest id; the others are removed and recorded, spelling included, in
+  `part_code_fold_duplicates` (kept id and code alongside). A write whose codes fold alike within one kind is
+  `422 ERR_DUPLICATE_LINE` (`codes[i].code`).
 - A second EQUIVALENT link to the same part in one `codes` list is `422 ERR_DUPLICATE_LINE`
   (`codes[i].equivalentPartId`) instead of being collapsed.
 - `globalSearch` cards and document numbers match `q` literally; LIKE wildcards are escaped as in the parts group.
