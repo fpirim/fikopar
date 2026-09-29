@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from './dialog'
 
 export default function ConfirmDialog({
   open,
@@ -24,16 +25,12 @@ export default function ConfirmDialog({
   const { t } = useTranslation('common')
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <button
-        type="button"
-        aria-label={t('close')}
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
-      <div className="relative w-full max-w-md rounded-xl border bg-card p-6 shadow-2xl">
-        <h2 className="mb-2 text-lg font-bold">{title}</h2>
-        <p className="mb-6 text-sm text-muted-foreground">{message}</p>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-[calc(100%-2rem)] gap-0 rounded-xl shadow-2xl sm:max-w-md">
+        <DialogTitle className="mb-2 text-lg font-bold">{title}</DialogTitle>
+        <DialogDescription className="mb-6 text-sm text-muted-foreground">
+          {message}
+        </DialogDescription>
         <div className="flex justify-end gap-2">
           <button
             type="button"
@@ -56,7 +53,7 @@ export default function ConfirmDialog({
             {loading ? t('processing') : (confirmText ?? t('confirm'))}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -245,8 +245,10 @@ function UserDialog({
             orgDropdownPos &&
             createPortal(
               <div
+                data-dialog-float
                 className="fixed z-[60] max-h-48 overflow-auto rounded-lg border bg-card py-1 shadow-lg"
                 style={{
+                  pointerEvents: 'auto',
                   top: orgDropdownPos.top,
                   left: orgDropdownPos.left,
                   width: orgDropdownPos.width,

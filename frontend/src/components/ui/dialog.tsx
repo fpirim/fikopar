@@ -46,7 +46,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onCloseAutoFocus, ...props }, ref) => {
+>(({ className, children, onCloseAutoFocus, onInteractOutside, ...props }, ref) => {
   const { t } = useTranslation('common')
   const [returnTo] = React.useState(opener)
   return (
@@ -54,6 +54,12 @@ const DialogContent = React.forwardRef<
       <DialogOverlay />
       <DialogPrimitive.Content
         ref={ref}
+        onInteractOutside={(e) => {
+          // Lists portalled to the body on behalf of a field in the dialog belong to it.
+          const target = e.target as Element | null
+          if (target?.closest?.('[data-dialog-float]')) e.preventDefault()
+          else onInteractOutside?.(e)
+        }}
         onCloseAutoFocus={(e) => {
           onCloseAutoFocus?.(e)
           if (e.defaultPrevented || !returnTo?.isConnected) return
