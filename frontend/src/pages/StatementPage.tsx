@@ -103,7 +103,11 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
 
   const lang = i18n.language
   const depots = useDepots()
-  const depotCodes = useMemo(() => depots.map((d) => String(d.id)), [depots])
+  const depotCode = useMemo(() => {
+    const byId = new Map(depots.map((d) => [d.id, d.code]))
+    return (id: number | null | undefined) => (id ? (byId.get(id) ?? '—') : '')
+  }, [depots])
+  const depotCodes = useMemo(() => depots.map((d) => d.code), [depots])
   const rows = useMemo(
     () => [...(statement?.broughtForward ?? []), ...(statement?.lines ?? [])],
     [statement],
@@ -209,7 +213,7 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
         flex: 0,
         width: 72,
         cellClass: 'font-mono',
-        valueGetter: (p) => (p.data?.depotId ? String(p.data.depotId) : ''),
+        valueGetter: (p) => depotCode(p.data?.depotId),
         ...exprFilter({
           kind: 'enum',
           anyLabel: t('grid:fk.all'),
@@ -229,7 +233,7 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
       },
     ]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, lang, depotId, widths, depotCodes])
+  }, [t, lang, depotId, widths, depotCode, depotCodes])
 
   const setPeriod = (f: string, tt: string) =>
     setParams((p) => {
@@ -260,7 +264,9 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
           </div>
           <div className="mt-1.5 font-mono text-13 text-fk-muted">
             {t('statement.period', { from: formatDay(from), to: formatDay(to) })} ·{' '}
-            {depotId ? t('statement.depot', { id: depotId }) : t('statement.allDepots')}
+            {depotId
+              ? t('statement.depot', { code: depotCode(depotId) })
+              : t('statement.allDepots')}
           </div>
         </div>
         <PeriodButton from={from} to={to} onApply={setPeriod} />
@@ -299,7 +305,7 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
               p.node.rowPinned ? 'fk-row-bf' : p.data?.resetsBalance ? 'fk-row-reset' : undefined
             }
           />
-          <DepotTotals totals={statement?.depotTotals ?? []} />
+          <DepotTotals totals={statement?.depotTotals ?? []} depotCode={depotCode} />
         </Panel>
         <aside className="flex w-[264px] shrink-0 flex-col gap-3.5">
           <CreditPanel summary={summary} limit={sicil.data?.credit_limit ?? null} />
@@ -319,7 +325,11 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
 
 function DepotTotals({
   totals,
-}: Readonly<{ totals: { depotId: number; debit: string; credit: string; balance: string }[] }>) {
+  depotCode,
+}: Readonly<{
+  totals: { depotId: number; debit: string; credit: string; balance: string }[]
+  depotCode: (id: number) => string
+}>) {
   const { t } = useTranslation('ledger')
   const sum = (k: 'debit' | 'credit' | 'balance') => totals.reduce((s, r) => s + Number(r[k]), 0)
   const cell = 'h-[34px] border-b border-fk-divider px-2.5 text-grid'
@@ -328,7 +338,9 @@ function DepotTotals({
       <tbody>
         {totals.map((r) => (
           <tr key={r.depotId}>
-            <td className={`${cell} w-1/2 text-fk-muted`}>{t('depotN', { id: r.depotId })}</td>
+            <td className={`${cell} w-1/2 text-fk-muted`}>
+              {t('depotN', { code: depotCode(r.depotId) })}
+            </td>
             <td className={`${cell} fk-num`}>{formatMoney(r.debit)}</td>
             <td className={`${cell} fk-num`}>{formatMoney(r.credit)}</td>
             <td className={`${cell} fk-num w-40`}>{formatBalance(r.balance)}</td>

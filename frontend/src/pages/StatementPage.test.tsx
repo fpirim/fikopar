@@ -155,10 +155,9 @@ describe('StatementPage', () => {
         .filter(Boolean)
     await waitFor(() => expect(dp().length).toBeGreaterThan(0))
     expect(new Set(dp())).toEqual(new Set(['SUB']))
-    const filter = screen.getByLabelText('Dp filtresi')
-    expect([...filter.querySelectorAll('option')].map((o) => o.textContent)).toEqual(
-      expect.arrayContaining(['MRK', 'SUB']),
-    )
+    const options = () =>
+      [...screen.getByLabelText('Dp filtresi').querySelectorAll('option')].map((o) => o.textContent)
+    await waitFor(() => expect(options()).toEqual(expect.arrayContaining(['MRK', 'SUB'])))
   })
 
   it('filters lines by type in the client', async () => {

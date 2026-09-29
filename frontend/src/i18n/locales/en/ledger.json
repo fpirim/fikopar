@@ -16,7 +16,7 @@
     "manual": "JOURNAL",
     "opening": "OPENING"
   },
-  "depotN": "Depot {{id}}",
+  "depotN": "Depot {{code}}",
   "total": "Total",
   "dr": "Dr",
   "statement": {
@@ -25,7 +25,7 @@
     "account": "Account",
     "period": "{{from}} – {{to}}",
     "allDepots": "all depots",
-    "depot": "depot {{id}}",
+    "depot": "depot {{code}}",
     "changePeriod": "Change period",
     "from": "From",
     "to": "To",

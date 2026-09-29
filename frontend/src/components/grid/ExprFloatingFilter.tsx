@@ -24,7 +24,9 @@ const inputCls =
 
 // One text box per column: "> 10000", "01.09.2026..30.09.2026", "=Konya"; enums get a select.
 const ExprFloatingFilter = forwardRef<unknown, Props>(function ExprFloatingFilter(props, ref) {
-  const { kind, placeholder, defaultOp = 'contains', options, anyLabel, column } = props
+  const { kind, placeholder, defaultOp = 'contains', anyLabel, column } = props
+  // Options can arrive after the grid mounted (e.g. depots); the grid pushes new params here.
+  const [options, setOptions] = useState(props.options)
   const [text, setText] = useState('')
   const [invalid, setInvalid] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -35,6 +37,9 @@ const ExprFloatingFilter = forwardRef<unknown, Props>(function ExprFloatingFilte
     onParentModelChanged(model: Condition | null) {
       setInvalid(false)
       setText(kind === 'enum' ? String(model?.filter ?? '') : describeCondition(model, defaultOp))
+    },
+    onParamsUpdated(next: Props) {
+      setOptions(next.options)
     },
   }))
 

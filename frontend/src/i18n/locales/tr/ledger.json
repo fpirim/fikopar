@@ -16,7 +16,7 @@
     "manual": "YEVMİYE",
     "opening": "AÇILIŞ"
   },
-  "depotN": "Depo {{id}}",
+  "depotN": "Depo {{code}}",
   "total": "Toplam",
   "dr": "B",
   "statement": {
@@ -25,7 +25,7 @@
     "account": "Hesap",
     "period": "{{from}} – {{to}}",
     "allDepots": "tüm depolar",
-    "depot": "depo {{id}}",
+    "depot": "depo {{code}}",
     "changePeriod": "Dönemi değiştir",
     "from": "Başlangıç",
     "to": "Bitiş",
