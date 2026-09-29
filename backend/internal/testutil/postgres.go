@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	"fikopar/backend/internal/db"
+	"github.com/fpirim/fikopar/backend/internal/db"
 
 	"github.com/stretchr/testify/require"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"

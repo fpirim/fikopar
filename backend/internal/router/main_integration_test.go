@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"fikopar/backend/internal/testutil"
+	"github.com/fpirim/fikopar/backend/internal/testutil"
 
 	"gorm.io/gorm"
 )

@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"fikopar/backend/internal/apierror"
-	"fikopar/backend/internal/services"
 	"strings"
+
+	"github.com/fpirim/fikopar/backend/internal/apierror"
+	"github.com/fpirim/fikopar/backend/internal/services"
 
 	"github.com/labstack/echo/v4"
 )

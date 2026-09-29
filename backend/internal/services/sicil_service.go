@@ -4,9 +4,9 @@ import (
 	"errors"
 	"strings"
 
-	"fikopar/backend/internal/apierror"
-	"fikopar/backend/internal/models"
-	"fikopar/backend/internal/repository"
+	"github.com/fpirim/fikopar/backend/internal/apierror"
+	"github.com/fpirim/fikopar/backend/internal/models"
+	"github.com/fpirim/fikopar/backend/internal/repository"
 
 	"gorm.io/gorm"
 )

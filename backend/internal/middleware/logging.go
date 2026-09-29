@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"time"
 
-	"fikopar/backend/internal/services"
+	"github.com/fpirim/fikopar/backend/internal/services"
 
 	"github.com/labstack/echo/v4"
 )

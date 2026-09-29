@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"strings"
 
-	"fikopar/backend/internal/apierror"
-	"fikopar/backend/internal/config"
-	"fikopar/backend/internal/models"
-	"fikopar/backend/internal/repository"
+	"github.com/fpirim/fikopar/backend/internal/apierror"
+	"github.com/fpirim/fikopar/backend/internal/config"
+	"github.com/fpirim/fikopar/backend/internal/models"
+	"github.com/fpirim/fikopar/backend/internal/repository"
 
 	"github.com/google/uuid"
 )

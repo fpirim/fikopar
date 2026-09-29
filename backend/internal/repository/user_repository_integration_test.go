@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"testing"
 
-	"fikopar/backend/internal/models"
-	"fikopar/backend/internal/repository"
-	"fikopar/backend/internal/testutil"
+	"github.com/fpirim/fikopar/backend/internal/models"
+	"github.com/fpirim/fikopar/backend/internal/repository"
+	"github.com/fpirim/fikopar/backend/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

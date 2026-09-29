@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"fikopar/backend/internal/config"
-	"fikopar/backend/internal/handlers"
-	"fikopar/backend/internal/services"
+	"github.com/fpirim/fikopar/backend/internal/config"
+	"github.com/fpirim/fikopar/backend/internal/handlers"
+	"github.com/fpirim/fikopar/backend/internal/services"
 )
 
 func newTestRouter(t *testing.T, cfg *config.Config) http.Handler {

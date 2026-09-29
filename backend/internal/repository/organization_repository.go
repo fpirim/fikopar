@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"fikopar/backend/internal/models"
+	"github.com/fpirim/fikopar/backend/internal/models"
 
 	"gorm.io/gorm"
 )

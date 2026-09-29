@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"fikopar/backend/internal/config"
-	"fikopar/backend/internal/models"
-	"fikopar/backend/internal/repository/mocks"
+	"github.com/fpirim/fikopar/backend/internal/config"
+	"github.com/fpirim/fikopar/backend/internal/models"
+	"github.com/fpirim/fikopar/backend/internal/repository/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

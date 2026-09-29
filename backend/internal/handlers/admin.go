@@ -1,12 +1,13 @@
 package handlers
 
 import (
-	"fikopar/backend/internal/apierror"
-	"fikopar/backend/internal/models"
-	"fikopar/backend/internal/repository"
-	"fikopar/backend/internal/services"
 	"net/http"
 	"strconv"
+
+	"github.com/fpirim/fikopar/backend/internal/apierror"
+	"github.com/fpirim/fikopar/backend/internal/models"
+	"github.com/fpirim/fikopar/backend/internal/repository"
+	"github.com/fpirim/fikopar/backend/internal/services"
 
 	"github.com/labstack/echo/v4"
 )

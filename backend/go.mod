@@ -1,4 +1,4 @@
-module fikopar/backend
+module github.com/fpirim/fikopar/backend
 
 go 1.25.0
 

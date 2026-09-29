@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"fikopar/backend/internal/apierror"
-	"fikopar/backend/internal/config"
-	"fikopar/backend/internal/models"
+	"github.com/fpirim/fikopar/backend/internal/apierror"
+	"github.com/fpirim/fikopar/backend/internal/config"
+	"github.com/fpirim/fikopar/backend/internal/models"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"

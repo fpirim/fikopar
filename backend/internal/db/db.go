@@ -1,9 +1,10 @@
 package db
 
 import (
-	"fikopar/backend/internal/models"
 	"log"
 	"time"
+
+	"github.com/fpirim/fikopar/backend/internal/models"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

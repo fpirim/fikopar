@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strings"
 
-	"fikopar/backend/internal/config"
-	"fikopar/backend/internal/handlers"
-	appMiddleware "fikopar/backend/internal/middleware"
-	"fikopar/backend/internal/models"
-	"fikopar/backend/internal/services"
+	"github.com/fpirim/fikopar/backend/internal/config"
+	"github.com/fpirim/fikopar/backend/internal/handlers"
+	appMiddleware "github.com/fpirim/fikopar/backend/internal/middleware"
+	"github.com/fpirim/fikopar/backend/internal/models"
+	"github.com/fpirim/fikopar/backend/internal/services"
 
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"

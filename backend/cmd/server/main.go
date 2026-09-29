@@ -4,13 +4,13 @@ import (
 	"log/slog"
 	"os"
 
-	"fikopar/backend/internal/config"
-	"fikopar/backend/internal/db"
-	"fikopar/backend/internal/handlers"
-	"fikopar/backend/internal/observability"
-	"fikopar/backend/internal/repository"
-	"fikopar/backend/internal/router"
-	"fikopar/backend/internal/services"
+	"github.com/fpirim/fikopar/backend/internal/config"
+	"github.com/fpirim/fikopar/backend/internal/db"
+	"github.com/fpirim/fikopar/backend/internal/handlers"
+	"github.com/fpirim/fikopar/backend/internal/observability"
+	"github.com/fpirim/fikopar/backend/internal/repository"
+	"github.com/fpirim/fikopar/backend/internal/router"
+	"github.com/fpirim/fikopar/backend/internal/services"
 )
 
 func main() {
