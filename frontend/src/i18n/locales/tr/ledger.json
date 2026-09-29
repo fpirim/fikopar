@@ -63,5 +63,59 @@
       "term": "Vade (gün)"
     },
     "depotTotals": "Depo toplamları"
+  },
+  "carryForward": {
+    "title": "Cari devir {{from}} → {{to}}",
+    "previewPdf": "Önizleme PDF",
+    "post_one": "{{count}} açılış kaydını kaydet",
+    "post_other": "{{count}} açılış kaydını kaydet",
+    "posted": "Kaydedildi",
+    "steps": "Yıl sonu adımları",
+    "step": {
+      "NO_DRAFT_DOCUMENTS": "{{year}} belgelerini kapat",
+      "STOCK_COUNTS_POSTED": "Stok sayımı kaydedildi",
+      "LEDGER_BALANCED": "Cari bakiyeler",
+      "YEAR_NOT_OPENED": "{{year}} yılını aç"
+    },
+    "blocked": "Engelli: {{detail}}",
+    "kpi": {
+      "accounts": "Bakiyeli hesaplar",
+      "entries": "Kayıtlar (hesap × depo)",
+      "debit": "Σ borç",
+      "credit": "Σ alacak"
+    },
+    "col": {
+      "account": "Hesap",
+      "name": "Ünvan",
+      "depot": "Depo",
+      "closing": "Kapanış {{date}}",
+      "debit": "Açılış borç",
+      "credit": "Açılış alacak",
+      "status": "Durum"
+    },
+    "status": {
+      "READY": "HAZIR",
+      "SKIP": "ATLA",
+      "EDITED": "DÜZELTİLDİ",
+      "POSTED": "KAYITLI"
+    },
+    "hint": "Açılış tutarını değiştirmek için satıra çift tıklayın veya Enter'a basın.",
+    "override": {
+      "title": "Açılış tutarı · {{code}} · depo {{depot}}",
+      "closing": "Kapanış bakiyesi",
+      "debit": "Açılış borç",
+      "credit": "Açılış alacak",
+      "reason": "Gerekçe",
+      "skipHint": "İkisi de sıfırsa satır atlanır.",
+      "save": "Kaydet",
+      "remove": "Hesaplanan tutara dön",
+      "reasonShort": "Gerekçe yazın (en az 3 karakter)"
+    },
+    "confirm": {
+      "title": "Açılış kayıtlarını kaydet",
+      "body": "01.01.{{year}} tarihli {{count}} kayıt tek işlemde kaydedilir. Sonradan düzenlenemez; düzeltmeler ters kayıtla yapılır.",
+      "post": "Kaydet",
+      "done": "{{year}} cari devri kaydedildi"
+    }
   }
 }

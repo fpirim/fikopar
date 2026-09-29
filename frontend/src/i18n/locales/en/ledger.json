@@ -63,5 +63,59 @@
       "term": "Payment term (days)"
     },
     "depotTotals": "Depot totals"
+  },
+  "carryForward": {
+    "title": "Carry forward {{from}} → {{to}}",
+    "previewPdf": "Preview PDF",
+    "post_one": "Post {{count}} opening entry",
+    "post_other": "Post {{count}} opening entries",
+    "posted": "Posted",
+    "steps": "Year-end steps",
+    "step": {
+      "NO_DRAFT_DOCUMENTS": "Close {{year}} documents",
+      "STOCK_COUNTS_POSTED": "Stock count posted",
+      "LEDGER_BALANCED": "Account balances",
+      "YEAR_NOT_OPENED": "Open {{year}}"
+    },
+    "blocked": "Blocked: {{detail}}",
+    "kpi": {
+      "accounts": "Accounts with balance",
+      "entries": "Entries (account × depot)",
+      "debit": "Σ debit",
+      "credit": "Σ credit"
+    },
+    "col": {
+      "account": "Account",
+      "name": "Name",
+      "depot": "Depot",
+      "closing": "Closing {{date}}",
+      "debit": "Opening debit",
+      "credit": "Opening credit",
+      "status": "Status"
+    },
+    "status": {
+      "READY": "READY",
+      "SKIP": "SKIP",
+      "EDITED": "EDITED",
+      "POSTED": "POSTED"
+    },
+    "hint": "Double-click a row or press Enter to change its opening amount.",
+    "override": {
+      "title": "Opening amount · {{code}} · depot {{depot}}",
+      "closing": "Closing balance",
+      "debit": "Opening debit",
+      "credit": "Opening credit",
+      "reason": "Reason",
+      "skipHint": "Both zero skips the row.",
+      "save": "Save",
+      "remove": "Use computed amount",
+      "reasonShort": "Give a reason (3+ characters)"
+    },
+    "confirm": {
+      "title": "Post opening entries",
+      "body": "{{count}} entries dated 01.01.{{year}} are posted in one transaction. This cannot be edited afterwards; corrections go through reversal entries.",
+      "post": "Post",
+      "done": "Carry forward {{year}} posted"
+    }
   }
 }

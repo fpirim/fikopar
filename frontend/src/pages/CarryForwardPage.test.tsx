@@ -1,0 +1,96 @@
+import { describe, expect, it } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { renderApp } from '../test/renderApp'
+import { capture, captureDownloads } from '../test/msw'
+
+const grid = () => document.querySelector('.fk-grid') as HTMLElement
+const kpi = (label: string) => screen.getByRole('group', { name: label })
+
+async function openRow(code: string, depot: string) {
+  await userEvent.type(await screen.findByLabelText('Hesap filtresi'), code)
+  await waitFor(() => expect(within(grid()).getAllByText(code)).toHaveLength(2))
+  const row = within(grid())
+    .getAllByRole('row')
+    .find((r) => r.textContent?.includes(code) && r.querySelector(`[col-id="depotId"]`)?.textContent === depot)!
+  await userEvent.dblClick(within(row).getByText(code))
+  return screen.findByRole('dialog')
+}
+
+describe('CarryForwardPage', () => {
+  it('previews the opening entries with checks and totals', async () => {
+    renderApp('/carry-forward/2026')
+    expect(await screen.findByRole('heading', { name: 'Cari devir 2025 → 2026' })).toBeInTheDocument()
+    const steps = screen.getByRole('list', { name: 'Yıl sonu adımları' })
+    expect(within(steps).getByText('2025 belgelerini kapat')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(within(steps).getByText('Cari bakiyeler').closest('li')).toHaveAttribute(
+        'aria-current',
+        'step',
+      ),
+    )
+    expect(kpi('Bakiyeli hesaplar')).toHaveTextContent('411')
+    expect(kpi('Kayıtlar (hesap × depo)')).toHaveTextContent('822')
+    expect(screen.getByRole('button', { name: '822 açılış kaydını kaydet' })).toBeEnabled()
+    await waitFor(() => expect(within(grid()).getAllByText('HAZIR').length).toBeGreaterThan(0))
+  })
+
+  it('overrides one opening amount with a reason', async () => {
+    const puts = capture('put', '/api/orgs/:orgId/ledger/carry-forwards/:year/overrides')
+    renderApp('/carry-forward/2026')
+    const dialog = await openRow('120.10517', '1')
+    expect(within(dialog).getByLabelText('Açılış borç')).toHaveValue('71.500,00')
+    const debit = within(dialog).getByLabelText('Açılış borç')
+    await userEvent.clear(debit)
+    await userEvent.type(debit, '70000')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    expect(within(dialog).getByText('Gerekçe yazın (en az 3 karakter)')).toBeInTheDocument()
+    await userEvent.type(within(dialog).getByLabelText('Gerekçe'), 'Disputed invoice')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(puts).toHaveLength(1))
+    expect(puts[0].body).toEqual({
+      accountId: 5006,
+      depotId: 1,
+      debit: '70000.00',
+      credit: '0.00',
+      reason: 'Disputed invoice',
+    })
+    await waitFor(() => expect(within(grid()).getByText('DÜZELTİLDİ')).toBeInTheDocument())
+  })
+
+  it('removes an override', async () => {
+    const dels = capture('delete', '/api/orgs/:orgId/ledger/carry-forwards/:year/overrides')
+    renderApp('/carry-forward/2026')
+    const dialog = await openRow('120.10711', '1')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Hesaplanan tutara dön' }))
+    await waitFor(() => expect(dels).toHaveLength(1))
+    expect(dels[0].url.searchParams.get('accountId')).toBe('5001')
+    expect(dels[0].url.searchParams.get('depotId')).toBe('1')
+    await waitFor(() => expect(within(grid()).queryByText('DÜZELTİLDİ')).not.toBeInTheDocument())
+  })
+
+  it('posts after confirmation and locks the preview', async () => {
+    const posts = capture('post', '/api/orgs/:orgId/ledger/carry-forwards/:year/post')
+    renderApp('/carry-forward/2026')
+    await userEvent.click(await screen.findByRole('button', { name: '822 açılış kaydını kaydet' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Açılış kayıtlarını kaydet' })
+    expect(dialog).toHaveTextContent('01.01.2026 tarihli 822 kayıt')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(posts).toHaveLength(1))
+    expect(posts[0].headers.get('Idempotency-Key')).toBeTruthy()
+    expect(await screen.findByText('2026 cari devri kaydedildi')).toBeInTheDocument()
+    expect(await screen.findByText('Kaydedildi')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /açılış kaydını kaydet/ })).not.toBeInTheDocument()
+    await waitFor(() => expect(within(grid()).getAllByText('KAYITLI').length).toBeGreaterThan(0))
+  })
+
+  it('downloads the preview PDF for the depot', async () => {
+    const calls = capture('get', '/api/orgs/:orgId/ledger/carry-forwards/:year')
+    const files = captureDownloads()
+    renderApp('/carry-forward/2026?depot=2')
+    await userEvent.click(await screen.findByRole('button', { name: 'Önizleme PDF' }))
+    await waitFor(() => expect(files).toHaveLength(1))
+    const pdf = calls.find((c) => c.headers.get('Accept') === 'application/pdf')!
+    expect(pdf.url.searchParams.get('depotId')).toBe('2')
+  })
+})
