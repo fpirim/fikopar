@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/fpirim/fikopar/backend/internal/apierror"
 	"github.com/fpirim/fikopar/backend/internal/models"
@@ -13,11 +12,12 @@ import (
 )
 
 type SicilHandler struct {
-	svc *services.SicilService
+	svc     *services.SicilService
+	exports *ReportHandler
 }
 
-func NewSicilHandler(svc *services.SicilService) *SicilHandler {
-	return &SicilHandler{svc: svc}
+func NewSicilHandler(svc *services.SicilService, exports *ReportHandler) *SicilHandler {
+	return &SicilHandler{svc: svc, exports: exports}
 }
 
 type telefonPayload struct {
@@ -26,36 +26,29 @@ type telefonPayload struct {
 }
 
 type createSicilRequest struct {
-	OrganizationID uint             `json:"organization_id"`
-	HesapNo        string           `json:"hesap_no"`
-	HesapAdi       string           `json:"hesap_adi"`
-	Adres          string           `json:"adres"`
-	Ilce           string           `json:"ilce"`
-	Sehir          string           `json:"sehir"`
-	VDairesi       string           `json:"v_dairesi"`
-	VNo            string           `json:"v_no"`
-	TCNo           string           `json:"tc_no"`
-	Gun            string           `json:"gun"`
-	Iskonto        float64          `json:"iskonto"`
-	SicilTipi      models.SicilTipi `json:"sicil_tipi"`
-	Telefonlar     []telefonPayload `json:"telefonlar"`
-}
-
-type gridSicilRequest struct {
-	repository.GridRequest
-	OrganizationID uint `json:"organization_id"`
+	HesapNo    string           `json:"hesap_no"`
+	HesapAdi   string           `json:"hesap_adi"`
+	Adres      string           `json:"adres"`
+	Ilce       string           `json:"ilce"`
+	Sehir      string           `json:"sehir"`
+	VDairesi   string           `json:"v_dairesi"`
+	VNo        string           `json:"v_no"`
+	TCNo       string           `json:"tc_no"`
+	Gun        string           `json:"gun"`
+	Iskonto    float64          `json:"iskonto"`
+	SicilTipi  models.SicilTipi `json:"sicil_tipi"`
+	Telefonlar []telefonPayload `json:"telefonlar"`
 }
 
 func (h *SicilHandler) Grid(c echo.Context) error {
-	var req gridSicilRequest
+	var req repository.GridRequest
 	if err := c.Bind(&req); err != nil {
 		return apierror.Respond(c, apierror.InvalidRequest)
 	}
-	if req.OrganizationID == 0 {
-		return apierror.Respond(c, apierror.InvalidRequest)
+	if accepts(c, mimeXLSX) {
+		return h.exports.SicilGridXLSX(c, req)
 	}
-	claims := getClaims(c)
-	resp, err := h.svc.ListForGrid(claims, req.GridRequest, req.OrganizationID)
+	resp, err := h.svc.ListForGrid(orgID(c), req)
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
@@ -67,30 +60,25 @@ func (h *SicilHandler) Create(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return apierror.Respond(c, apierror.InvalidRequest)
 	}
-	if req.OrganizationID == 0 {
-		return apierror.Respond(c, apierror.InvalidRequest)
-	}
-	claims := getClaims(c)
 	telefonlar := make([]models.SicilTelefon, 0, len(req.Telefonlar))
 	for _, t := range req.Telefonlar {
 		telefonlar = append(telefonlar, models.SicilTelefon{Tipi: t.Tipi, Numara: t.Numara})
 	}
 	card := &models.Sicil{
-		OrganizationID: req.OrganizationID,
-		HesapNo:        req.HesapNo,
-		HesapAdi:       req.HesapAdi,
-		Adres:          req.Adres,
-		Ilce:           req.Ilce,
-		Sehir:          req.Sehir,
-		VDairesi:       req.VDairesi,
-		VNo:            req.VNo,
-		TCNo:           req.TCNo,
-		Gun:            req.Gun,
-		Iskonto:        req.Iskonto,
-		SicilTipi:      req.SicilTipi,
-		Telefonlar:     telefonlar,
+		HesapNo:    req.HesapNo,
+		HesapAdi:   req.HesapAdi,
+		Adres:      req.Adres,
+		Ilce:       req.Ilce,
+		Sehir:      req.Sehir,
+		VDairesi:   req.VDairesi,
+		VNo:        req.VNo,
+		TCNo:       req.TCNo,
+		Gun:        req.Gun,
+		Iskonto:    req.Iskonto,
+		SicilTipi:  req.SicilTipi,
+		Telefonlar: telefonlar,
 	}
-	created, err := h.svc.Create(claims, card)
+	created, err := h.svc.Create(orgID(c), card)
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
@@ -98,11 +86,11 @@ func (h *SicilHandler) Create(c echo.Context) error {
 }
 
 func (h *SicilHandler) Get(c echo.Context) error {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	id, err := pathID(c, "sicilId")
 	if err != nil {
-		return apierror.Respond(c, apierror.InvalidID)
+		return apierror.Respond(c, err)
 	}
-	card, err := h.svc.GetByID(getClaims(c), uint(id))
+	card, err := h.svc.GetByID(orgID(c), id)
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
@@ -110,15 +98,15 @@ func (h *SicilHandler) Get(c echo.Context) error {
 }
 
 func (h *SicilHandler) Update(c echo.Context) error {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	id, err := pathID(c, "sicilId")
 	if err != nil {
-		return apierror.Respond(c, apierror.InvalidID)
+		return apierror.Respond(c, err)
 	}
 	var updates map[string]any
 	if err := c.Bind(&updates); err != nil {
 		return apierror.Respond(c, apierror.InvalidRequest)
 	}
-	card, err := h.svc.Update(getClaims(c), uint(id), updates)
+	card, err := h.svc.Update(orgID(c), id, updates)
 	if err != nil {
 		return apierror.Respond(c, err)
 	}
@@ -126,11 +114,11 @@ func (h *SicilHandler) Update(c echo.Context) error {
 }
 
 func (h *SicilHandler) Delete(c echo.Context) error {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	id, err := pathID(c, "sicilId")
 	if err != nil {
-		return apierror.Respond(c, apierror.InvalidID)
+		return apierror.Respond(c, err)
 	}
-	if err := h.svc.Delete(getClaims(c), uint(id)); err != nil {
+	if err := h.svc.Delete(orgID(c), id); err != nil {
 		return apierror.Respond(c, err)
 	}
 	return c.JSON(http.StatusOK, map[string]string{"code": "OK_SICIL_DELETED"})

@@ -17,15 +17,24 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 )
 
-func New(
-	authHandler *handlers.AuthHandler,
-	userHandler *handlers.UserHandler,
-	adminHandler *handlers.AdminHandler,
-	orgHandler *handlers.OrganizationHandler,
-	sicilHandler *handlers.SicilHandler,
-	authService *services.AuthService,
-	cfg *config.Config,
-) *echo.Echo {
+type Handlers struct {
+	Auth    *handlers.AuthHandler
+	User    *handlers.UserHandler
+	Admin   *handlers.AdminHandler
+	Org     *handlers.OrganizationHandler
+	Sicil   *handlers.SicilHandler
+	Depot   *handlers.DepotHandler
+	Ledger  *handlers.LedgerHandler
+	Receipt *handlers.ReceiptHandler
+	Report  *handlers.ReportHandler
+}
+
+type Services struct {
+	Auth       *services.AuthService
+	Membership *services.MembershipService
+}
+
+func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	e := echo.New()
 
 	e.Use(middleware.RequestID())
@@ -45,8 +54,9 @@ func New(
 	}))
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     []string{cfg.CORSAllowedOrigins},
-		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.OPTIONS},
-		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.PATCH, echo.DELETE, echo.OPTIONS},
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "Idempotency-Key", "If-Match"},
+		ExposeHeaders:    []string{"ETag", "Idempotent-Replayed"},
 		AllowCredentials: true,
 	}))
 
@@ -58,44 +68,87 @@ func New(
 	})
 
 	// Public
-	e.POST("/api/auth/login", authHandler.Login)
-	e.GET("/api/uploads/avatars/:filename", userHandler.GetAvatar)
-	e.GET("/api/uploads/logos/:filename", orgHandler.GetLogo)
+	e.POST("/api/auth/login", h.Auth.Login)
+	e.GET("/api/uploads/avatars/:filename", h.User.GetAvatar)
+	e.GET("/api/uploads/logos/:filename", h.Org.GetLogo)
 
 	// Authenticated
 	api := e.Group("/api")
-	api.Use(appMiddleware.JWT(authService))
-	api.GET("/users/me", userHandler.Me)
-	api.PUT("/users/me", userHandler.UpdateMe)
-	api.POST("/users/me/avatar", userHandler.UploadAvatar)
-	api.DELETE("/users/me/avatar", userHandler.DeleteMyAvatar)
+	api.Use(appMiddleware.JWT(svc.Auth))
+	api.GET("/users/me", h.User.Me)
+	api.PUT("/users/me", h.User.UpdateMe)
+	api.POST("/users/me/avatar", h.User.UploadAvatar)
+	api.DELETE("/users/me/avatar", h.User.DeleteMyAvatar)
 
-	// Org membership is enforced in the service layer.
-	const sicilIDPath = "/sicil/:id"
-	api.POST("/sicil/grid", sicilHandler.Grid)
-	api.POST("/sicil", sicilHandler.Create)
-	api.GET(sicilIDPath, sicilHandler.Get)
-	api.PUT(sicilIDPath, sicilHandler.Update)
-	api.DELETE(sicilIDPath, sicilHandler.Delete)
+	org := api.Group("/orgs/:orgId")
+	org.Use(appMiddleware.RequireOrgMember(svc.Membership))
+	orgAdmin := appMiddleware.RequireRole(models.RoleAdmin)
+
+	const sicilIDPath = "/sicils/:sicilId"
+	org.POST("/sicils/grid", h.Sicil.Grid)
+	org.POST("/sicils", h.Sicil.Create)
+	org.GET(sicilIDPath, h.Sicil.Get)
+	org.PUT(sicilIDPath, h.Sicil.Update)
+	org.DELETE(sicilIDPath, h.Sicil.Delete)
+
+	org.GET("/depots", h.Depot.List)
+	org.POST("/depots", h.Depot.Create, orgAdmin)
+
+	org.GET("/number-series", h.Ledger.ListNumberSeries)
+	org.PATCH("/number-series/:seriesId", h.Ledger.UpdateNumberSeries, orgAdmin)
+
+	const accountPath = "/ledger/accounts/:accountId"
+	org.GET("/ledger/accounts", h.Ledger.ListAccounts)
+	org.POST("/ledger/accounts", h.Ledger.CreateAccount)
+	org.GET(accountPath, h.Ledger.GetAccount)
+	org.GET(accountPath+"/statement", h.Report.Statement)
+	org.POST("/ledger/balances/grid", h.Report.Balances)
+	org.PATCH(accountPath, h.Ledger.UpdateAccount)
+	org.GET("/ledger/account-roles", h.Ledger.ListAccountRoles)
+	org.PUT("/ledger/account-roles", h.Ledger.SetAccountRoles, orgAdmin)
+
+	const cfPath = "/ledger/carry-forwards/:year"
+	org.GET("/ledger/opening-balances", h.Ledger.ListOpeningBalances)
+	org.GET(cfPath, h.Ledger.GetCarryForward)
+	org.PUT(cfPath+"/overrides", h.Ledger.SetCarryForwardOverride, orgAdmin)
+	org.DELETE(cfPath+"/overrides", h.Ledger.DeleteCarryForwardOverride, orgAdmin)
+	org.POST(cfPath+"/post", h.Ledger.PostCarryForward, orgAdmin)
+
+	const entryPath = "/ledger/entries/:entryId"
+	org.GET("/ledger/entries", h.Ledger.ListEntries)
+	org.POST("/ledger/entries", h.Ledger.PostEntry)
+	org.GET(entryPath, h.Ledger.GetEntry)
+	org.GET(entryPath+"/trail", h.Ledger.EntryTrail)
+	org.POST(entryPath+"/reversal", h.Ledger.ReverseEntry)
+
+	org.POST("/receipts/grid", h.Receipt.Grid)
+	org.POST("/receipts", h.Receipt.Create)
+	org.GET("/receipts/:receiptId", h.Receipt.Get)
+	org.POST("/receipts/:receiptId/void", h.Receipt.Void)
+	org.GET("/cash-book", h.Receipt.CashBook)
+	org.POST("/cash-vouchers", h.Receipt.CreateVoucher)
+	org.POST("/cash-vouchers/:voucherId/void", h.Receipt.VoidVoucher)
+	org.GET("/cash-counts", h.Receipt.ListCounts)
+	org.POST("/cash-counts", h.Receipt.CreateCount)
 
 	// Admin only
 	admin := api.Group("/admin")
 	admin.Use(appMiddleware.RequireRole(models.RoleAdmin))
-	admin.GET("/users", adminHandler.ListUsers)
-	admin.POST("/users", adminHandler.CreateUser)
-	admin.POST("/users/grid", adminHandler.ListUsersGrid)
-	admin.PUT("/users/:id", adminHandler.UpdateUser)
-	admin.DELETE("/users/:id", adminHandler.DeleteUser)
-	admin.POST("/users/:id/avatar", adminHandler.UploadUserAvatar)
-	admin.DELETE("/users/:id/avatar", adminHandler.DeleteUserAvatar)
+	admin.GET("/users", h.Admin.ListUsers)
+	admin.POST("/users", h.Admin.CreateUser)
+	admin.POST("/users/grid", h.Admin.ListUsersGrid)
+	admin.PUT("/users/:id", h.Admin.UpdateUser)
+	admin.DELETE("/users/:id", h.Admin.DeleteUser)
+	admin.POST("/users/:id/avatar", h.Admin.UploadUserAvatar)
+	admin.DELETE("/users/:id/avatar", h.Admin.DeleteUserAvatar)
 
-	admin.GET("/organizations", orgHandler.List)
-	admin.POST("/organizations", orgHandler.Create)
-	admin.POST("/organizations/grid", orgHandler.Grid)
-	admin.PUT("/organizations/:id", orgHandler.Update)
-	admin.DELETE("/organizations/:id", orgHandler.Delete)
-	admin.POST("/organizations/:id/logo", orgHandler.UploadLogo)
-	admin.DELETE("/organizations/:id/logo", orgHandler.DeleteLogo)
+	admin.GET("/organizations", h.Org.List)
+	admin.POST("/organizations", h.Org.Create)
+	admin.POST("/organizations/grid", h.Org.Grid)
+	admin.PUT("/organizations/:id", h.Org.Update)
+	admin.DELETE("/organizations/:id", h.Org.Delete)
+	admin.POST("/organizations/:id/logo", h.Org.UploadLogo)
+	admin.DELETE("/organizations/:id/logo", h.Org.DeleteLogo)
 
 	if cfg.StaticDir != "" {
 		e.Use(middleware.StaticWithConfig(middleware.StaticConfig{
