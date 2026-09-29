@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -164,4 +165,43 @@ func TestDocumentsConcurrency_SweeperRacesUpdates(t *testing.T) {
 		WHERE o.org_id = ? AND o.event_type = 'StockReleased'`, f.org).Scan(&released).Error)
 	require.NoError(t, testDB.Raw(`SELECT coalesce(sum(qty), 0) FROM stock_reservations WHERE org_id = ?`, f.org).Scan(&held).Error)
 	assert.Equal(t, reserved, released+held)
+}
+
+// Two posts whose reservations cover different parts release one level and then move both, in opposite orders
+// unless the levels are locked in (part, depot) order first; a transfer of the same parts runs alongside.
+func TestDocumentsConcurrency_OpposingPartOrdersDoNotDeadlock(t *testing.T) {
+	f := newDocs(t)
+	level := func(part uint, want int) {
+		have, err := strconv.Atoi(f.onHand(t, part, f.depot))
+		require.NoError(t, err)
+		if have < want {
+			f.move(t, part, f.depot, "IN", strconv.Itoa(want-have), "2026-01-02")
+		} else if have > want {
+			f.move(t, part, f.depot, "OUT", strconv.Itoa(have-want), "2026-01-02")
+		}
+	}
+	for round := 0; round < 15; round++ {
+		level(f.p1, 10)
+		level(f.p2, 0)
+		x := f.create(t, docBody("SALES_INVOICE", f.depot, f.cust, "2026-03-01", "", lineJSON(f.p2, "1", "10", ""), lineJSON(f.p1, "10", "10", "")))
+		level(f.p2, 1)
+		y := f.create(t, docBody("SALES_INVOICE", f.depot, f.cust, "2026-03-01", "", lineJSON(f.p1, "1", "10", ""), lineJSON(f.p2, "1", "10", "")))
+		require.Equal(t, []string{"0", "10"}, []string{x.Lines[0].ReservedQty, x.Lines[1].ReservedQty})
+		require.Equal(t, []string{"0", "1"}, []string{y.Lines[0].ReservedQty, y.Lines[1].ReservedQty})
+		statuses, codes := parallel(3, func(i int) (int, []byte) {
+			switch i {
+			case 0:
+				rec := f.postRaw(t, f.token, x.ID, x.Version, "")
+				return rec.Code, rec.Body.Bytes()
+			case 1:
+				rec := f.postRaw(t, f.token, y.ID, y.Version, "")
+				return rec.Code, rec.Body.Bytes()
+			}
+			rec := f.post(t, f.path("/stock/transfers"), f.token, fmt.Sprintf(`{"fromDepotId":%d,"toDepotId":%d,"date":"2026-03-01",
+				"lines":[{"partId":%d,"qty":"1"},{"partId":%d,"qty":"1"}]}`, f.depot2, f.depot, f.p2, f.p1))
+			return rec.Code, rec.Body.Bytes()
+		})
+		require.Equal(t, []int{http.StatusOK, http.StatusOK, http.StatusCreated}, statuses, "round %d: %v", round, codes)
+		noDrift(t)
+	}
 }
