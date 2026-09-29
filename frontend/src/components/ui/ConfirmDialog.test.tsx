@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ConfirmDialog from './ConfirmDialog'
+import { findDialog } from '../../test/dialog'
 
 describe('ConfirmDialog', () => {
   it('renders nothing when closed', () => {
@@ -77,7 +78,7 @@ describe('ConfirmDialog', () => {
     render(<Page />)
     const opener = screen.getByRole('button', { name: 'Delete' })
     await userEvent.click(opener)
-    expect(await screen.findByRole('dialog', { name: 'Sil?' })).toBeInTheDocument()
+    expect(await findDialog('dialog', { name: 'Sil?' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Kapat' })).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

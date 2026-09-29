@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Dialog, DialogContent, DialogTitle } from './dialog'
+import { findDialog } from '../../test/dialog'
 
 // Opened from state, as the editors do: no Radix trigger to return to.
 function Page() {
@@ -74,7 +75,7 @@ describe('DialogContent', () => {
     render(<Busy />)
     const post = screen.getByRole('button', { name: 'Post' })
     await userEvent.click(post)
-    await screen.findByRole('dialog')
+    await findDialog('dialog')
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(post).toHaveFocus())
   })

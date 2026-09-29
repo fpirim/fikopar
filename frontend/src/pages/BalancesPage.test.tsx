@@ -110,7 +110,8 @@ describe('BalancesPage', () => {
     const rows = screen.getAllByRole('row').filter((r) => r.getAttribute('row-index') !== null)
     await userEvent.click(within(rows[0]).getByRole('checkbox'))
     await userEvent.click(within(rows[1]).getByRole('checkbox'))
-    expect(screen.getByText('2 seçili')).toBeInTheDocument()
+    // AG Grid reports selection changes asynchronously.
+    expect(await screen.findByText('2 seçili')).toBeInTheDocument()
     await userEvent.click(pdf)
     await waitFor(() => expect(files).toHaveLength(1))
     expect(prints[0].body).toMatchObject({ to: '2026-09-29', language: 'tr' })

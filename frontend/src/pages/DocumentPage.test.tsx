@@ -6,6 +6,7 @@ import { server } from '../mocks/node'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { getDocument } from '../api/endpoints'
+import { findDialog } from '../test/dialog'
 
 const D = '/api/orgs/:orgId/documents'
 const grid = () => document.querySelector('.fk-doc-lines') as HTMLElement
@@ -105,7 +106,7 @@ describe('DocumentPage', () => {
     await loaded('/invoices/1001')
     await userEvent.selectOptions(screen.getByLabelText('Plasiyer'), '9')
     await userEvent.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     expect(dialog).toHaveTextContent('Başkası değiştirdi')
     server.resetHandlers()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Yeniden yükle' }))
@@ -137,7 +138,7 @@ describe('DocumentPage', () => {
   it('a post over the credit limit shows the numbers; a user cannot override', async () => {
     await loaded('/invoices/1002')
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     expect(dialog).toHaveTextContent('Kredi limiti250.000,00')
     expect(dialog).toHaveTextContent('Bakiye36.315,00')
     expect(dialog).toHaveTextContent('Bu belge305.280,00')
@@ -152,7 +153,7 @@ describe('DocumentPage', () => {
     const posts = capture('post', `${D}/:documentId/post`)
     await loaded('/invoices/1002', true)
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Yine de kaydet' }))
     expect(dialog).toHaveTextContent('En az 3 karakter')
     await userEvent.type(within(dialog).getByLabelText('Limiti aşma gerekçesi'), 'Havale geldi')
@@ -186,7 +187,7 @@ describe('DocumentPage', () => {
     )
     await loaded('/invoices/1002', true)
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     await userEvent.type(within(dialog).getByLabelText('Limiti aşma gerekçesi'), 'Test')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Yine de kaydet' }))
     expect(await within(dialog).findByRole('alert')).toBeInTheDocument()

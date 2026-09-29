@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { todayIso } from '../lib/format'
+import { findDialog } from '../test/dialog'
 
 const WEEK = '/cash-book?from=2026-09-22&to=2026-09-29&depot=1'
 const OPEN = `/cash-book?from=2026-09-22&to=${todayIso()}&depot=1`
@@ -68,7 +69,7 @@ describe('CashBookPage', () => {
   it('explains a closed year on a voucher', async () => {
     renderApp(OPEN)
     await userEvent.click(await screen.findByRole('button', { name: 'Gider' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Kasadan gider' })
+    const dialog = await findDialog('dialog', { name: 'Kasadan gider' })
     const date = within(dialog).getByLabelText('Tarih')
     await userEvent.clear(date)
     await userEvent.type(date, '15.06.2024')
@@ -85,7 +86,7 @@ describe('CashBookPage', () => {
     renderApp(OPEN)
     await waitFor(() => expect(stat('Çıkış')).toHaveTextContent('−43.800,00'))
     await userEvent.click(screen.getByRole('button', { name: 'Gider' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Kasadan gider' })
+    const dialog = await findDialog('dialog', { name: 'Kasadan gider' })
     expect(await within(dialog).findByText('Kayıtta numara: GDR-2026-1-000039')).toBeInTheDocument()
     const account = within(dialog).getByLabelText('Gider hesabı')
     await waitFor(() => expect(account).toHaveDisplayValue('770.01 · Fuel'))
@@ -111,7 +112,7 @@ describe('CashBookPage', () => {
     const posts = capture('post', '/api/orgs/:orgId/cash-vouchers')
     renderApp(OPEN)
     await userEvent.click(await screen.findByRole('button', { name: 'Bankaya yatır' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Kasa ile banka arası' })
+    const dialog = await findDialog('dialog', { name: 'Kasa ile banka arası' })
     await userEvent.click(within(dialog).getByRole('button', { name: 'Banka → kasa' }))
     const bank = within(dialog).getByLabelText('Banka hesabı')
     await waitFor(() => expect(bank).toHaveDisplayValue('102.00002 · [BANK A]'))
@@ -127,7 +128,7 @@ describe('CashBookPage', () => {
     const posts = capture('post', '/api/orgs/:orgId/cash-counts')
     renderApp(WEEK)
     await userEvent.click(await screen.findByRole('button', { name: 'Kasa sayımı' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Kasa sayımı · Depo 1' })
+    const dialog = await findDialog('dialog', { name: 'Kasa sayımı · Depo 1' })
     await waitFor(() => expect(within(dialog).getByText('46.815,50')).toBeInTheDocument())
     await userEvent.type(within(dialog).getByLabelText('Sayılan'), '46800')
     expect(within(dialog).getByText('−15,50')).toBeInTheDocument()

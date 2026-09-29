@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/node'
 import { capture } from '../test/msw'
 import { renderApp } from '../test/renderApp'
+import { findDialog } from '../test/dialog'
 
 const location = () => screen.getByTestId('location').textContent
 const IMPORTS = '/api/orgs/:orgId/catalog/imports'
@@ -44,7 +45,7 @@ async function confirmApply() {
   await userEvent.click(screen.getByRole('button', { name: 'Uygulamaya geç' }))
   await userEvent.click(screen.getByRole('checkbox', { name: 'Hatalı satırları atla' }))
   await userEvent.click(screen.getByRole('button', { name: 'Uygula' }))
-  const dialog = await screen.findByRole('alertdialog')
+  const dialog = await findDialog('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Uygula' }))
 }
 
@@ -115,7 +116,7 @@ describe('PriceImportPage', () => {
     await userEvent.selectOptions(screen.getByLabelText('Stok no sütunu'), 'Kod')
     await userEvent.selectOptions(screen.getByLabelText('Fiyat sütunu'), 'Tutar')
     await userEvent.click(screen.getByRole('button', { name: 'Eşlemeyi kaydet' }))
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Yeniden yükle' }))
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
   })

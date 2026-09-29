@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import DialogShell from './DialogShell'
+import { findDialog } from '../../test/dialog'
 
 function Page() {
   const [open, setOpen] = useState(false)
@@ -30,7 +31,7 @@ describe('DialogShell', () => {
   it('is a named dialog with a close button in the UI language', async () => {
     render(<Page />)
     await userEvent.click(screen.getByRole('button', { name: 'New card' }))
-    expect(await screen.findByRole('dialog', { name: 'Card' })).toBeInTheDocument()
+    expect(await findDialog('dialog', { name: 'Card' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Kapat' })).toBeInTheDocument()
   })
 
@@ -38,7 +39,7 @@ describe('DialogShell', () => {
     render(<Page />)
     const opener = screen.getByRole('button', { name: 'New card' })
     await userEvent.click(opener)
-    await screen.findByRole('dialog')
+    await findDialog('dialog')
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(opener).toHaveFocus())
