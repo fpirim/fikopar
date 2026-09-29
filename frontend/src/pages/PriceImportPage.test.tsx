@@ -75,6 +75,20 @@ describe('PriceImportPage', () => {
     })
   })
 
+  it('takes a .txt file under the automatic format as LISAKT', async () => {
+    const seen = uploads()
+    renderApp('/parts/import')
+    await screen.findByRole('option', { name: /LISAKT/ })
+    await userEvent.upload(screen.getByLabelText('Dosya'), new File(['x'], 'LISAKT.TXT'))
+    expect(screen.getByLabelText('Biçim')).toHaveValue('LISAKT')
+    expect(screen.queryByLabelText('Ayraç')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Yükle ve önizle' }))
+    await waitFor(() => expect(seen).toHaveLength(1))
+    expect(JSON.parse(await (seen[0].form.get('mapping') as Blob).text())).toEqual({
+      preset: 'LISAKT',
+    })
+  })
+
   it('asks for the columns it could not match and saves the mapping with If-Match', async () => {
     const patches = capture('patch', `${IMPORTS}/:importId`)
     await upload('Kod;Tutar\nHP-3774;13.200,00\n')

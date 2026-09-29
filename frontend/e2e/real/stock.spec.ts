@@ -1,4 +1,5 @@
 import { test, expect, seeded, V12 } from './fixtures'
+import { lisakt } from '../fixtures/lisakt'
 
 // F2 flows against the real API. Every test is @v12: run after the F2 backend and frontend merge.
 const grid = (page: import('@playwright/test').Page) => page.locator('.fk-grid').first()
@@ -134,6 +135,49 @@ test.describe('catalog and stock', () => {
     await page.goto('/parts')
     await page.getByLabel(/^Filter (Code|Part|Stock no\.?)$/).fill('HP-NEW1')
     await expect(grid(page)).toContainText('HP-NEW1')
+  })
+
+  test('a LISAKT .txt list in CP857 imports under the automatic format', V12, async ({ page }) => {
+    await page.goto('/parts/import')
+    const catalog = page.getByLabel('Catalog')
+    const option = catalog.locator('option', { hasText: 'Hydraulics 2026' })
+    await catalog.selectOption((await option.getAttribute('value'))!)
+    await page.getByLabel('File').setInputFiles({
+      name: 'LISAKT.txt',
+      mimeType: 'text/plain',
+      buffer: lisakt([
+        { op: '2', catalog: 12, stockNo: 'HV-1007', name: 'Control valve, medium', price: 399 },
+        {
+          op: '1',
+          catalog: 12,
+          stockNo: 'HP-LIS1',
+          name: 'Yağ soğutucu, İş makinası ŞÇÖÜ',
+          brand: 'Güçlü',
+          oem: 'OEM-LIS1',
+          price: 2750.5,
+        },
+        { op: '1', catalog: 20, stockNo: 'SE-9999', name: 'Wrong catalog', price: 10 },
+      ]),
+    })
+    await expect(page.getByLabel('Format')).toHaveValue('LISAKT')
+    await page.getByRole('button', { name: 'Upload and preview' }).click()
+    const tabs = page.getByRole('tablist', { name: 'Change' })
+    await expect(tabs.getByRole('tab', { name: /New\s*1/ })).toBeVisible()
+    await expect(tabs.getByRole('tab', { name: /Price\s*1/ })).toBeVisible()
+    await expect(tabs.getByRole('tab', { name: /Errors\s*1/ })).toBeVisible()
+    await expect(grid(page)).toContainText('Yağ soğutucu, İş makinası ŞÇÖÜ')
+    await expect(grid(page)).toContainText('2,750.50')
+    await page.getByRole('button', { name: 'Continue to apply' }).click()
+    await page.getByRole('checkbox', { name: 'Skip error rows' }).check()
+    await page.getByRole('button', { name: 'Apply', exact: true }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Apply' }).click()
+    const result = page.getByRole('list', { name: 'Result' })
+    await expect(result).toContainText('Parts created1')
+    await expect(result).toContainText('Prices added2')
+    await expect(result).toContainText('Rows skipped1')
+    await page.goto('/parts')
+    await page.getByLabel(/^Filter (Code|Part|Stock no\.?)$/).fill('HP-LIS1')
+    await expect(grid(page)).toContainText('Yağ soğutucu, İş makinası ŞÇÖÜ')
   })
 
   test('the dashboard lists negative parts first', V12, async ({ page }) => {
