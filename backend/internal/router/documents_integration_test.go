@@ -14,6 +14,7 @@ import (
 
 	"github.com/fpirim/fikopar/backend/internal/repository"
 	"github.com/fpirim/fikopar/backend/internal/services"
+	"github.com/fpirim/fikopar/backend/internal/testutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -194,10 +195,13 @@ func TestDocuments_PostSalesInvoice(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rec.Code)
 	assert.Equal(t, "ERR_DOCUMENT_NOT_DRAFT", errCode(t, rec))
 
-	// The relay delivers the inline-handled event once more without a second entry.
-	f.relay(t)
+	// The relay publishes the inline-handled events; a redelivery (delivery records lost) posts nothing twice.
+	redeliver(t, f.testApp, d.ID)
 	require.NoError(t, testDB.Raw(`SELECT count(*) FROM journal_entries WHERE source_type = 'document' AND source_id = ?`, idStr(d.ID)).Scan(&entries).Error)
 	assert.EqualValues(t, 1, entries)
+	require.NoError(t, testDB.Raw(`SELECT count(*) FROM stock_movements WHERE source_type = 'document' AND source_id IN (?, ?)`,
+		idStr(p.Lines[0].ID), idStr(p.Lines[1].ID)).Scan(&entries).Error)
+	assert.EqualValues(t, 2, entries)
 
 	// The entry is owned by the document.
 	rec = f.post(t, f.path("/ledger/entries/"+idStr(*p.JournalEntryID)+"/reversal"), f.token, `{"reason":"manual try"}`)
@@ -345,6 +349,12 @@ func TestDocuments_CancelReversesLedgerAndStock(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "true", rec.Header().Get("Idempotent-Replayed"))
 	assert.Equal(t, "10", f.onHand(t, f.p1, f.depot), "replay moves nothing")
+
+	redeliver(t, f.testApp, d.ID)
+	assert.Equal(t, "10", f.onHand(t, f.p1, f.depot), "redelivery moves nothing")
+	var reversals int64
+	require.NoError(t, testDB.Raw(`SELECT count(*) FROM journal_entries WHERE reverses_entry_id = ?`, *d.JournalEntryID).Scan(&reversals).Error)
+	assert.EqualValues(t, 1, reversals)
 
 	rec = f.cancelRaw(t, d.ID, c.Version, "again please")
 	assert.Equal(t, http.StatusConflict, rec.Code)
@@ -747,6 +757,22 @@ func TestDocuments_RelayKeepsDocumentOrder(t *testing.T) {
 	var exported int64
 	require.NoError(t, testDB.Raw(`SELECT count(*) FROM outbox_deliveries WHERE consumer = 'document-export'`).Scan(&exported).Error)
 	assert.EqualValues(t, 1, exported)
+}
+
+// redeliver publishes the document's events, forgets their deliveries and relays them again; every delivery must
+// succeed without writing anything twice.
+func redeliver(t *testing.T, a *testApp, docID uint) {
+	t.Helper()
+	a.relay(t)
+	require.NoError(t, testutil.Owner().Exec(`DELETE FROM outbox_deliveries WHERE event_id IN
+		(SELECT id FROM outbox WHERE aggregate_type = 'document' AND aggregate_id = ?)`, idStr(docID)).Error)
+	require.NoError(t, testDB.Exec(`UPDATE outbox SET published_at = NULL WHERE aggregate_type = 'document' AND aggregate_id = ?`,
+		idStr(docID)).Error)
+	a.relay(t)
+	var failed int64
+	require.NoError(t, testDB.Raw(`SELECT count(*) FROM outbox WHERE aggregate_type = 'document' AND aggregate_id = ?
+		AND (published_at IS NULL OR last_error IS NOT NULL)`, idStr(docID)).Scan(&failed).Error)
+	require.Zero(t, failed, "redelivered events are published without errors")
 }
 
 // docFailOnce records every envelope and fails the first delivery of a document event.
