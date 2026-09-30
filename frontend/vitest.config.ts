@@ -15,6 +15,9 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     // Grid pages take 3–7 s under v8 coverage on a loaded machine; one waitFor alone may use asyncUtilTimeout (5 s).
     testTimeout: 10_000,
+    // One worker per core oversubscribes (jsdom + AG Grid are CPU-bound, E-cores are slow): per-test time halves
+    // at 50 % while the suite takes about the same, so parallel runs keep their tests far from the timeout.
+    maxWorkers: '50%',
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
