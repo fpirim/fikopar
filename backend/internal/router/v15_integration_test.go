@@ -259,6 +259,11 @@ func TestV15_StockShortCountsOtherDocumentsOnly(t *testing.T) {
 	d := f.create(t, docBody("SALES_INVOICE", f.depot, f.cust, "2026-03-01", "", lineJSON(f.p1, "4", "10", ""), lineJSON(f.p1, "6", "10", "")))
 	assert.Empty(t, f.getV15(t, d.ID).warningsOf("STOCK_SHORT"))
 
+	require.NoError(t, testDB.Exec(`UPDATE stock_reservations SET expires_at = reserved_at + interval '1 microsecond'
+		WHERE document_id = ?`, d.ID).Error)
+	assert.Equal(t, "10", f.reserved(t, f.p1, f.depot), "expired, not swept")
+	assert.Empty(t, f.getV15(t, d.ID).warningsOf("STOCK_SHORT"), "an expired hold never makes a line short")
+
 	_, err := f.app.Sweeper.Sweep(t.Context(), time.Now().Add(49*time.Hour))
 	require.NoError(t, err)
 	assert.Equal(t, "0", f.reserved(t, f.p1, f.depot))
