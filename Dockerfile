@@ -7,7 +7,7 @@ ARG VERSION=dev
 ENV VITE_APP_VERSION=$VERSION
 RUN npm run build
 
-FROM golang:1.25-alpine AS api
+FROM golang:1.27-alpine AS api
 WORKDIR /src
 ENV GOTOOLCHAIN=auto CGO_ENABLED=0
 COPY backend/go.mod backend/go.sum ./
