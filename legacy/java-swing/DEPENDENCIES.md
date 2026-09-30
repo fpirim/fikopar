@@ -16,3 +16,5 @@ Removed from `lib/` (see `.classpath`):
 | JIDE Common Layer | | `com.jidesoft:jide-oss` |
 
 Vendored sources removed: `swing/jdatepicker` (JDatePicker, BSD-2), `swing/treetable` and `test/` (JTreeTable sample, Sapient Public License), `swing/component/FDatepicker.java` (© Mark Lasby). Compiled `.jasper` files, the company logo and a sound file are also left out.
+
+Icons in `src/tr/fikopar/swing/resources` and `swing/table/resources` are from the Silk icon set by Mark James (famfamfam.com), licensed under CC BY 2.5.
