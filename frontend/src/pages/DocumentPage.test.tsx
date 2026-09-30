@@ -6,6 +6,7 @@ import { server } from '../mocks/node'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { getDocument } from '../api/endpoints'
+import { findDialog } from '../test/dialog'
 
 const D = '/api/orgs/:orgId/documents'
 const grid = () => document.querySelector('.fk-doc-lines') as HTMLElement
@@ -25,7 +26,8 @@ async function loaded(path: string, admin = false) {
 describe('DocumentPage', () => {
   it('shows a draft like the mockup: next number, lines, stock colours, totals, effects, warnings', async () => {
     await loaded('/invoices/1001')
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('SF-2026-1-000419')
+    // The number comes from the number series, fetched only after the document: its own wait.
+    await screen.findByRole('heading', { level: 1, name: 'SF-2026-1-000419' })
     expect(screen.getByText('TASLAK')).toBeInTheDocument()
     expect(screen.getByLabelText('Belge türü')).toHaveValue('SALES_INVOICE_WITH_WAYBILL')
     await waitFor(() =>
@@ -33,7 +35,8 @@ describe('DocumentPage', () => {
         '120.10482 · Yılmaz Tarım Makinaları',
       ),
     )
-    expect(screen.getByLabelText('Plasiyer')).toHaveValue('7')
+    // The option needs the members list, a separate request.
+    await waitFor(() => expect(screen.getByLabelText('Plasiyer')).toHaveValue('7'))
     expect(cellText(0, 'part')).toBe('HP-3774')
     expect(cellText(3, 'd2')).toBe('4,44')
     expect(cellText(3, 'net')).toBe('2.150,00')
@@ -103,7 +106,7 @@ describe('DocumentPage', () => {
     await loaded('/invoices/1001')
     await userEvent.selectOptions(screen.getByLabelText('Plasiyer'), '9')
     await userEvent.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     expect(dialog).toHaveTextContent('Başkası değiştirdi')
     server.resetHandlers()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Yeniden yükle' }))
@@ -135,14 +138,14 @@ describe('DocumentPage', () => {
   it('a post over the credit limit shows the numbers; a user cannot override', async () => {
     await loaded('/invoices/1002')
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     expect(dialog).toHaveTextContent('Kredi limiti250.000,00')
     expect(dialog).toHaveTextContent('Bakiye36.315,00')
     expect(dialog).toHaveTextContent('Bu belge305.280,00')
     expect(dialog).toHaveTextContent('Limit aşımı91.595,00')
     expect(dialog).toHaveTextContent('Bir yönetici gerekçe yazarak kaydedebilir')
     expect(within(dialog).queryByRole('button', { name: 'Yine de kaydet' })).toBeNull()
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Kapat' }))
+    await userEvent.click(within(dialog).getAllByRole('button', { name: 'Kapat' })[0])
     expect(screen.getByText('TASLAK')).toBeInTheDocument()
   })
 
@@ -150,7 +153,7 @@ describe('DocumentPage', () => {
     const posts = capture('post', `${D}/:documentId/post`)
     await loaded('/invoices/1002', true)
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Yine de kaydet' }))
     expect(dialog).toHaveTextContent('En az 3 karakter')
     await userEvent.type(within(dialog).getByLabelText('Limiti aşma gerekçesi'), 'Havale geldi')
@@ -184,7 +187,7 @@ describe('DocumentPage', () => {
     )
     await loaded('/invoices/1002', true)
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     await userEvent.type(within(dialog).getByLabelText('Limiti aşma gerekçesi'), 'Test')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Yine de kaydet' }))
     expect(await within(dialog).findByRole('alert')).toBeInTheDocument()

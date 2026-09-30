@@ -36,6 +36,7 @@ type createSicilRequest struct {
 	TCNo           string               `json:"tc_no"`
 	Gun            string               `json:"gun"`
 	Iskonto        float64              `json:"iskonto"`
+	Iskonto2       float64              `json:"iskonto2"`
 	SicilTipi      models.SicilTipi     `json:"sicil_tipi"`
 	Telefonlar     []telefonPayload     `json:"telefonlar"`
 	CreditLimit    *models.Money        `json:"credit_limit"`
@@ -79,6 +80,7 @@ func (h *SicilHandler) Create(c echo.Context) error {
 		TCNo:           req.TCNo,
 		Gun:            req.Gun,
 		Iskonto:        req.Iskonto,
+		Iskonto2:       req.Iskonto2,
 		SicilTipi:      req.SicilTipi,
 		Telefonlar:     telefonlar,
 		CreditLimit:    req.CreditLimit,

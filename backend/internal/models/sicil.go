@@ -42,6 +42,7 @@ type Sicil struct {
 	TCNo           string         `gorm:"size:16" json:"tc_no"`
 	Gun            string         `gorm:"size:32" json:"gun"`
 	Iskonto        float64        `gorm:"not null;default:0" json:"iskonto"`
+	Iskonto2       float64        `gorm:"-:migration;column:iskonto2" json:"iskonto2"`
 	SicilTipi      SicilTipi      `gorm:"size:16;not null;default:'FIRMA'" json:"sicil_tipi"`
 	Telefonlar     []SicilTelefon `gorm:"foreignKey:SicilID;constraint:OnDelete:CASCADE" json:"telefonlar"`
 	// Created by migrations/0001 and 0005, not by AutoMigrate.

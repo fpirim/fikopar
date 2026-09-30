@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Depot struct {
 	ID      uint   `json:"id" gorm:"column:id"`
@@ -181,4 +184,18 @@ type OpeningBalance struct {
 	Credit         Money  `json:"credit" gorm:"column:credit"`
 	JournalEntryID uint   `json:"journalEntryId" gorm:"column:journal_entry_id"`
 	Source         string `json:"source" gorm:"column:source"`
+}
+
+type AuditEvent struct {
+	ID          uint            `json:"id" gorm:"column:id"`
+	OrgID       uint            `json:"orgId" gorm:"column:org_id"`
+	OccurredAt  time.Time       `json:"occurredAt" gorm:"column:occurred_at"`
+	ActorUserID *uint           `json:"actorUserId" gorm:"column:actor_user_id"`
+	ActorIP     *string         `json:"actorIp" gorm:"column:actor_ip"`
+	RequestID   *string         `json:"requestId" gorm:"column:request_id"`
+	Action      string          `json:"action" gorm:"column:action"`
+	EntityType  string          `json:"entityType" gorm:"column:entity_type"`
+	EntityID    string          `json:"entityId" gorm:"column:entity_id"`
+	Before      json.RawMessage `json:"before" gorm:"column:before"`
+	After       json.RawMessage `json:"after" gorm:"column:after"`
 }

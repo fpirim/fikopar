@@ -3,6 +3,7 @@ import type { AgGridReact } from 'ag-grid-react'
 import type { GridApi, IDatasource, IGetRowsParams } from 'ag-grid-community'
 import api from '../lib/api'
 import type { SelectAllState } from '../components/ui/SelectAllHeader'
+import { delays } from '../lib/delays'
 
 // extraBody is merged into grid/resolve POSTs (e.g. organization scoping).
 export function useServerSideGrid<T extends { id: number }>(opts: {
@@ -40,7 +41,7 @@ export function useServerSideGrid<T extends { id: number }>(opts: {
     const t = setTimeout(() => {
       searchRef.current = search
       refresh()
-    }, 300)
+    }, delays.gridSearch)
     return () => clearTimeout(t)
   }, [search, refresh])
 

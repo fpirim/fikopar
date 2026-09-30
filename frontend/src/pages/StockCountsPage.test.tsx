@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from '../test/renderApp'
 import { capture } from '../test/msw'
+import { findDialog } from '../test/dialog'
 
 const location = () => screen.getByTestId('location').textContent
 
@@ -31,7 +32,7 @@ describe('StockCountsPage', () => {
     const calls = capture('post', '/api/orgs/:orgId/stock/counts')
     renderApp('/stock-counts')
     await userEvent.click(await screen.findByRole('button', { name: 'Sayım başlat' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.selectOptions(within(dialog).getByLabelText('Depo'), '2')
     await userEvent.type(within(dialog).getByLabelText('Raf başı'), 'E')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Başlat' }))
@@ -44,7 +45,7 @@ describe('StockCountsPage', () => {
   it('links to the open count when the depot already has one', async () => {
     renderApp('/stock-counts')
     await userEvent.click(await screen.findByRole('button', { name: 'Sayım başlat' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Başlat' }))
     expect(await within(dialog).findByText('Depo 1 için açık bir sayım var:')).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('link', { name: 'SAY-2026-1-000002' }))

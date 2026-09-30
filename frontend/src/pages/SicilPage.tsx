@@ -57,6 +57,9 @@ function SicilDialog({
   const [tcNo, setTcNo] = useState(card?.tc_no || '')
   const [gun, setGun] = useState(card?.gun || '')
   const [iskonto, setIskonto] = useState<string>(card?.iskonto == null ? '0' : String(card.iskonto))
+  const [iskonto2, setIskonto2] = useState<string>(
+    card?.iskonto2 == null ? '0' : String(card.iskonto2),
+  )
   const [hesapTipi, setHesapTipi] = useState<SicilTipi>(card?.sicil_tipi || 'FIRMA')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -71,7 +74,10 @@ function SicilDialog({
     setError('')
     setSaving(true)
     try {
-      const iskontoNum = Number.parseFloat(iskonto || '0')
+      const pct = (v: string) => {
+        const n = Number.parseFloat(v || '0')
+        return Number.isFinite(n) ? n : 0
+      }
       const cleanTelefonlar = telefonlar
         .map((t) => ({ tipi: t.tipi, numara: t.numara.trim() }))
         .filter((t) => t.numara !== '')
@@ -85,7 +91,8 @@ function SicilDialog({
         v_no: vNo,
         tc_no: tcNo,
         gun,
-        iskonto: Number.isFinite(iskontoNum) ? iskontoNum : 0,
+        iskonto: pct(iskonto),
+        iskonto2: pct(iskonto2),
         sicil_tipi: hesapTipi,
         telefonlar: cleanTelefonlar,
       }
@@ -256,7 +263,7 @@ function SicilDialog({
           </ul>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t('sicil:field.gun')}</label>
           <NumericInput
@@ -274,6 +281,18 @@ function SicilDialog({
           <NumericInput
             value={iskonto}
             onChange={setIskonto}
+            currencySymbol="%"
+            decimalPlaces={4}
+            minimumValue="0"
+            maximumValue="100"
+            padZeroOnEmpty={false}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{t('sicil:field.iskonto2')} (%)</label>
+          <NumericInput
+            value={iskonto2}
+            onChange={setIskonto2}
             currencySymbol="%"
             decimalPlaces={4}
             minimumValue="0"

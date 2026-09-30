@@ -5,12 +5,14 @@ import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/node'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
+import { findDialog } from '../test/dialog'
+import { fill } from '../test/input'
 
 const grid = () => document.querySelector('.fk-grid') as HTMLElement
 const kpi = (label: string) => screen.getByRole('group', { name: label })
 
 async function openRow(code: string, depot: string) {
-  await userEvent.type(await screen.findByLabelText('Hesap filtresi'), code)
+  await fill(await screen.findByLabelText('Hesap filtresi'), code)
   await waitFor(() => expect(within(grid()).getAllByText(code).length).toBeGreaterThan(0))
   const row = within(grid())
     .getAllByRole('row')
@@ -20,7 +22,7 @@ async function openRow(code: string, depot: string) {
         r.querySelector(`[col-id="depotId"]`)?.textContent === depot,
     )!
   await userEvent.dblClick(within(row).getByText(code))
-  return screen.findByRole('dialog')
+  return findDialog('dialog')
 }
 
 describe('CarryForwardPage', () => {
@@ -83,7 +85,7 @@ describe('CarryForwardPage', () => {
     const dialog = await openRow('120.10517', '1')
     await userEvent.type(within(dialog).getByLabelText('Gerekçe'), 'Disputed invoice')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
-    const conflict = await screen.findByRole('alertdialog', { name: 'Önizleme değişti' })
+    const conflict = await findDialog('alertdialog', { name: 'Önizleme değişti' })
     expect(conflict).toHaveTextContent('Başka biri önizlemeyi değiştirdi — yeniden yükleyin')
     await userEvent.click(within(conflict).getByRole('button', { name: 'Yeniden yükle' }))
     await waitFor(() => expect(gets).toHaveLength(2))
@@ -146,7 +148,7 @@ describe('CarryForwardPage', () => {
     const posts = capture('post', '/api/orgs/:orgId/ledger/carry-forwards/:year/post')
     renderApp('/carry-forward/2026')
     await userEvent.click(await screen.findByRole('button', { name: '822 açılış kaydını kaydet' }))
-    const dialog = await screen.findByRole('alertdialog', { name: 'Açılış kayıtlarını kaydet' })
+    const dialog = await findDialog('alertdialog', { name: 'Açılış kayıtlarını kaydet' })
     expect(dialog).toHaveTextContent('01.01.2026 tarihli 822 kayıt')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
     await waitFor(() => expect(posts).toHaveLength(1))
@@ -172,7 +174,7 @@ describe('CarryForwardPage', () => {
     renderApp('/carry-forward/2025', { admin: true })
     expect(await screen.findByText('Kaydedildi')).toBeInTheDocument()
     await userEvent.click(await screen.findByRole('button', { name: 'Yeniden aç…' }))
-    const dialog = await screen.findByRole('dialog', { name: '2025 devrini yeniden aç' })
+    const dialog = await findDialog('dialog', { name: '2025 devrini yeniden aç' })
     expect(dialog).toHaveTextContent('2024 yeniden kayda açılır')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Yeniden aç' }))
     expect(within(dialog).getByText('Gerekçe yazın (en az 3 karakter)')).toBeInTheDocument()
@@ -196,7 +198,7 @@ describe('CarryForwardPage', () => {
     )
     renderApp('/carry-forward/2025', { admin: true })
     await userEvent.click(await screen.findByRole('button', { name: 'Yeniden aç…' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.type(within(dialog).getByLabelText('Gerekçe'), 'Late supplier invoice')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Yeniden aç' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(

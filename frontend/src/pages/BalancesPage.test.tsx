@@ -4,15 +4,16 @@ import userEvent from '@testing-library/user-event'
 import i18n from '../i18n'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
+import { fill } from '../test/input'
 
 const pinned = () => document.querySelector('.ag-floating-bottom') as HTMLElement
 const location = () => screen.getByTestId('location').textContent
 const firstRow = () => screen.findAllByRole('link', { name: /^120\./ })
 
 async function filterKonyaCustomers() {
-  await userEvent.type(await screen.findByLabelText('Şehir filtresi'), 'Konya')
+  await fill(await screen.findByLabelText('Şehir filtresi'), 'Konya')
   await userEvent.selectOptions(screen.getByLabelText('Tip filtresi'), 'MUSTERI')
-  await userEvent.type(screen.getByLabelText('Bakiye filtresi'), '> 10.000')
+  await fill(screen.getByLabelText('Bakiye filtresi'), '> 10.000')
   await waitFor(() => expect(pinned()).toHaveTextContent('6 / 412 · 3 filtre'))
 }
 
@@ -49,8 +50,13 @@ describe('BalancesPage', () => {
       },
     })
     expect(screen.getByText(/filtreler: Şehir, Tip, Bakiye/)).toBeInTheDocument()
-    expect(screen.getByText('1–6 / 6')).toBeInTheDocument()
+    // The range follows AG Grid's async model/viewport events, not the response that fills the total row.
+    expect(await screen.findByText('1–6 / 6')).toBeInTheDocument()
+  })
 
+  it('clears the column filters', async () => {
+    renderApp('/balances?asOf=2026-09-29')
+    await filterKonyaCustomers()
     await userEvent.click(screen.getByRole('button', { name: 'Filtreleri temizle' }))
     await waitFor(() => expect(pinned()).toHaveTextContent('412 / 412'))
     expect(screen.getByLabelText('Şehir filtresi')).toHaveValue('')
@@ -59,8 +65,8 @@ describe('BalancesPage', () => {
   it('sends BalanceRow names as column ids', async () => {
     const calls = capture('post', '/api/orgs/:orgId/ledger/balances/grid')
     renderApp('/balances?asOf=2026-09-29')
-    await userEvent.type(await screen.findByLabelText('Ünvan filtresi'), 'Tarım')
-    await userEvent.type(screen.getByLabelText('Borç filtresi'), '> 1')
+    await fill(await screen.findByLabelText('Ünvan filtresi'), 'Tarım')
+    await fill(screen.getByLabelText('Borç filtresi'), '> 1')
     await waitFor(() =>
       expect(calls[calls.length - 1].body).toMatchObject({
         filterModel: {
@@ -76,9 +82,9 @@ describe('BalancesPage', () => {
   it('formats totals in English', async () => {
     renderApp('/balances?asOf=2026-09-29')
     await i18n.changeLanguage('en')
-    await userEvent.type(await screen.findByLabelText('Filter City'), 'Konya')
+    await fill(await screen.findByLabelText('Filter City'), 'Konya')
     await userEvent.selectOptions(screen.getByLabelText('Filter Type'), 'MUSTERI')
-    await userEvent.type(screen.getByLabelText('Filter Balance'), '> 10,000')
+    await fill(screen.getByLabelText('Filter Balance'), '> 10,000')
     await waitFor(() => expect(pinned()).toHaveTextContent('6 of 412 · 3 filters'))
     expect(pinned()).toHaveTextContent('1,467,065.00')
   })
@@ -109,7 +115,8 @@ describe('BalancesPage', () => {
     const rows = screen.getAllByRole('row').filter((r) => r.getAttribute('row-index') !== null)
     await userEvent.click(within(rows[0]).getByRole('checkbox'))
     await userEvent.click(within(rows[1]).getByRole('checkbox'))
-    expect(screen.getByText('2 seçili')).toBeInTheDocument()
+    // AG Grid reports selection changes asynchronously.
+    expect(await screen.findByText('2 seçili')).toBeInTheDocument()
     await userEvent.click(pdf)
     await waitFor(() => expect(files).toHaveLength(1))
     expect(prints[0].body).toMatchObject({ to: '2026-09-29', language: 'tr' })
@@ -153,7 +160,7 @@ describe('BalancesPage', () => {
 
   it('opens the statement from the account link', async () => {
     renderApp('/balances?asOf=2026-09-29&depot=1')
-    await userEvent.type(await screen.findByLabelText('Hesap filtresi'), '120.10482')
+    await fill(await screen.findByLabelText('Hesap filtresi'), '120.10482')
     await userEvent.click(await screen.findByRole('link', { name: '120.10482' }))
     expect(location()).toBe('/statements/5000?depot=1')
   })

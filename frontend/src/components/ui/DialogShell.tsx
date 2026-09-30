@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Dialog, DialogContent, DialogTitle } from './dialog'
 
 const MAX_WIDTH_CLASS: Record<'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl', string> = {
   md: 'sm:max-w-md md:max-w-md',
@@ -31,18 +32,13 @@ export default function DialogShell({
 }>) {
   const { t } = useTranslation('common')
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <button
-        type="button"
-        aria-label={t('close')}
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
-      <div
-        className={`relative flex w-full ${MAX_WIDTH_CLASS[maxWidth]} max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] flex-col rounded-xl border bg-card shadow-2xl`}
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        aria-describedby={undefined}
+        className={`flex w-[calc(100%-2rem)] max-w-[calc(100%-2rem)] ${MAX_WIDTH_CLASS[maxWidth]} max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] flex-col gap-0 rounded-xl p-0 shadow-2xl`}
       >
         <div className="shrink-0 border-b px-6 pt-6 pb-4">
-          <h2 className="text-lg font-bold">{title}</h2>
+          <DialogTitle className="text-lg font-bold">{title}</DialogTitle>
           {error && (
             <div className="mt-3 rounded-lg bg-destructive/10 px-4 py-2 text-sm text-destructive">
               {error}
@@ -75,7 +71,7 @@ export default function DialogShell({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

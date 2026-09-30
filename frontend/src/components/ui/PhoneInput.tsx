@@ -87,7 +87,7 @@ export default function PhoneInput({
             'w-full rounded-lg border bg-background py-2 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring',
         }}
         buttonClass="!border !bg-background !rounded-l-lg"
-        // z-[70]: above the DialogShell backdrop (z-50).
+        // z-[70]: above the dialog overlay (z-50).
         dropdownClass="!bg-card !text-foreground !border !z-[70]"
         searchClass="!bg-card"
         // input pl: extra room for the flag button (~52px) — pl-[52px] in Tailwind.

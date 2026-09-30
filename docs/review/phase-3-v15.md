@@ -15,7 +15,7 @@ Branch `f3/v15` from `f3/integration`; tag `contracts-v1.5` ([ADR-0014](../adr/0
   dialog; last purchase cost on the part card; MSW on v1.5.
 
 ## Real e2e
-All real suites (incl. `@v14`, `@v15`) twice in a row: 47 passed, 6 screenshot tests skipped; `e2e:real:v13` 35.
+All real suites (incl. `@v14`, `@v15`) twice in a row: 47 passed, 14 screenshot tests skipped; `e2e:real:v13` 35.
 Legacy 47, MSW 96. Found and fixed:
 - Seed: the sale on card 10482 was over its 250,000 limit (244,820 + 37,920); the card gets 400,000.
 - Ledger and stock checks assumed no documents: they now count the seeded sale, return and increase and avoid
@@ -27,6 +27,40 @@ Legacy 47, MSW 96. Found and fixed:
 coverage on a loaded machine the grid tests take 3–7 s (this one 5.7 s, PartsPage up to 7.1 s), so raising
 `asyncUtilTimeout` could not help. Reproduced under load (runs 8–9: 9 grid tests "timed out in 5000ms").
 `testTimeout` 20 s: 20 / 20 full coverage runs green (338 tests) with the backend race suite running alongside.
+
+### Flake, second pass (`f3/flake`)
+Load: 3 concurrent `vitest run` loops + 8 `yes` workers. Before: 7 failures in 36 runs; `--sequence.shuffle`
+failed 8 / 10 seeds. None was a timeout; each read state that arrives by a separate async path:
+- `DocumentPage › shows a draft…`: the number comes from the number series, fetched after the document; the test
+  read the heading once the lines were in. Now waits for the heading name (and the Plasiyer option: members list).
+  A 300 ms series delay fails the old assertion every time.
+- `BalancesPage › combines column filters…`: the total row comes from the response, the range (`1–6 / 6`) from
+  AG Grid's later model / viewport events ("1–1 / 6" seen under load). `› prints statements…`: "2 seçili" comes
+  from AG Grid's async selection event. `PartPage › filters movements…`: read the cell once the request was out.
+- `PriceImportPage › reloads the job…`: a Radix modal disables pointer events on `<body>` in an effect and
+  re-enables them on itself a render later; a click in between fails user-event's check. `test/dialog.ts`
+  `findDialog` waits for the dialog to take pointer events; all `findByRole('dialog' | 'alertdialog')` use it.
+- Order: `createDb` shallow-copied `FEATURED`, so receipts posted in one test changed the seed balances for the
+  next (`ReceiptPage › shows the balance…` saw 76.499,50). Balance arrays are copied now.
+- Order: AG Grid React destroys the grid after unmount, so a block load queued by a short test fetched during
+  the next one and landed in its `capture` (`lists recent receipts…` saw `depotId: null`). `useInfiniteGrid`
+  skips `getRows` once unmounted (set in cleanup only: the grid may ask for rows before the parent's effect).
+Red tests first (`data.test.ts`, `useInfiniteGrid.test.ts`). After: 36 / 36 full runs under the same load (363
+tests) and 10 / 10 shuffled seeds (incl. the failing 23, 41, 67, 89, 101) green; no limit raised.
+
+### Slow grid tests (`f3/flake`)
+Under 5 parallel full suites `DocumentsPage › sends type, status…` timed out (10.3 s; 2.0 s idle). Idle top-15
+medians (3 runs) before: 2.08 … 1.24 s, 6 tests over 1.5 s, sum 133 s; after: 0.81 … 0.59 s, none over 1.5 s,
+sum 72 s, suite wall time 16 → 17 s.
+- `lib/delays.ts`: debounce / poll intervals read at call time; the app keeps 350 / 300 / 250 / 200 ms and 800 ms
+  (`delays.test.ts`); `test/setup.ts` sets 20 ms (poll 100 ms) per test. `ExprFloatingFilter.test.tsx` checks the
+  350 ms debounce and Enter with fake timers; `CatalogSearch › searches once…` runs with the real delay.
+- `test/input.ts` `fill` pastes grid filter text (one apply instead of one per key); `PartsPage › scopes stock…`
+  no longer types the part filter twice (it only passed because the debounce hid it).
+- Split: `DocumentsPage` filters (type / status / account, date / number), `BalancesPage` clear filters,
+  `LinesGrid` quantity / price vs. discounts / VAT.
+- `maxWorkers: '50%'`: 15 workers on 12 P + 4 E cores oversubscribed; per-test time halves.
+Proof: 6 rounds × 5 parallel full suites, 30 / 30 green (369 tests, slowest 4.3 s); 10 / 10 shuffled seeds green.
 
 ## Gates
 Backend: build, vet, golangci-lint 0, go-arch-lint, deadcode (Go 1.25) clean; `-race -count=3 -tags=integration`
@@ -44,3 +78,31 @@ Gates after these: vitest 357 / 357 three times, MSW e2e 96, real suites 47, scr
 
 ## Open
 - None from phase 3.
+
+## Verification fixes (`f3/nits`)
+- `listAuditEvents` (`GET /audit-events`) was in the contract with no route. Now: admin only (403 for members),
+  scoped to the path company, filters `entityType`, `entityId`, `actorUserId`, `from` / `to` (RFC 3339, inclusive),
+  newest first, keyset cursor over (occurredAt, id); `limit` clamped to 1–200 like the other lists, bad filters 400.
+  The credit override event reads back with its actor and `after`.
+- Reversal description: not a defect. The API writes `Reversal of J-…: <reason>`; the verifier's script appended
+  ` reverses <reversesEntryNo>` when printing. Both paths (manual, document cancel) are now pinned by exact tests.
+- `Sicil.iskonto2`: writable on create / update (0–100, `ERR_INVALID_ISKONTO`), on the card form, and the default of a
+  new line's second discount ([ADR-0014 erratum](../adr/0014-contracts-v1-5.md#erratum-2026-09-30)).
+- e2e dates: MSW specs run on a fixed day (`E2E_TODAY`, default 2026-09-29); the Due date is derived. Green with the
+  default and with `E2E_TODAY=2026-11-17` (113 passed, 40 screenshot tests skipped). Real specs follow the real day.
+- UI: editor discount headers and the FF direction toggle fit at 1440 / 1152 EN / TR; Parts and Balances drop
+  columns below 1300 px (`useNarrow`) and no longer scroll sideways at 1152; the dialog close label is translated;
+  Esc returns the focus to the opener (shared `DialogContent`). e2e cover all of these.
+- `DialogShell` / `ConfirmDialog` sit on the shared Radix `DialogContent`: Esc, focus trap, focus back to the
+  opener, translated close. Lists a dialog field portals to the body (`data-dialog-float`) stay clickable.
+- Top bar: the search shrinks (280 → 160 px min) before it meets the depot switch; e2e checks the top bar parts
+  apart at 1440 / 1152, EN / TR, on the dashboard, the FF editor and carry-forward.
+- vitest `testTimeout` 10 s: 5 coverage runs and 3 plain runs 357 / 357, none skipped.
+
+Gates: backend build, vet, golangci-lint 0, go-arch-lint, deadcode (Go 1.25) clean, `-race -count=3
+-tags=integration` green; frontend eslint 0 errors, tsc, prettier, knip, depcruise, build clean, vitest 357 × 3;
+MSW 125 (40 skipped); real all suites 47 (14 skipped); legacy 47; vitest 361.
+
+## Open
+- One vitest run (361 tests) had a single failure while a `docker compose --build` ran alongside; not reproduced in
+  ten more runs, three of them with coverage beside the backend race suite.

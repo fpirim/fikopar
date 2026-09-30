@@ -93,3 +93,64 @@ export async function cutControls(page: Page): Promise<string[]> {
     return out
   })
 }
+
+// Grid column headers whose label does not fit.
+export async function cutHeaders(page: Page): Promise<string[]> {
+  await page.evaluate(() => document.fonts.ready)
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.fk-grid .ag-header-cell-text')]
+      .filter((h) => h.offsetParent !== null && h.scrollWidth > h.clientWidth + 1)
+      .map((h) => h.textContent ?? ''),
+  )
+}
+
+// Grids that scroll sideways.
+export async function sideways(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.fk-grid .ag-center-cols-viewport')]
+      .filter((v) => v.scrollWidth > v.clientWidth + 1)
+      .map((v) => `${v.closest('.fk-grid')?.className ?? ''}: ${v.scrollWidth - v.clientWidth}px`),
+  )
+}
+
+// Top bar parts (breadcrumb, search, depot and language switches, account) that are cut, run past the window or
+// overlap each other.
+export async function topbarClash(page: Page): Promise<string[]> {
+  await page.evaluate(() => document.fonts.ready)
+  return page.evaluate(() => {
+    const header = document.querySelector('header')
+    if (!header) return ['no header']
+    const width = document.documentElement.clientWidth
+    const parts = [...header.children].filter(
+      (e): e is HTMLElement => e instanceof HTMLElement && e.getBoundingClientRect().width > 1,
+    )
+    const inner = [...header.querySelectorAll<HTMLElement>('button, input, [role=group]')]
+    const out: string[] = []
+    const name = (e: HTMLElement) => e.textContent?.trim() || e.ariaLabel || e.tagName
+    for (const e of [...parts, ...inner]) {
+      const r = e.getBoundingClientRect()
+      if (r.right > width + 1) out.push(`past the window: ${name(e)}`)
+      if (e.tagName !== 'INPUT' && e.scrollWidth > e.clientWidth + 1) out.push(`cut: ${name(e)}`)
+    }
+    for (let i = 0; i < parts.length; i++) {
+      for (let j = i + 1; j < parts.length; j++) {
+        const a = parts[i].getBoundingClientRect()
+        const b = parts[j].getBoundingClientRect()
+        const x = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+        const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+        if (x > 1 && y > 1) out.push(`overlap: ${name(parts[i])} / ${name(parts[j])}`)
+      }
+    }
+    for (const e of inner) {
+      const r = e.getBoundingClientRect()
+      for (const o of inner) {
+        if (o === e || o.contains(e) || e.contains(o)) continue
+        const q = o.getBoundingClientRect()
+        const x = Math.min(r.right, q.right) - Math.max(r.left, q.left)
+        const y = Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top)
+        if (x > 1 && y > 1) out.push(`overlap: ${name(e)} / ${name(o)}`)
+      }
+    }
+    return [...new Set(out)]
+  })
+}

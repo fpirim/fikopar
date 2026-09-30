@@ -140,7 +140,7 @@ export default function HeaderForm(p: Readonly<HeaderFormProps>) {
               label: t(`dir.${v}`),
               disabled: off,
             }))}
-            className="w-full [&>button]:flex-1"
+            className="w-full [&>button]:flex-1 max-[1299px]:[&>button]:px-1 max-[1299px]:[&>button]:text-xs"
           />
         </div>
       )}

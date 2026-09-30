@@ -6,6 +6,7 @@ import { server } from '../mocks/node'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { todayIso } from '../lib/format'
+import { fill } from '../test/input'
 
 async function pickKaya() {
   await userEvent.type(await screen.findByRole('combobox', { name: 'Hesap' }), 'Kaya')
@@ -199,7 +200,7 @@ describe('ReceiptPage', () => {
     await waitFor(() => expect(within(panel).getByText('TED-2026-2-000064')).toBeInTheDocument())
     expect(grid[0].body).toMatchObject({ depotId: 2 })
     expect((grid[0].body as { filterModel: object }).filterModel).not.toHaveProperty('depotId')
-    await userEvent.type(within(panel).getByLabelText('No filtresi'), 'TED')
+    await fill(within(panel).getByLabelText('No filtresi'), 'TED')
     await waitFor(() =>
       expect(grid[grid.length - 1].body).toMatchObject({
         filterModel: { receiptNo: { type: 'contains', filter: 'TED' } },

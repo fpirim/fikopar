@@ -6,6 +6,7 @@ import { useState } from 'react'
 import type { CatalogHit, Depot } from '../../api/types'
 import { server } from '../../mocks/node'
 import { capture } from '../../test/msw'
+import { APP_DELAYS, delays } from '../../lib/delays'
 import CatalogSearch from './CatalogSearch'
 import { highlight } from './highlight'
 
@@ -44,6 +45,7 @@ const options = () => screen.getAllByRole('option')
 
 describe('CatalogSearch', () => {
   it('searches once after typing stops and highlights the words', async () => {
+    delays.catalogSearch = APP_DELAYS.catalogSearch
     const calls = capture('get', '/api/orgs/:orgId/catalog/search')
     render(<Harness />)
     await userEvent.type(input(), 'pump 37')
@@ -62,7 +64,7 @@ describe('CatalogSearch', () => {
     render(<Harness />)
     await userEvent.type(input(), 'p')
     expect(await screen.findByText('En az 2 karakter yazın')).toBeInTheDocument()
-    await new Promise((r) => setTimeout(r, 300))
+    await new Promise((r) => setTimeout(r, 50))
     expect(calls).toHaveLength(0)
   })
 

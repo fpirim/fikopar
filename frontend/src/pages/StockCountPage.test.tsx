@@ -6,6 +6,8 @@ import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { server } from '../mocks/node'
 import { gridParts, gridStockCountLines, setStockCountLine } from '../api/endpoints'
+import { findDialog } from '../test/dialog'
+import { fill } from '../test/input'
 
 const pinned = () => document.querySelector('.ag-floating-bottom') as HTMLElement
 const row = (no: string) => screen.getByText(no).closest('[role="row"]') as HTMLElement
@@ -14,7 +16,7 @@ const LINE = '/api/orgs/:orgId/stock/counts/:countId/lines/:lineId'
 
 async function shelfA0() {
   renderApp('/stock-counts/2')
-  await userEvent.type(await screen.findByLabelText('Raf filtresi'), 'A-0')
+  await fill(await screen.findByLabelText('Raf filtresi'), 'A-0')
   await waitFor(() => expect(pinned()).toHaveTextContent(/7 \/ [\d.]+ · raf A-0\*/))
   await screen.findByText('GS-4410')
 }
@@ -114,7 +116,7 @@ describe('StockCountPage', () => {
     const grids = capture('post', '/api/orgs/:orgId/stock/counts/:countId/lines/grid')
     await shelfA0()
     await count('BE-0620', '32{Enter}')
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     expect(dialog).toHaveTextContent('Başkası saydı')
     expect(dialog).toHaveTextContent('a.kaya, BE-0620 için')
     expect(dialog).toHaveTextContent('31')
@@ -129,7 +131,7 @@ describe('StockCountPage', () => {
   it('accepts the other count', async () => {
     await shelfA0()
     await count('BE-0620', '32{Enter}')
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await findDialog('alertdialog')
     await userEvent.click(within(dialog).getByRole('button', { name: '31 kullan' }))
     await waitFor(() => expect(counted('BE-0620')).toHaveTextContent('31'))
     expect(row('BE-0620')).toHaveTextContent('a.kaya')
@@ -146,7 +148,7 @@ describe('StockCountPage', () => {
     await setStockCountLine(1, 2, hp.rows[0], { countedQty: '0' })
     renderApp('/stock-counts/2')
     await userEvent.click(await screen.findByRole('button', { name: 'Farkları işle' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     expect(within(dialog).getByRole('group', { name: 'Sayılan satır' })).toHaveTextContent('412')
     expect(within(dialog).getByRole('group', { name: 'Net' })).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: '0 say' }))
@@ -173,10 +175,8 @@ describe('StockCountPage', () => {
     )
     renderApp('/stock-counts/2')
     await userEvent.click(await screen.findByRole('button', { name: 'Farkları işle' }))
-    await userEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'İşle' }),
-    )
-    const alert = await screen.findByRole('alertdialog')
+    await userEvent.click(within(await findDialog('dialog')).getByRole('button', { name: 'İşle' }))
+    const alert = await findDialog('alertdialog')
     expect(alert).toHaveTextContent('Sayım değişti')
     await userEvent.click(within(alert).getByRole('button', { name: 'Yeniden yükle' }))
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
@@ -186,7 +186,7 @@ describe('StockCountPage', () => {
     const calls = capture('post', '/api/orgs/:orgId/stock/counts/:countId/cancel')
     renderApp('/stock-counts/2')
     await userEvent.click(await screen.findByRole('button', { name: 'Sayımı iptal et' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.type(within(dialog).getByLabelText('Gerekçe'), 'Wrong depot')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Sayımı iptal et' }))
     expect(await screen.findByText('İPTAL')).toBeInTheDocument()
@@ -220,7 +220,7 @@ describe('StockCountPage', () => {
     const calls = capture('post', '/api/orgs/:orgId/stock/counts/:countId/lines')
     renderApp('/stock-counts/2')
     await userEvent.click(await screen.findByRole('button', { name: 'Parça ekle' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.type(within(dialog).getByRole('combobox', { name: 'Parça ara' }), no)
     const results = await screen.findByRole('listbox', { name: 'Katalog arama sonuçları' })
     await userEvent.click(await within(results).findByRole('option', { name: new RegExp(no) }))
@@ -235,7 +235,7 @@ describe('StockCountPage', () => {
   it('refuses a part that already has a line', async () => {
     renderApp('/stock-counts/2')
     await userEvent.click(await screen.findByRole('button', { name: 'Parça ekle' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     const input = within(dialog).getByRole('combobox', { name: 'Parça ara' })
     await userEvent.type(input, 'HP-3774')
     const results = await screen.findByRole('listbox', { name: 'Katalog arama sonuçları' })

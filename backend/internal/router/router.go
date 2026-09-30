@@ -32,6 +32,7 @@ type Handlers struct {
 	Import  *handlers.PriceImportHandler
 	Count   *handlers.StockCountHandler
 	Doc     *handlers.DocumentHandler
+	Audit   *handlers.AuditHandler
 }
 
 type Services struct {
@@ -196,6 +197,8 @@ func New(h Handlers, svc Services, cfg *config.Config) *echo.Echo {
 	org.DELETE(docPath, h.Doc.Delete)
 	org.POST(docPath+"/post", h.Doc.Post)
 	org.POST(docPath+"/cancel", h.Doc.Cancel)
+
+	org.GET("/audit-events", h.Audit.List, orgAdmin)
 
 	// Admin only
 	admin := api.Group("/admin")

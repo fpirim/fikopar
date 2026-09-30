@@ -5,6 +5,7 @@ import { renderApp } from '../test/renderApp'
 import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/node'
 import { capture } from '../test/msw'
+import { findDialog } from '../test/dialog'
 
 const location = () => screen.getByTestId('location').textContent
 
@@ -38,7 +39,7 @@ describe('JournalEntryPage', () => {
     const posts = capture('post', '/api/orgs/:orgId/ledger/entries/:entryId/reversal')
     renderApp('/journal/4833')
     await userEvent.click(await screen.findByRole('button', { name: 'Ters kayıt…' }))
-    const dialog = await screen.findByRole('dialog', { name: 'J-2026-1-004833 ters kaydı' })
+    const dialog = await findDialog('dialog', { name: 'J-2026-1-004833 ters kaydı' })
     expect(dialog).toHaveTextContent('Bu kayıt SF-2026-1-000418 tarafından oluşturuldu')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Ters kaydı at' }))
     expect(within(dialog).getByText('Gerekçe yazın (en az 3 karakter)')).toBeInTheDocument()
@@ -55,7 +56,7 @@ describe('JournalEntryPage', () => {
   it('reverses a manual entry and links both ways', async () => {
     renderApp('/journal/4829')
     await userEvent.click(await screen.findByRole('button', { name: 'Ters kayıt…' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.type(within(dialog).getByLabelText('Gerekçe'), 'Posted twice')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Ters kaydı at' }))
     await waitFor(() => expect(location()).toBe('/journal/4834'))
@@ -78,7 +79,7 @@ describe('JournalEntryPage', () => {
     )
     renderApp('/journal/4829')
     await userEvent.click(await screen.findByRole('button', { name: 'Ters kayıt…' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.type(within(dialog).getByLabelText('Gerekçe'), 'Posted twice')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Ters kaydı at' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(

@@ -5,6 +5,7 @@ import { cleanup, configure } from '@testing-library/react'
 import i18n from '../i18n'
 import { server } from '../mocks/node'
 import { resetDb } from '../mocks/handlers'
+import { APP_DELAYS, delays } from '../lib/delays'
 
 configure({ asyncUtilTimeout: 5000 })
 
@@ -18,6 +19,10 @@ afterAll(() => server.close())
 // Unit tests assert Turkish UI text; the app default (en) is covered in i18n.test.tsx.
 beforeEach(async () => {
   await i18n.changeLanguage('tr')
+  // No debounce waits in unit tests (a test that checks one sets it back from APP_DELAYS); polls stay
+  // long enough for the in-between state to show.
+  for (const k of Object.keys(APP_DELAYS) as (keyof typeof APP_DELAYS)[]) delays[k] = 20
+  delays.importPoll = 100
 })
 
 afterEach(() => {

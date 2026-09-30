@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import type { GridReadyEvent } from 'ag-grid-community'
+import type { GridReadyEvent, IDatasource } from 'ag-grid-community'
 import { useInfiniteGrid } from './useInfiniteGrid'
 
 function fakeGrid(rows: number) {
@@ -42,5 +42,21 @@ describe('useInfiniteGrid range', () => {
     view.bottom = 340 + 14 * 34
     act(() => result.current.gridProps.onBodyScroll())
     expect(result.current.range).toEqual([10, 23])
+  })
+})
+
+describe('useInfiniteGrid datasource', () => {
+  it('does not fetch a block the grid asks for after the page unmounted', () => {
+    const fetchPage = vi.fn(async () => ({ rows: [], totalCount: 0 }))
+    const { result, unmount } = renderHook(() => useInfiniteGrid(fetchPage, []))
+    let ds: IDatasource | undefined
+    const { event } = fakeGrid(0)
+    event.api.setDatasource = (d: IDatasource) => {
+      ds = d
+    }
+    act(() => result.current.gridProps.onGridReady(event))
+    unmount()
+    ds!.getRows({ startRow: 0, endRow: 100, sortModel: [], filterModel: {} } as never)
+    expect(fetchPage).not.toHaveBeenCalled()
   })
 })

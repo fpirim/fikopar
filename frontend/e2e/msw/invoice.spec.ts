@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, clipped, cutControls } from './fixtures'
+import { test, expect, clipped, cutControls, cutHeaders, today, addDays, shown } from './fixtures'
 
 const lines = (page: Page) => page.locator('.fk-doc-lines')
 const cell = (page: Page, row: number, col: string) =>
@@ -38,7 +38,7 @@ test('an invoice typed from the keyboard: part popup, quantity, discounts, Tab t
   await page.goto('/invoices/new?type=SALES_INVOICE')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('SF-2026-1-000419')
   await pickAccount(page, 'Yılmaz')
-  await expect(page.getByLabel('Due')).toHaveValue('29.10.2026')
+  await expect(page.getByLabel('Due')).toHaveValue(shown(addDays(today, 30)))
   await expect(page.getByLabel('Salesperson')).toHaveValue('7')
 
   await page.keyboard.press('Insert')
@@ -184,6 +184,26 @@ test('a user without admin rights cannot override the credit limit', async ({ pa
   await expect(page.getByText('DRAFT', { exact: true })).toBeVisible()
 })
 
+test('Esc on the credit limit and cancel dialogs gives the focus back to their button', async ({
+  page,
+}) => {
+  await page.goto('/invoices/1002')
+  const post = page.getByRole('button', { name: 'Post' })
+  await post.click()
+  await expect(page.getByRole('alertdialog')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
+  await expect(post).toBeFocused()
+
+  await page.goto('/invoices/391')
+  const cancel = page.getByRole('button', { name: 'Cancel document' })
+  await cancel.click()
+  await expect(page.getByLabel('Reason')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(cancel).toBeFocused()
+})
+
 test('cancel asks a reason and shows the reversal; returns block the original', async ({
   page,
 }) => {
@@ -282,11 +302,18 @@ for (const lang of ['en', 'tr'] as const) {
         await page.goto('/invoices/1001')
         await expect(cell(page, 3, 'part')).toHaveText('BR-2210')
         expect(await clipped(page, ['part', 'name'])).toEqual([])
+        expect(await cutHeaders(page)).toEqual([])
         expect(await cutControls(page)).toEqual([])
         expect(await overflowing(page)).toEqual([])
+        await page.goto('/invoices/new?type=PRICE_DIFFERENCE&original=391')
+        await expect(page.getByRole('group', { name: /Direction|Yön/ })).toBeEnabled()
+        expect(await cutHeaders(page)).toEqual([])
+        expect(await cutControls(page)).toEqual([])
         await page.goto('/invoices/8')
         await expect(cell(page, 0, 'description')).toContainText('Volume rebate')
         expect(await clipped(page)).toEqual([])
+        expect(await cutHeaders(page)).toEqual([])
+        expect(await cutControls(page)).toEqual([])
         expect(await overflowing(page)).toEqual([])
         await page.goto('/invoices')
         await expect(page.locator('.fk-grid .ag-row').first()).toBeVisible()

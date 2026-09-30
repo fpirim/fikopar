@@ -70,6 +70,8 @@ export interface LinesGridProps {
 const RN_W = 34
 const QTY_W = monoWidth(5, true)
 const PCT_W = monoWidth(4, true)
+// Room for the Turkish headers (İsk1 %).
+const DISC_W = monoWidth(6, true)
 const MONEY_W = monoWidth(11, true)
 const EDIT_KEYS = ['Enter', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']
 
@@ -459,7 +461,7 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
         headerName: t('col.d1Head'),
         headerTooltip: t('col.d1'),
         flex: 0,
-        width: PCT_W,
+        width: DISC_W,
         ...numCol,
         colSpan: pinnedSpan(3),
         editable: editable((r) => r.partId !== null),
@@ -476,7 +478,7 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
         headerName: t('col.d2Head'),
         headerTooltip: t('col.d2'),
         flex: 0,
-        width: PCT_W,
+        width: DISC_W,
         ...numCol,
         editable: editable((r) => r.partId !== null),
         ...numEditor(t('col.d2')),

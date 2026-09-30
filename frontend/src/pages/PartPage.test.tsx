@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { server } from '../mocks/node'
+import { findDialog } from '../test/dialog'
 
 // HP-3774 (mockup 09) is part 1001; BR-2215 is 1009.
 const HP = '/parts/1001'
@@ -93,7 +94,10 @@ describe('PartPage', () => {
         filterModel: { qtyOut: { filterType: 'number', type: 'greaterThanOrEqual', filter: 2 } },
       }),
     )
-    expect(document.querySelector('.ag-row [col-id="qtyOut"]')).toHaveTextContent('2')
+    // The request is out; its rows render later.
+    await waitFor(() =>
+      expect(document.querySelector('.ag-row [col-id="qtyOut"]')).toHaveTextContent('2'),
+    )
   })
 
   it('lists price history newest first with change and the current price', async () => {
@@ -112,7 +116,7 @@ describe('PartPage', () => {
     renderApp(HP)
     await priceTable()
     await userEvent.click(screen.getByRole('button', { name: 'Yeni fiyat' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.type(within(dialog).getByLabelText('Fiyat'), '13.100')
     const date = within(dialog).getByLabelText('Geçerlilik')
     await userEvent.clear(date)
@@ -131,7 +135,7 @@ describe('PartPage', () => {
     renderApp(HP)
     await priceTable()
     await userEvent.click(screen.getByRole('button', { name: 'Yeni fiyat' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.type(within(dialog).getByLabelText('Fiyat'), '12.000')
     const date = within(dialog).getByLabelText('Geçerlilik')
     await userEvent.clear(date)
@@ -147,7 +151,7 @@ describe('PartPage', () => {
     renderApp(HP)
     await stockTable()
     await userEvent.click(await screen.findByRole('button', { name: 'Depo 1 düzenle' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     const min = within(dialog).getByLabelText('Min')
     await userEvent.clear(min)
     await userEvent.type(min, '8')
@@ -168,7 +172,7 @@ describe('PartPage', () => {
     renderApp('/parts/1006')
     await stockTable()
     await userEvent.click(await screen.findByRole('button', { name: 'Depo 2 düzenle' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.type(within(dialog).getByLabelText('Raf'), 'F-05-4')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
     await waitFor(() => expect(calls).toHaveLength(1))
@@ -179,7 +183,7 @@ describe('PartPage', () => {
     renderApp(HP)
     await stockTable()
     await userEvent.click(await screen.findByRole('button', { name: 'Depo 1 düzenle' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     const max = within(dialog).getByLabelText('Maks')
     await userEvent.clear(max)
     await userEvent.type(max, '3')
@@ -196,7 +200,7 @@ describe('PartPage', () => {
     renderApp(HP)
     await stockTable()
     await userEvent.click(await screen.findByRole('button', { name: 'Depo 1 düzenle' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
     expect(await within(dialog).findByText('Maks, min değerinden küçük olamaz')).toBeVisible()
   })
@@ -212,9 +216,9 @@ describe('PartPage', () => {
     await stockTable()
     await userEvent.click(await screen.findByRole('button', { name: 'Depo 1 düzenle' }))
     await userEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Kaydet' }),
+      within(await findDialog('dialog')).getByRole('button', { name: 'Kaydet' }),
     )
-    const alert = await screen.findByRole('alertdialog')
+    const alert = await findDialog('alertdialog')
     expect(alert).toHaveTextContent('Ayarlar değişti')
     const before = reads.length
     await userEvent.click(within(alert).getByRole('button', { name: 'Yeniden yükle' }))
@@ -249,7 +253,7 @@ describe('PartPage', () => {
     renderApp(HP)
     await stockTable()
     await userEvent.click(screen.getByRole('button', { name: 'Transfer' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     expect(within(dialog).getByLabelText('Çıkış deposu')).toHaveValue('1')
     expect(within(dialog).getByLabelText('Giriş deposu')).toHaveValue('2')
     await userEvent.type(within(dialog).getByLabelText('Miktar'), '12')
@@ -281,7 +285,7 @@ describe('PartPage', () => {
     renderApp(HP)
     await stockTable()
     await userEvent.click(screen.getByRole('button', { name: 'Transfer' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialog('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Transfer et' }))
     expect(within(dialog).getByText('Sıfırdan büyük bir miktar girin')).toBeVisible()
     expect(calls).toHaveLength(0)

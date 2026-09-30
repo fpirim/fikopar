@@ -7,6 +7,7 @@ import type { SearchResult } from '../../api/types'
 import { useDepot, withDepot } from '../../hooks/useDepot'
 import { useOrgId } from '../../hooks/useOrgId'
 import { cn } from '@/lib/utils'
+import { delays } from '../../lib/delays'
 
 interface Hit {
   group: 'accounts' | 'documents' | 'parts'
@@ -40,7 +41,7 @@ export default function GlobalSearch() {
           setOpen(true)
         })
         .catch(() => undefined)
-    }, 250)
+    }, delays.globalSearch)
     return () => {
       clearTimeout(timer)
       ctrl.abort()
@@ -108,7 +109,7 @@ export default function GlobalSearch() {
   return (
     <div
       ref={boxRef}
-      className="relative w-[280px] shrink"
+      className="relative w-[280px] min-w-[160px] max-w-full"
       onBlur={(e) => {
         if (!boxRef.current?.contains(e.relatedTarget as Node)) setOpen(false)
       }}

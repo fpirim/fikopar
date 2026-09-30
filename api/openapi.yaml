@@ -3406,7 +3406,7 @@ components:
         credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }], description: Null = no limit }
         contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
         emails: { type: array, items: { type: string, format: email } }
-        iskonto2: { type: number, description: Second cascaded discount percent (planned) }
+        iskonto2: { type: number, description: "Second cascaded discount percent, applied after iskonto; default of a line's discount2Pct" }
         sales_rep_user_id: { type: [integer, 'null'], description: "The card's salesperson, a company member (v1.5); default of a document's salesRepUserId" }
         sales_rep_name: { type: [string, 'null'], readOnly: true, description: Name of sales_rep_user_id }
         account_id: { type: [integer, 'null'], description: 'Current account (120 / 320 / 102), planned' }
@@ -3436,6 +3436,7 @@ components:
         tc_no: { type: string }
         gun: { type: string }
         iskonto: { type: number, minimum: 0, maximum: 100 }
+        iskonto2: { type: number, minimum: 0, maximum: 100, description: 'Out of range: 400 ERR_INVALID_ISKONTO' }
         sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
         telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
         credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
@@ -3456,6 +3457,7 @@ components:
         tc_no: { type: string }
         gun: { type: string }
         iskonto: { type: number, minimum: 0, maximum: 100 }
+        iskonto2: { type: number, minimum: 0, maximum: 100, description: 'Out of range: 400 ERR_INVALID_ISKONTO' }
         sicil_tipi: { $ref: '#/components/schemas/SicilTipi' }
         telefonlar: { type: array, items: { $ref: '#/components/schemas/SicilTelefon' } }
         credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }

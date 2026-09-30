@@ -62,3 +62,7 @@ the error, `stockNo` on warnings, `lastPurchaseCost` and the enum value, and dro
 regenerates types and drops its workarounds (role fallback in the seed, summary account code, "Card default",
 billed-waybill filtering by 409, original filtering by `waybillDocumentNo`, dependents re-read, stock no from the
 lines, its own short-line check).
+
+## Erratum (2026-09-30)
+- `Sicil.iskonto2` is no longer planned: writable on create and update (0–100, else `400 ERR_INVALID_ISKONTO`) like
+  `iskonto`, and the default of a new line's `discount2Pct`, as the card defaults of §3.3 already assumed.

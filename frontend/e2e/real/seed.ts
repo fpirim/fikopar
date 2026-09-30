@@ -539,10 +539,11 @@ async function stock(
 
   // HP-3774 history as in mockup 09, plus a price that starts after today.
   const hp = parts['HP-3774']
+  const later = new Date(Date.now() + 15 * 86_400_000).toISOString().slice(0, 10)
   for (const [validFrom, price] of [
     ['2026-04-01', 11600],
     ['2026-09-01', 12400],
-    ['2026-10-15', 13100],
+    [later, 13100],
   ] as const) {
     await api.call('POST', `${o}/catalog/parts/${hp}/prices`, { price: money(price), validFrom })
   }

@@ -6,6 +6,7 @@ import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/node'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
+import { findDialog } from '../test/dialog'
 
 const URL_ = '/statements/5000?from=2026-01-01&to=2026-09-29'
 const location = () => screen.getByTestId('location').textContent
@@ -196,7 +197,7 @@ describe('StatementPage', () => {
     const puts = capture('put', '/api/orgs/:orgId/sicils/:sicilId')
     renderApp(URL_)
     await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const dialog = await findDialog('dialog', { name: 'Hesap kartını düzenle' })
     const city = within(dialog).getByLabelText('İlçe')
     await userEvent.clear(city)
     await userEvent.type(city, 'Karatay')
@@ -226,7 +227,7 @@ describe('StatementPage', () => {
     expect(screen.getByText('Ayşe Yılmaz · purchasing')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Kartı düzenle' }))
-    const again = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const again = await findDialog('dialog', { name: 'Hesap kartını düzenle' })
     await userEvent.click(within(again).getByRole('button', { name: 'Kaydet' }))
     await waitFor(() => expect(puts).toHaveLength(2))
     expect(puts[1].headers.get('If-Match')).toBe('"2"')
@@ -236,7 +237,7 @@ describe('StatementPage', () => {
     const puts = capture('put', '/api/orgs/:orgId/sicils/:sicilId')
     renderApp(URL_)
     await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const dialog = await findDialog('dialog', { name: 'Hesap kartını düzenle' })
     const rep = within(dialog).getByLabelText('Plasiyer')
     await waitFor(() => expect(rep).toHaveValue('7'))
     await userEvent.selectOptions(rep, '9')
@@ -245,7 +246,7 @@ describe('StatementPage', () => {
     expect(puts[0].body).toMatchObject({ sales_rep_user_id: 9 })
 
     await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
-    const again = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const again = await findDialog('dialog', { name: 'Hesap kartını düzenle' })
     const rep2 = within(again).getByLabelText('Plasiyer')
     await waitFor(() => expect(rep2).toHaveValue('9'))
     await userEvent.selectOptions(rep2, '')
@@ -258,7 +259,7 @@ describe('StatementPage', () => {
     const puts = capture('put', '/api/orgs/:orgId/sicils/:sicilId')
     renderApp(URL_)
     await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const dialog = await findDialog('dialog', { name: 'Hesap kartını düzenle' })
     await userEvent.clear(within(dialog).getByLabelText('E-posta'))
     await userEvent.clear(within(dialog).getByLabelText('Yetkili'))
     await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
@@ -271,7 +272,7 @@ describe('StatementPage', () => {
       ),
     )
     await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
-    const again = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const again = await findDialog('dialog', { name: 'Hesap kartını düzenle' })
     await userEvent.click(within(again).getByRole('button', { name: 'Kaydet' }))
     expect(await within(again).findByRole('alert')).toHaveTextContent('Sunucu hatası')
   })
@@ -285,9 +286,9 @@ describe('StatementPage', () => {
     const gets = capture('get', '/api/orgs/:orgId/sicils/:sicilId')
     renderApp(URL_)
     await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const dialog = await findDialog('dialog', { name: 'Hesap kartını düzenle' })
     await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
-    const conflict = await screen.findByRole('alertdialog', { name: 'Kart değişti' })
+    const conflict = await findDialog('alertdialog', { name: 'Kart değişti' })
     expect(conflict).toHaveTextContent('Başka biri bu kartı değiştirdi — yeniden yükleyin')
     const before = gets.length
     await userEvent.click(within(conflict).getByRole('button', { name: 'Yeniden yükle' }))
