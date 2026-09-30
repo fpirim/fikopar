@@ -48,6 +48,20 @@ failed 8 / 10 seeds. None was a timeout; each read state that arrives by a separ
 Red tests first (`data.test.ts`, `useInfiniteGrid.test.ts`). After: 36 / 36 full runs under the same load (363
 tests) and 10 / 10 shuffled seeds (incl. the failing 23, 41, 67, 89, 101) green; no limit raised.
 
+### Slow grid tests (`f3/flake`)
+Under 5 parallel full suites `DocumentsPage › sends type, status…` timed out (10.3 s; 2.0 s idle). Idle top-15
+medians (3 runs) before: 2.08 … 1.24 s, 6 tests over 1.5 s, sum 133 s; after: 0.81 … 0.59 s, none over 1.5 s,
+sum 72 s, suite wall time 16 → 17 s.
+- `lib/delays.ts`: debounce / poll intervals read at call time; the app keeps 350 / 300 / 250 / 200 ms and 800 ms
+  (`delays.test.ts`); `test/setup.ts` sets 20 ms (poll 100 ms) per test. `ExprFloatingFilter.test.tsx` checks the
+  350 ms debounce and Enter with fake timers; `CatalogSearch › searches once…` runs with the real delay.
+- `test/input.ts` `fill` pastes grid filter text (one apply instead of one per key); `PartsPage › scopes stock…`
+  no longer types the part filter twice (it only passed because the debounce hid it).
+- Split: `DocumentsPage` filters (type / status / account, date / number), `BalancesPage` clear filters,
+  `LinesGrid` quantity / price vs. discounts / VAT.
+- `maxWorkers: '50%'`: 15 workers on 12 P + 4 E cores oversubscribed; per-test time halves.
+Proof: 6 rounds × 5 parallel full suites, 30 / 30 green (369 tests, slowest 4.3 s); 10 / 10 shuffled seeds green.
+
 ## Gates
 Backend: build, vet, golangci-lint 0, go-arch-lint, deadcode (Go 1.25) clean; `-race -count=3 -tags=integration`
 green (router 143 s). Frontend: eslint 0 errors (7 older warnings), tsc, prettier, knip, depcruise clean, vitest
