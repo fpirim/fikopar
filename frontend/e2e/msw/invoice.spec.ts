@@ -33,6 +33,8 @@ async function pickAccount(page: Page, text: string) {
 test('an invoice typed from the keyboard: part popup, quantity, discounts, Tab to a new line, post', async ({
   page,
 }) => {
+  // A new document is dated today; the due date follows the card's 30 days from it.
+  await page.clock.setFixedTime(new Date('2026-09-29T10:00:00+03:00'))
   await page.goto('/invoices/new?type=SALES_INVOICE')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('SF-2026-1-000419')
   await pickAccount(page, 'Yılmaz')
