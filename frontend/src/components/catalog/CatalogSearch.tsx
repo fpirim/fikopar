@@ -8,9 +8,9 @@ import { formatDay, formatMoney, formatQty } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover'
 import { highlight } from './highlight'
+import { delays } from '../../lib/delays'
 
 const PAGE = 20
-const DEBOUNCE_MS = 200
 const CODE_KINDS = ['OEM', 'ALT', 'MANUFACTURER', 'EQUIVALENT']
 
 interface Result {
@@ -133,7 +133,7 @@ export default function CatalogSearch({
         .finally(() => {
           if (!ctrl.signal.aborted) setLoading(false)
         })
-    }, DEBOUNCE_MS)
+    }, delays.catalogSearch)
     return () => {
       clearTimeout(timer)
       ctrl.abort()

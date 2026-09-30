@@ -7,6 +7,7 @@ import type { SearchResult } from '../../api/types'
 import { useDepot, withDepot } from '../../hooks/useDepot'
 import { useOrgId } from '../../hooks/useOrgId'
 import { cn } from '@/lib/utils'
+import { delays } from '../../lib/delays'
 
 interface Hit {
   group: 'accounts' | 'documents' | 'parts'
@@ -40,7 +41,7 @@ export default function GlobalSearch() {
           setOpen(true)
         })
         .catch(() => undefined)
-    }, 250)
+    }, delays.globalSearch)
     return () => {
       clearTimeout(timer)
       ctrl.abort()

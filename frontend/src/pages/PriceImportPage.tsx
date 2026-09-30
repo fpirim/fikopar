@@ -16,8 +16,7 @@ import MappingStep from './import/MappingStep'
 import PreviewStep from './import/PreviewStep'
 import ApplyStep from './import/ApplyStep'
 import ResultStep from './import/ResultStep'
-
-const POLL_MS = 800
+import { delays } from '../lib/delays'
 
 export default function PriceImportPage() {
   const orgId = useOrgId()
@@ -63,7 +62,7 @@ function Job({ orgId, importId }: Readonly<{ orgId: number; importId: number }>)
       getPriceImport(orgId, importId)
         .then(setJob)
         .catch(() => undefined)
-    }, POLL_MS)
+    }, delays.importPoll)
     return () => clearInterval(timer)
   }, [busy, orgId, importId, setJob])
 

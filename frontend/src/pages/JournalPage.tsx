@@ -15,6 +15,7 @@ import { Panel } from '../components/ui/panel'
 import { FkGrid } from '../components/grid/FkGrid'
 import { exprFilter, numCol } from '../components/grid/columns'
 import SelectCompany from '../components/layout/SelectCompany'
+import { delays } from '../lib/delays'
 
 type Row = JournalEntry & { total: number }
 
@@ -43,7 +44,7 @@ function Journal({ orgId }: Readonly<{ orgId: number }>) {
         },
         { replace: true },
       )
-    }, 300)
+    }, delays.journalSearch)
     return () => clearTimeout(timer)
   }, [text, q, setParams])
 

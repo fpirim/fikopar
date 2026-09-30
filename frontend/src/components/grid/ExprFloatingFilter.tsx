@@ -8,6 +8,7 @@ import {
   type FilterKind,
 } from '@/lib/filterExpr'
 import { cn } from '@/lib/utils'
+import { delays } from '@/lib/delays'
 
 export interface ExprFilterParams {
   kind: FilterKind | 'enum'
@@ -58,7 +59,7 @@ const ExprFloatingFilter = forwardRef<unknown, Props>(function ExprFloatingFilte
       const model = parseCondition(kind as FilterKind, value, defaultOp)
       setInvalid(model === undefined)
       if (model !== undefined) apply(model)
-    }, 350)
+    }, delays.gridFilter)
   }
 
   if (kind === 'enum') {

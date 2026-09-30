@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { globalSearch } from '../api/endpoints'
 import type { SearchResult } from '../api/types'
 import { cn } from '@/lib/utils'
+import { delays } from '../lib/delays'
 
 export type AccountHit = SearchResult['accounts'][number]
 
@@ -44,7 +45,7 @@ export function AccountPicker({
           setActive(0)
         })
         .catch(() => undefined)
-    }, 200)
+    }, delays.accountSearch)
     return () => {
       clearTimeout(timer)
       ctrl.abort()
