@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: fikopar API
-  version: 1.3.0
+  version: 1.5.0
   summary: B2B trade, ledger and instrument management for a spare-parts distributor.
   description: |
     **DRAFT / provisional.** Revised against the live JHipster (v2) inventory; see `docs/domain-model.md`.
@@ -22,13 +22,20 @@ info:
       stated per operation (v1.3: `getDashboard depotId` 404, `listStockLevels depotId` an empty list).
     - **Closed years**: posting the carry-forward into year Y closes Y − 1 and every earlier year. Any operation
       that writes a journal entry dated in a closed year answers `409 ERR_YEAR_CLOSED` (manual and reversal
-      entries, document post/cancel, receipts and their voids, cash vouchers and counts, instrument operations,
-      stock transfers, opening and finalizing stock counts).
+      entries, document create/update/post/cancel, receipts and their voids, cash vouchers and counts, instrument
+      operations, stock transfers, opening and finalizing stock counts).
       `reopenCarryForward` opens it again.
     - **Currency**: one currency per journal entry; v1.1 accepts `TRY` only.
     - **Negative stock** is allowed (v1.2). Operations that move stock (document post and cancel, transfers,
       count finalize) never fail on it; they return `warnings[]` with `NEGATIVE_STOCK`, the part, the depot and
       the on hand after. Stock movements follow the ledger's closed years (`409 ERR_YEAR_CLOSED`).
+    - **Reservations** (v1.4): drafts that will move stock OUT hold what is available in their depot for 48 h after
+      the last save; available = onHand − reserved. A shortfall is a `STOCK_SHORT` warning, never a block (v1.5: a
+      line is short when onHand − reserved by other documents < qty, whatever this draft holds).
+    - **Documents post in one transaction** (v1.5): post and cancel write the journal entry and the stock movements
+      in their own transaction; `DocumentPosted` / `DocumentCancelled` are still written to the outbox for external
+      consumers (e-Fatura exporter).
+    - **Rounding** (v1.4): money is rounded per document line, half-up to 2 decimals; document totals are Σ lines.
     - **Exports**: reports and printable documents honour `Accept: application/pdf`. Grid endpoints return
       every filtered row as XLSX when `Accept` is the XLSX media type (server-side Excel). CSV is built in the client.
     - **Numbers**: `PREFIX-YEAR-DEPOT-COUNTER`, e.g. `SF-2026-1-000418`; one counter per company, depot, prefix and year.
@@ -1196,17 +1203,41 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /api/orgs/{orgId}/members:
+    parameters: [{ $ref: '#/components/parameters/OrgId' }]
+    get:
+      tags: [Users]
+      operationId: listMembers
+      summary: Users of the company (salesperson picker)
+      responses:
+        '200':
+          description: Members, by name
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Member' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /api/orgs/{orgId}/documents/grid:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
     post:
       tags: [Documents]
       operationId: gridDocuments
-      summary: Grid of trade documents (filters type, status, depot, account, date, amount); XLSX via Accept
+      summary: Documents list (type, status, card, depot, date range, number; column filters; totals); XLSX via Accept
+      description: |
+        Top-level filters and column filters (`DocumentColId`) are AND-combined. `documentNo` matches a substring of the
+        number literally (`%`, `_`, `\` are plain characters), case-insensitive (drafts have none). `search` is OR over
+        documentNo, hesapNo and sicilName. `billed` and `billsWaybill` (v1.5) feed the waybill and original pickers.
+        Default sort documentDate desc, then id desc. `totals` has grossTotal, discountTotal, netTotal, vatTotal and grandTotal:
+        Σ over the filtered rows except CANCELLED ones. `unfilteredCount` = documents of the company (and `depotId`)
+        before the other filters. XLSX carries every filtered row (at most 100 000) with the same columns.
+        Dashboard "Latest documents" = this grid with `statuses` [POSTED, CANCELLED], sort postedAt desc, rows 0–10
+        (v1.5: `Dashboard.latest` is removed).
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/GridRequest' }
+            schema: { $ref: '#/components/schemas/DocumentGridRequest' }
       responses:
         '200':
           description: One page of documents
@@ -1220,6 +1251,7 @@ paths:
                       rows: { type: array, items: { $ref: '#/components/schemas/DocumentSummary' } }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: { $ref: '#/components/schemas/Xlsx' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/orgs/{orgId}/documents:
     parameters: [{ $ref: '#/components/parameters/OrgId' }]
@@ -1227,6 +1259,27 @@ paths:
       tags: [Documents]
       operationId: createDocument
       summary: Create a DRAFT invoice, waybill, return or price-difference document
+      description: |
+        Server defaults: `dueDate` = documentDate + the card's payment term (`gun` in days; blank or not a number = 0),
+        `salesRepUserId` = the card's salesperson, line `vatPct` = the part's, `discount1Pct` / `discount2Pct` = the
+        card's `iskonto` / `iskonto2`. With `waybillDocumentId` and no lines the waybill's lines are copied (part,
+        qty, prices, discounts, VAT, `billedLineId`). There is no preview endpoint: an editor that shows the lines
+        before the first save reads the waybill (`getDocument`) and sends its lines with `billedLineId` itself (v1.5).
+        Every line of a bill needs `billedLineId` (a line of the waybill, same part); quantities are checked on post.
+        A return that bills a return waybill without `linkedDocumentId` takes the waybill's original. A return may
+        go to another depot of the company than its original. The original of a return or price difference must be
+        POSTED when the draft is saved.
+        Amounts and totals are computed by the server (`Document`).
+        A draft that will move stock OUT reserves `min(qty, available)` per line for 48 h (`StockReserved`).
+        422: ERR_SICIL_NOT_FOUND, ERR_DEPOT_NOT_FOUND, ERR_PART_NOT_FOUND / ERR_PART_INACTIVE (`lines[i].partId`),
+        ERR_USER_NOT_FOUND (`salesRepUserId`, not a member), ERR_LINKED_DOCUMENT_INVALID (`linkedDocumentId`:
+        missing on a return or price difference, not POSTED, wrong type or card; `lines[i].originLineId`),
+        ERR_WAYBILL_INVALID (`waybillDocumentId`, `lines[i].billedLineId`). 400
+        ERR_INVALID_REQUEST (`field`): `priceDirection` missing on PRICE_DIFFERENCE or set on another type;
+        `linkedDocumentId` on a type other than a return or price difference; a
+        price-difference line with qty ≠ 1, discounts or a `partId` other than its origin line's; another type's
+        line without `partId` or with `description`. 409
+        ERR_WAYBILL_BILLED (the waybill has another non-cancelled bill), ERR_YEAR_CLOSED.
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
@@ -1237,6 +1290,7 @@ paths:
         '201': { $ref: '#/components/responses/DocumentResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
   /api/orgs/{orgId}/documents/{documentId}:
     parameters:
@@ -1245,7 +1299,12 @@ paths:
     get:
       tags: [Documents]
       operationId: getDocument
-      summary: Get document with line stock, totals and, for a DRAFT, the effects of posting; PDF via Accept
+      summary: Document with per-depot stock, reservations, totals, effects and warnings; PDF via Accept
+      description: |
+        JSON: lines carry the stock of every depot now, what this draft holds (`reservedQty`) and, on documents that
+        moved goods, `returnedQty`. `effects` = what posting will do (DRAFT) or did (POSTED); `warnings` are recomputed
+        on every read of a draft. PDF: the printed invoice / waybill in the company's language; a DRAFT prints without
+        a number and with a DRAFT mark; a CANCELLED document prints with a CANCELLED mark.
       responses:
         '200':
           description: Document
@@ -1262,6 +1321,10 @@ paths:
       tags: [Documents]
       operationId: updateDocument
       summary: Replace header and lines of a DRAFT document
+      description: |
+        Same defaults and 422 codes as create. Replaces the draft's reservations (`StockReleased UPDATED`, then
+        `StockReserved`) and restarts their 48 h. 409 ERR_DOCUMENT_NOT_DRAFT, ERR_WAYBILL_BILLED, ERR_YEAR_CLOSED,
+        ERR_DOCUMENT_HAS_DEPENDENTS (another draft bills or links this draft's lines; `details` = `DocumentDependents`).
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
@@ -1271,6 +1334,23 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/DocumentResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+    delete:
+      tags: [Documents]
+      operationId: deleteDocument
+      summary: Delete a DRAFT (no number was allocated); releases its reservations
+      description: |
+        409 ERR_DOCUMENT_NOT_DRAFT for a POSTED or CANCELLED document; ERR_DOCUMENT_HAS_DEPENDENTS when another draft
+        bills or links this draft's lines (`details` = `DocumentDependents`). Emits `StockReleased DELETED`.
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
@@ -1281,17 +1361,43 @@ paths:
     post:
       tags: [Documents]
       operationId: postDocument
-      summary: DRAFT → POSTED; allocates the number, emits DocumentPosted (ledger entry and stock movements follow)
+      summary: DRAFT → POSTED; allocates the number, releases reservations, emits DocumentPosted
       description: |
-        Negative stock never blocks: `warnings` lists NEGATIVE_STOCK per (part, depot). 422 ERR_CREDIT_LIMIT_EXCEEDED over the card's limit;
-        422 ERR_PART_INACTIVE for a line with an inactive part;
-        422 ERR_WAYBILL_INVALID when `waybillDocumentId` is not a POSTED, unbilled waybill of the matching type, sicil and depot.
+        One transaction (v1.5): checks, number (`next_number`, prefix of the type, year of documentDate), card
+        snapshot, reservations released (`StockReleased POSTED`), the journal entry (ADR-0013 posting table) and the
+        stock movements, and `DocumentPosted` in the outbox for external consumers. `journalEntryId` is set in the
+        response (null for waybills and zero totals). Negative stock never blocks: `warnings` NEGATIVE_STOCK.
+        409: ERR_DOCUMENT_NOT_DRAFT, ERR_YEAR_CLOSED, ERR_WAYBILL_BILLED, ERR_CREDIT_LIMIT_EXCEEDED (SF, SF with
+        waybill, FF INCREASE on a sale; card limit set and balance + grandTotal > limit; `details` = `CreditLimitExceeded`)
+        unless `creditOverride` is sent by an admin. 403 ERR_FORBIDDEN only when a non-admin's override would be
+        needed; an override that is not needed is ignored and not recorded, for every user. 400 ERR_INVALID_REQUEST
+        `field` `creditOverride.reason` (3–500 characters after trimming), checked before the credit check. 422: ERR_DOCUMENT_EMPTY, ERR_PART_INACTIVE, ERR_WAYBILL_INVALID (waybill not POSTED
+        or lines do not bill it line for line), ERR_LINKED_DOCUMENT_INVALID, ERR_RETURN_QTY_EXCEEDED
+        (`lines[i].qty`), ERR_PRICE_DIFFERENCE_EXCEEDED (a DECREASE above the original's net minus its posted
+        decreases and goods-moving returns; `field` = `lines`),
+        ERR_ACCOUNT_ROLE_MISSING, ERR_ACCOUNT_NOT_FOUND (the card has no current account).
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                creditOverride:
+                  type: object
+                  description: Admin only. Stored on the document and in the audit trail (`document.credit_override`).
+                  required: [reason]
+                  properties:
+                    reason: { type: string, minLength: 3, maxLength: 500 }
       responses:
         '200': { $ref: '#/components/responses/DocumentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/Unprocessable' }
@@ -1303,10 +1409,15 @@ paths:
     post:
       tags: [Documents]
       operationId: cancelDocument
-      summary: Cancel; a POSTED document is cancelled by reversal entries and opposite stock movements
+      summary: POSTED → CANCELLED by reversal; the document itself is never edited
       description: |
-        409 ERR_WAYBILL_BILLED for a waybill billed by a document that is not cancelled. Opposite movements may take
-        stock negative: `warnings` NEGATIVE_STOCK.
+        One transaction (v1.5): the reversal entry of the document's entry and one opposite movement per line that
+        moved stock, both dated the cancel date, and `DocumentCancelled` in the outbox. Cancel date = the later of
+        today (Europe/Istanbul) and the document date. `reversalEntryId` is set in the response.
+        Opposite movements may take stock negative: `warnings` NEGATIVE_STOCK. 409: ERR_INVALID_STATE_TRANSITION
+        (not POSTED; a draft is deleted instead), ERR_WAYBILL_BILLED (a waybill with a non-cancelled bill),
+        ERR_DOCUMENT_HAS_DEPENDENTS (posted returns or price differences link it; `details` = `DocumentDependents`),
+        ERR_YEAR_CLOSED.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/IfMatch'
@@ -1314,6 +1425,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/DocumentResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
@@ -2283,8 +2395,10 @@ paths:
         Column ids: date, kind, label, sourceNo, sicilName, stockNo, name, depotId, qty, qtyIn, qtyOut, delta, unitCost;
         `qtyIn` / `qtyOut` are number columns (null on rows of the other direction, `blank` matches those). Default
         sort date desc, id desc. `totals`: qtyIn, qtyOut (Σ over filtered rows). A transfer is two rows
-        (TRANSFER_OUT, TRANSFER_IN), each with `otherDepotId`. Until documents exist (F3) `label` comes from the source
-        (TRANSFER, COUNT, OPENING for legacy imports) and `documentId`, `documentType`, `sicilName` are null.
+        (TRANSFER_OUT, TRANSFER_IN), each with `otherDepotId`. `label`: SALE (SF, SF with waybill, SIR), PURCHASE (AF,
+        AF with waybill, AIR), SALES_RETURN (SI, SIRI), PURCHASE_RETURN (AI, AIRI), TRANSFER, COUNT, OPENING (legacy).
+        Document movements (v1.4) carry `sourceNo` (document number), `documentId`, `documentType` and `sicilName`;
+        the opposite movement of a cancelled document has the same label and `reversal` true.
       requestBody:
         required: true
         content:
@@ -2886,7 +3000,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     Conflict:
-      description: Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_IMPORT_STALE, ERR_ENTRY_OWNED_BY_SOURCE with `owner`)
+      description: Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_IMPORT_STALE, ERR_ENTRY_OWNED_BY_SOURCE with `owner`, ERR_DOCUMENT_NOT_DRAFT, ERR_WAYBILL_BILLED, ERR_DOCUMENT_HAS_DEPENDENTS, ERR_CREDIT_LIMIT_EXCEEDED with `details`)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -3004,6 +3118,36 @@ components:
         field: { type: string, description: Offending field for validation errors }
         traceId: { type: string, description: Request ID (X-Request-Id) }
         owner: { $ref: '#/components/schemas/EntryOwner' }
+        details:
+          description: '`CreditLimitExceeded` with ERR_CREDIT_LIMIT_EXCEEDED, `DocumentDependents` with ERR_DOCUMENT_HAS_DEPENDENTS'
+          oneOf:
+            - $ref: '#/components/schemas/CreditLimitExceeded'
+            - $ref: '#/components/schemas/DocumentDependents'
+    CreditLimitExceeded:
+      type: object
+      description: 'excess = balance + documentTotal − limit (> 0). balance = the current account over all depots and dates (ADR-0014).'
+      required: [limit, balance, documentTotal, excess]
+      properties:
+        limit: { $ref: '#/components/schemas/Money' }
+        balance: { $ref: '#/components/schemas/Money' }
+        documentTotal: { $ref: '#/components/schemas/Money' }
+        excess: { $ref: '#/components/schemas/Money' }
+    DocumentDependents:
+      type: object
+      description: |
+        ERR_DOCUMENT_HAS_DEPENDENTS. Cancel: the posted returns and price differences that link the document. Draft
+        update or delete: the drafts that bill or link its lines (documentNo null).
+      required: [dependents]
+      properties:
+        dependents:
+          type: array
+          items:
+            type: object
+            required: [id, documentNo, type]
+            properties:
+              id: { type: integer }
+              documentNo: { type: [string, 'null'] }
+              type: { $ref: '#/components/schemas/DocumentType' }
     EntryOwner:
       type: object
       description: Set only with ERR_ENTRY_OWNED_BY_SOURCE; the document, receipt, instrument or voucher that owns the entry.
@@ -3090,6 +3234,9 @@ components:
         - ERR_WAYBILL_INVALID
         - ERR_WAYBILL_BILLED
         - ERR_CREDIT_LIMIT_EXCEEDED
+        - ERR_RETURN_QTY_EXCEEDED
+        - ERR_PRICE_DIFFERENCE_EXCEEDED
+        - ERR_DOCUMENT_HAS_DEPENDENTS
         - ERR_INSTRUMENT_NOT_FOUND
         - ERR_INSTRUMENT_DUPLICATE
         - ERR_DUE_BEFORE_ISSUE
@@ -3260,7 +3407,8 @@ components:
         contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
         emails: { type: array, items: { type: string, format: email } }
         iskonto2: { type: number, description: Second cascaded discount percent (planned) }
-        sales_rep_user_id: { type: [integer, 'null'], description: Planned }
+        sales_rep_user_id: { type: [integer, 'null'], description: "The card's salesperson, a company member (v1.5); default of a document's salesRepUserId" }
+        sales_rep_name: { type: [string, 'null'], readOnly: true, description: Name of sales_rep_user_id }
         account_id: { type: [integer, 'null'], description: 'Current account (120 / 320 / 102), planned' }
         version: { type: integer, description: Also sent as ETag; updates need If-Match }
         created_at: { type: string, format: date-time }
@@ -3293,6 +3441,7 @@ components:
         credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
         contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
         emails: { type: array, items: { type: string, format: email } }
+        sales_rep_user_id: { type: [integer, 'null'], description: 'A company member or null; 422 ERR_USER_NOT_FOUND otherwise (v1.5)' }
     SicilUpdate:
       type: object
       description: Partial update; unknown fields are ignored, organization_id cannot change.
@@ -3312,6 +3461,7 @@ components:
         credit_limit: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
         contacts: { type: array, items: { $ref: '#/components/schemas/SicilContact' } }
         emails: { type: array, items: { type: string, format: email } }
+        sales_rep_user_id: { type: [integer, 'null'], description: 'A company member or null; 422 ERR_USER_NOT_FOUND otherwise (v1.5)' }
     SicilSummary:
       type: object
       required: [sicilId, accountId, balance, overdue, chequesInPortfolio]
@@ -3326,12 +3476,15 @@ components:
         paymentTermDays: { type: [integer, 'null'] }
         discount1Pct: { $ref: '#/components/schemas/Percent' }
         discount2Pct: { $ref: '#/components/schemas/Percent' }
+        salesRepUserId: { type: [integer, 'null'], description: "The card's salesperson (v1.5); a document's default" }
+        salesRepName: { type: [string, 'null'] }
         chequesInPortfolio: { $ref: '#/components/schemas/Money', description: Open receivable instruments of this card }
         lastMoveDate: { type: [string, 'null'], format: date }
 
     Dashboard:
       type: object
-      required: [date, receivables, payables, cash, instrumentsDue30, latest, dueThisWeek, belowMin, belowMinCount, negativeCount, ledgerCheck]
+      description: 'Latest documents come from gridDocuments (v1.5: `latest` removed)'
+      required: [date, receivables, payables, cash, instrumentsDue30, dueThisWeek, belowMin, belowMinCount, negativeCount, ledgerCheck]
       properties:
         date: { type: string, format: date }
         receivables:
@@ -3365,10 +3518,6 @@ components:
           properties:
             total: { $ref: '#/components/schemas/Money' }
             overdueCount: { type: integer }
-        latest:
-          type: array
-          description: Documents, receipts and instruments, newest first
-          items: { $ref: '#/components/schemas/ActivityItem' }
         dueThisWeek:
           type: array
           items:
@@ -3567,7 +3716,8 @@ components:
             STOCK_COUNTS_POSTED (blocking): no stock count in status OPEN with countDate ≤ 31 December of year − 1, in any
             depot (their ADJUST movements would land in the closed year); `detail` lists the count numbers.
             YEAR_END_COUNTS (not blocking): every depot has a FINALIZED count dated in year − 1; `detail` lists depots
-            without one. NO_DRAFT_DOCUMENTS stays always ok until documents exist.
+            without one. NO_DRAFT_DOCUMENTS (blocking, v1.4): no DRAFT document dated on or before 31 December of year − 1;
+            `detail` lists up to 20 draft ids.
           items:
             type: object
             required: [code, ok, blocking]
@@ -3611,7 +3761,7 @@ components:
       properties:
         role:
           type: string
-          enum: [CASH, SALES, SALES_RETURNS, PURCHASES, PURCHASE_RETURNS, PRICE_DIFFERENCE, OUTPUT_VAT, INPUT_VAT,
+          enum: [CASH, SALES, SALES_RETURNS, SALES_DISCOUNTS, PURCHASES, PURCHASE_RETURNS, PRICE_DIFFERENCE, OUTPUT_VAT, INPUT_VAT,
                  RECEIVABLE_CHEQUES, RECEIVABLE_NOTES, CHEQUES_AT_BANK, PAYABLE_CHEQUES, PAYABLE_NOTES, OPENING, CASH_OVER_SHORT]
         depotId: { type: [integer, 'null'], description: Null = company default }
         accountId: { type: integer }
@@ -3703,6 +3853,10 @@ components:
         sourceType: { $ref: '#/components/schemas/SourceType' }
         sourceId: { type: [string, 'null'] }
         subtype: { type: [string, 'null'], description: 'Document type, receipt kind or instrument type (SALES_INVOICE, COLLECTION …)' }
+        documentId:
+          type: [integer, 'null']
+          description: 'v1.4: the document of a document entry or of its reversal (link to the invoice screen); null otherwise'
+        documentType: { oneOf: [{ $ref: '#/components/schemas/DocumentType' }, { type: 'null' }] }
         dueDate: { type: [string, 'null'], format: date }
         description: { type: string }
         debit: { $ref: '#/components/schemas/Money' }
@@ -3740,8 +3894,9 @@ components:
     DocumentType:
       type: string
       description: |
-        Waybills (including return waybills) move stock only. Price-difference invoices post to the ledger only and
-        take their direction (sales or purchase) from the linked document. Returns post to the ledger and move stock
+        Waybills (including return waybills) move stock only. Price-difference invoices post to the ledger only, take
+        sales or purchase from the linked invoice and INCREASE or DECREASE from `priceDirection` (prefix FF for both).
+        Returns post to the ledger and move stock
         back, unless they bill a return waybill. An invoice or return that bills a waybill never moves stock.
       enum:
         - SALES_INVOICE_WITH_WAYBILL
@@ -3755,29 +3910,84 @@ components:
         - PURCHASE_RETURN
         - PURCHASE_RETURN_WAYBILL
         - PRICE_DIFFERENCE
-    DocumentStatus: { type: string, enum: [DRAFT, POSTED, CANCELLED] }
+    PriceDirection:
+      type: string
+      description: |
+        Price differences only. INCREASE: sales, the customer is debited (C / 600 + 391); purchase, the supplier is
+        credited (153 + 191 / C). DECREASE: sales, the customer is credited (611 + 391 / C); purchase, the supplier is
+        debited (C / 153 + 191). A DECREASE is capped by the original's net minus its posted decreases and
+        goods-moving returns (ERR_PRICE_DIFFERENCE_EXCEEDED).
+      enum: [INCREASE, DECREASE]
+    DocumentStatus:
+      type: string
+      description: DRAFT → POSTED → CANCELLED. A DRAFT is deleted, never cancelled.
+      enum: [DRAFT, POSTED, CANCELLED]
+    Member:
+      type: object
+      required: [userId, name, email]
+      properties:
+        userId: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
     DocumentLineWrite:
       type: object
-      required: [partId, qty, unitPrice]
+      description: |
+        PRICE_DIFFERENCE lines are amount only: qty 1, unitPrice = the difference (net), no discounts, VAT applies
+        (default the origin line's); `partId` is the origin line's (omit it) or null without `originLineId`, and
+        `description` is printed. Every other type needs `partId` and no `description`.
+      required: [qty, unitPrice]
       properties:
-        partId: { type: integer }
+        partId: { type: [integer, 'null'], description: Catalog part; never free text. Null only on a price-difference line without origin }
+        description: { type: [string, 'null'], maxLength: 200, description: Price-difference lines only }
         qty: { $ref: '#/components/schemas/Quantity' }
         unitPrice: { $ref: '#/components/schemas/Money4' }
-        discount1Pct: { $ref: '#/components/schemas/Percent' }
-        discount2Pct: { $ref: '#/components/schemas/Percent' }
-        vatPct: { $ref: '#/components/schemas/Percent' }
+        discount1Pct: { $ref: '#/components/schemas/Percent', description: "Default: the card's iskonto" }
+        discount2Pct: { $ref: '#/components/schemas/Percent', description: "Default: the card's iskonto2; applied after discount1Pct" }
+        vatPct: { $ref: '#/components/schemas/Percent', description: "Default: the part's VAT rate" }
+        originLineId:
+          type: [integer, 'null']
+          description: Returns (required) and price differences (optional); a line of `linkedDocumentId` with the same part
+        billedLineId:
+          type: [integer, 'null']
+          description: Bills; a line of `waybillDocumentId` with the same part and qty, each waybill line once
+    DepotStock:
+      type: object
+      required: [depotId, depotCode, onHand, reserved, available]
+      properties:
+        depotId: { type: integer }
+        depotCode: { type: string }
+        onHand: { $ref: '#/components/schemas/SignedQuantity' }
+        reserved: { $ref: '#/components/schemas/Quantity' }
+        available: { $ref: '#/components/schemas/SignedQuantity', description: onHand − reserved }
     DocumentLine:
+      description: |
+        Amounts per line, half-up to 2 decimals: grossAmount = round(qty × unitPrice); netAmount = round(qty × unitPrice ×
+        (1 − discount1Pct/100) × (1 − discount2Pct/100)) from the unrounded product; discountAmount = grossAmount −
+        netAmount; vatAmount = round(netAmount × vatPct/100); lineTotal = netAmount + vatAmount.
       allOf:
         - $ref: '#/components/schemas/DocumentLineWrite'
         - type: object
-          required: [id, lineNo, netAmount, vatAmount, lineTotal]
+          required: [id, lineNo, discount1Pct, discount2Pct, vatPct, grossAmount, discountAmount, netAmount, vatAmount, lineTotal]
           properties:
             id: { type: integer }
             lineNo: { type: integer }
             stockNo: { type: string, readOnly: true }
             name: { type: string, readOnly: true }
+            catalogCode: { type: integer, readOnly: true }
             onHand: { $ref: '#/components/schemas/SignedQuantity', description: 'In the document depot, now' }
-            available: { $ref: '#/components/schemas/SignedQuantity', description: onHand − reserved }
+            available: { $ref: '#/components/schemas/SignedQuantity', description: 'onHand − reserved in the document depot, this draft included' }
+            stockByDepot:
+              type: array
+              description: Every depot of the company, depot code order, now (DRAFT only; omitted otherwise)
+              items: { $ref: '#/components/schemas/DepotStock' }
+            reservedQty:
+              $ref: '#/components/schemas/Quantity'
+              description: Held by this line (DRAFT); "0" when nothing is held or the reservation expired
+            returnedQty:
+              $ref: '#/components/schemas/Quantity'
+              description: Documents that moved goods; Σ qty of posted goods-moving returns of this line. Returnable = qty − returnedQty
+            grossAmount: { $ref: '#/components/schemas/Money' }
+            discountAmount: { $ref: '#/components/schemas/Money' }
             netAmount: { $ref: '#/components/schemas/Money' }
             vatAmount: { $ref: '#/components/schemas/Money' }
             lineTotal: { $ref: '#/components/schemas/Money' }
@@ -3789,62 +3999,137 @@ components:
         depotId: { type: integer }
         sicilId: { type: integer }
         documentDate: { type: string, format: date }
-        shipDate: { type: string, format: date }
-        dueDate: { type: string, format: date, description: Defaults to documentDate + the card's payment term }
-        salesRepUserId: { type: [integer, 'null'] }
-        linkedDocumentId: { type: [integer, 'null'], description: 'Original of a return, return waybill or price difference' }
+        shipDate: { type: [string, 'null'], format: date }
+        dueDate:
+          type: [string, 'null']
+          format: date
+          description: "Default: documentDate + the card's payment term (gun, days; blank or not a number = 0). ≥ documentDate"
+        salesRepUserId: { type: [integer, 'null'], description: "Member of the company; default the card's salesperson" }
+        linkedDocumentId:
+          type: [integer, 'null']
+          description: |
+            Required for returns and price differences, null otherwise. Returns: the SF / SF with waybill / SIR (sales)
+            or AF / AF with waybill / AIR (purchases) that moved the goods, same card, not a bill. Price difference: a
+            posted SF / SF with waybill / AF / AF with waybill of the same card and depot.
+        priceDirection:
+          oneOf:
+            - $ref: '#/components/schemas/PriceDirection'
+            - type: 'null'
+          description: Required on PRICE_DIFFERENCE, null otherwise
         waybillDocumentId:
           type: [integer, 'null']
           description: >-
             Waybill being billed. SALES_INVOICE → SALES_WAYBILL, PURCHASE_INVOICE → PURCHASE_WAYBILL,
-            SALES_RETURN → SALES_RETURN_WAYBILL, PURCHASE_RETURN → PURCHASE_RETURN_WAYBILL; same sicil and depot,
-            POSTED, billed once. The billing document does not move stock.
+            SALES_RETURN → SALES_RETURN_WAYBILL, PURCHASE_RETURN → PURCHASE_RETURN_WAYBILL; same card and depot,
+            POSTED by the time the bill posts, billed by one non-cancelled document, line for line. The billing
+            document does not move stock. Empty `lines` copies the waybill's lines.
         description: { type: string }
         lines: { type: array, items: { $ref: '#/components/schemas/DocumentLineWrite' }, description: May be empty while DRAFT }
+    DocumentColId:
+      type: string
+      description: |
+        gridDocuments column ids. text: documentNo, type, status, hesapNo, sicilName, depotCode, salesRepName,
+        linkedDocumentNo, waybillDocumentNo; number: grossTotal, discountTotal, netTotal, vatTotal, grandTotal;
+        date: documentDate, dueDate, postedAt.
+      enum: [documentNo, type, status, documentDate, dueDate, hesapNo, sicilName, depotCode, salesRepName, grossTotal,
+             discountTotal, netTotal, vatTotal, grandTotal, postedAt, linkedDocumentNo, waybillDocumentNo]
+    DocumentGridRequest:
+      allOf:
+        - $ref: '#/components/schemas/GridRequest'
+        - type: object
+          properties:
+            sortModel:
+              type: array
+              items:
+                type: object
+                properties:
+                  colId: { $ref: '#/components/schemas/DocumentColId' }
+            filterModel:
+              type: object
+              propertyNames: { $ref: '#/components/schemas/DocumentColId' }
+            types: { type: array, items: { $ref: '#/components/schemas/DocumentType' }, description: Empty or omitted = all }
+            statuses: { type: array, items: { $ref: '#/components/schemas/DocumentStatus' }, description: Empty or omitted = all }
+            sicilId: { type: [integer, 'null'] }
+            depotId: { type: [integer, 'null'] }
+            dateFrom: { type: [string, 'null'], format: date, description: 'documentDate ≥ dateFrom, inclusive' }
+            dateTo: { type: [string, 'null'], format: date, description: 'documentDate ≤ dateTo, inclusive' }
+            documentNo: { type: [string, 'null'], description: 'Substring of the number, literal, case-insensitive' }
+            billed:
+              type: [boolean, 'null']
+              description: 'v1.5. Set: waybills only (SIR, AIR, SIRI, AIRI); true = billed by a non-cancelled document, false = not billed'
+            billsWaybill:
+              type: [boolean, 'null']
+              description: 'v1.5. true = invoices and returns that bill a waybill; false = every other document (return originals)'
     DocumentSummary:
       type: object
-      required: [id, type, status, depotId, sicilId, documentDate, grandTotal, version]
+      required: [id, type, status, depotId, depotCode, sicilId, hesapNo, sicilName, documentDate, grossTotal, discountTotal, netTotal, vatTotal, grandTotal, version]
       properties:
         id: { type: integer }
         documentNo: { type: [string, 'null'] }
         type: { $ref: '#/components/schemas/DocumentType' }
         status: { $ref: '#/components/schemas/DocumentStatus' }
         depotId: { type: integer }
+        depotCode: { type: string }
         sicilId: { type: integer }
+        hesapNo: { type: string }
         sicilName: { type: string }
         documentDate: { type: string, format: date }
         dueDate: { type: [string, 'null'], format: date }
+        salesRepName: { type: [string, 'null'] }
+        grossTotal: { $ref: '#/components/schemas/Money' }
+        discountTotal: { $ref: '#/components/schemas/Money' }
+        netTotal: { $ref: '#/components/schemas/Money' }
+        vatTotal: { $ref: '#/components/schemas/Money' }
         grandTotal: { $ref: '#/components/schemas/Money' }
+        linkedDocumentNo: { type: [string, 'null'] }
+        priceDirection:
+          oneOf:
+            - $ref: '#/components/schemas/PriceDirection'
+            - type: 'null'
+        waybillDocumentNo: { type: [string, 'null'] }
+        creditOverride: { type: boolean, default: false }
+        postedAt: { type: [string, 'null'], format: date-time }
         version: { type: integer }
     Document:
       type: object
-      required: [id, orgId, type, status, depotId, sicilId, documentDate, currency, grossTotal, discountTotal, netTotal, vatTotal, grandTotal, lines, version]
+      required: [id, orgId, type, status, depotId, sicilId, hesapNo, documentDate, currency, grossTotal, discountTotal, netTotal, vatTotal, grandTotal, vatBreakdown, lines, warnings, version]
       properties:
         id: { type: integer }
         orgId: { type: integer }
-        documentNo: { type: [string, 'null'], description: Allocated on post }
+        documentNo: { type: [string, 'null'], description: 'Allocated on post; a draft shows NumberSeries.nextValue' }
         type: { $ref: '#/components/schemas/DocumentType' }
         status: { $ref: '#/components/schemas/DocumentStatus' }
         depotId: { type: integer }
         sicilId: { type: integer }
+        hesapNo: { type: string, description: "The card's account no. (v1.5)" }
         sicilName: { type: string }
         documentDate: { type: string, format: date }
         shipDate: { type: [string, 'null'], format: date }
         dueDate: { type: [string, 'null'], format: date }
         salesRepUserId: { type: [integer, 'null'] }
+        salesRepName: { type: [string, 'null'] }
         linkedDocumentId: { type: [integer, 'null'] }
         linkedDocumentNo: { type: [string, 'null'] }
+        priceDirection:
+          oneOf:
+            - $ref: '#/components/schemas/PriceDirection'
+            - type: 'null'
         waybillDocumentId: { type: [integer, 'null'] }
         waybillDocumentNo: { type: [string, 'null'] }
-        billedByDocumentId: { type: [integer, 'null'], description: 'Waybills: the invoice or return that bills it' }
+        billedByDocumentId: { type: [integer, 'null'], description: 'Waybills: the non-cancelled invoice or return that bills it' }
+        dependentDocumentIds:
+          type: array
+          items: { type: integer }
+          description: Posted returns and price differences that link this document (block its cancellation)
         currency: { $ref: '#/components/schemas/Currency' }
-        grossTotal: { $ref: '#/components/schemas/Money', description: Σ qty × unit price }
-        discountTotal: { $ref: '#/components/schemas/Money' }
-        netTotal: { $ref: '#/components/schemas/Money', description: grossTotal − discountTotal }
-        vatTotal: { $ref: '#/components/schemas/Money' }
+        grossTotal: { $ref: '#/components/schemas/Money', description: Σ line grossAmount }
+        discountTotal: { $ref: '#/components/schemas/Money', description: Σ line discountAmount }
+        netTotal: { $ref: '#/components/schemas/Money', description: grossTotal − discountTotal = Σ line netAmount }
+        vatTotal: { $ref: '#/components/schemas/Money', description: Σ line vatAmount }
         grandTotal: { $ref: '#/components/schemas/Money', description: netTotal + vatTotal }
         vatBreakdown:
           type: array
+          description: Per VAT rate, Σ of the lines' netAmount and vatAmount (not recomputed)
           items:
             type: object
             required: [vatPct, base, vat]
@@ -3854,8 +4139,19 @@ components:
               vat: { $ref: '#/components/schemas/Money' }
         description: { type: string }
         lines: { type: array, items: { $ref: '#/components/schemas/DocumentLine' } }
+        reservation:
+          description: DRAFT that holds stock; null when nothing is held
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [expiresAt]
+              properties:
+                expiresAt: { type: string, format: date-time, description: Last save + 48 h }
         effects:
-          description: What posting will do (DRAFT) or did (POSTED)
+          description: |
+            What posting will do (DRAFT) or did (POSTED); ADR-0013 posting table. A posting whose role has no account is
+            left out (the post answers 422 ERR_ACCOUNT_ROLE_MISSING). `creditUsedPctAfter` on a POSTED document = the
+            current balance / limit (the document is in the balance already), rounded half-up.
           type: object
           properties:
             ledger:
@@ -3864,6 +4160,7 @@ components:
                 type: object
                 required: [accountCode, side, amount]
                 properties:
+                  role: { type: [string, 'null'], description: 'Account role; null for the card account' }
                   accountCode: { type: string }
                   accountName: { type: string }
                   side: { $ref: '#/components/schemas/Side' }
@@ -3880,8 +4177,13 @@ components:
         warnings:
           type: array
           description: |
-            Non-blocking. STOCK_SHORT on a draft (requested > available); NEGATIVE_STOCK in the post and cancel
-            responses, computed in that transaction from the stock levels and the document's movements.
+            Non-blocking. DRAFT (every read): STOCK_SHORT per line whose qty exceeds what is available to it (v1.5):
+            `available` = onHand − reserved by other documents in the document depot (what this draft holds, expired
+            or not, does not count against it); short when `available` < qty (`requested` = qty); lines of one part
+            report the same `available`. CREDIT_LIMIT when posting would exceed the limit. PRICE_BELOW_LIST when
+            unitPrice < `price_on(documentDate)` on SF, SF with waybill and SIR (not returns, not price differences).
+            Post and cancel responses: NEGATIVE_STOCK, computed in that transaction from the stock levels and the
+            document's movements, with the part's `stockNo` (v1.5). `stockNo` is set on every warning with a part.
           items:
             type: object
             required: [code]
@@ -3889,13 +4191,28 @@ components:
               code: { type: string, enum: [STOCK_SHORT, NEGATIVE_STOCK, CREDIT_LIMIT, PRICE_BELOW_LIST] }
               lineNo: { type: [integer, 'null'] }
               partId: { type: [integer, 'null'] }
+              stockNo: { type: [string, 'null'], description: 'Set with partId (v1.5)' }
               depotId: { type: [integer, 'null'] }
               requested: { $ref: '#/components/schemas/Quantity' }
               available: { $ref: '#/components/schemas/SignedQuantity' }
               onHandAfter: { $ref: '#/components/schemas/SignedQuantity', description: NEGATIVE_STOCK }
-        journalEntryId: { type: [integer, 'null'] }
+        creditOverride:
+          description: Set when an admin posted over the credit limit
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [reason, userId, at, excess]
+              properties:
+                reason: { type: string }
+                userId: { type: integer }
+                userName: { type: string }
+                at: { type: string, format: date-time }
+                excess: { $ref: '#/components/schemas/Money' }
+        journalEntryId: { type: [integer, 'null'], description: 'Set on post (v1.5: same transaction); null for drafts, waybills and zero totals' }
+        reversalEntryId: { type: [integer, 'null'], description: 'Set on cancel when the document had an entry' }
         postedAt: { type: [string, 'null'], format: date-time }
         cancelledAt: { type: [string, 'null'], format: date-time }
+        cancelDate: { type: [string, 'null'], format: date }
         cancelReason: { type: [string, 'null'] }
         version: { type: integer }
 
@@ -4183,7 +4500,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/PartWrite'
         - type: object
-          required: [id, orgId, catalogCode, isActive, equivalents, version]
+          required: [id, orgId, catalogCode, isActive, equivalents, lastPurchaseCost, version]
           properties:
             id: { type: integer }
             orgId: { type: integer }
@@ -4201,6 +4518,7 @@ components:
                     price: { $ref: '#/components/schemas/Money4' }
                     validFrom: { type: string, format: date }
             onHand: { $ref: '#/components/schemas/SignedQuantity', description: Sum over depots }
+            lastPurchaseCost: { $ref: '#/components/schemas/LastPurchaseCost' }
             equivalents:
               type: array
               readOnly: true
@@ -4209,6 +4527,19 @@ components:
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
             version: { type: integer }
+    LastPurchaseCost:
+      description: |
+        v1.5. The LAST_PURCHASE branch of `last_purchase_cost()` as of today: unit net (net / qty, 4 decimals) of the
+        part's line on the latest POSTED purchase invoice (with or without waybill, bills of a purchase waybill
+        included; returns, waybills, price differences and cancelled invoices ignored). Null when none.
+      oneOf:
+        - type: 'null'
+        - type: object
+          required: [amount, date, documentNo]
+          properties:
+            amount: { $ref: '#/components/schemas/Money4' }
+            date: { type: string, format: date, description: documentDate of the invoice }
+            documentNo: { type: string }
     PartEquivalent:
       type: object
       required: [partId, stockNo, name, catalogId, catalogName]
@@ -4247,7 +4578,7 @@ components:
             priceDate: { type: string, format: date, description: listPrice date; defaults to today }
     PartRow:
       type: object
-      required: [id, catalogId, catalogCode, stockNo, name, unit, vatPct, packageQty, isActive, onHand, reserved, available, belowMin, negative, version]
+      required: [id, catalogId, catalogCode, stockNo, name, unit, vatPct, packageQty, isActive, onHand, reserved, available, lastPurchaseCost, belowMin, negative, version]
       properties:
         id: { type: integer }
         catalogId: { type: integer }
@@ -4268,6 +4599,7 @@ components:
         minQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
         maxQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
         shelf: { type: [string, 'null'] }
+        lastPurchaseCost: { $ref: '#/components/schemas/LastPurchaseCost' }
         belowMin: { type: boolean, description: 'With depotId: minQty > 0 and onHand < minQty; without: in any depot' }
         negative: { type: boolean, description: 'With depotId: onHand < 0; without: in any depot' }
         stockByDepot:
@@ -4593,7 +4925,7 @@ components:
         catalogCode: { type: integer }
         depotId: { type: [integer, 'null'], description: Null on the total row }
         onHand: { $ref: '#/components/schemas/SignedQuantity', description: 'Σ movements; negative allowed' }
-        reserved: { $ref: '#/components/schemas/Quantity', description: Held by B2B orders (F3) }
+        reserved: { $ref: '#/components/schemas/Quantity', description: 'Held by drafts that will move stock OUT (v1.4, 48 h)' }
         available: { $ref: '#/components/schemas/SignedQuantity', description: onHand − reserved }
         minQty: { $ref: '#/components/schemas/Quantity' }
         maxQty: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }] }
@@ -4617,12 +4949,13 @@ components:
         delta: { $ref: '#/components/schemas/SignedQuantity', description: '+qty for IN kinds, −qty for OUT kinds' }
         qtyIn: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }], description: 'qty for IN, ADJUST_IN, TRANSFER_IN; null otherwise' }
         qtyOut: { oneOf: [{ $ref: '#/components/schemas/Quantity' }, { type: 'null' }], description: 'qty for OUT, ADJUST_OUT, TRANSFER_OUT; null otherwise' }
-        unitCost: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }] }
+        unitCost: { oneOf: [{ $ref: '#/components/schemas/Money4' }, { type: 'null' }], description: 'Document lines: net / qty, 4 decimals half-up (v1.5)' }
         sourceType: { type: string, enum: [document, stock_count, transfer, legacy_import] }
         sourceId: { type: [string, 'null'] }
         sourceNo: { type: [string, 'null'], description: 'Document, count or transfer number' }
         documentId: { type: [integer, 'null'] }
         documentType: { oneOf: [{ $ref: '#/components/schemas/DocumentType' }, { type: 'null' }] }
+        reversal: { type: boolean, default: false, description: 'Opposite movement written when the document was cancelled' }
         transferId: { type: [integer, 'null'] }
         countId: { type: [integer, 'null'] }
         sicilName: { type: [string, 'null'] }

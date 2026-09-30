@@ -63,7 +63,9 @@
       "term": "Vade (gün)",
       "creditLimit": "Kredi limiti",
       "email": "E-posta",
-      "contact": "Yetkili"
+      "contact": "Yetkili",
+      "salesRep": "Plasiyer",
+      "noSalesRep": "Plasiyer yok"
     },
     "depotTotals": "Depo toplamları",
     "conflictTitle": "Kart değişti",

@@ -24,6 +24,15 @@ describe('StatementPage', () => {
     await waitFor(() => expect(within(grid()).getAllByText('Devreden')).toHaveLength(2))
     expect(within(grid()).getAllByText('142.300,00')).toHaveLength(2)
     expect(within(grid()).getByText('SF-2026-1-000418')).toBeInTheDocument()
+    // Document lines open the invoice; receipts still open the journal.
+    expect(within(grid()).getByRole('link', { name: 'SF-2026-1-000418' })).toHaveAttribute(
+      'href',
+      '/invoices/418',
+    )
+    expect(within(grid()).getByRole('link', { name: 'TAH-2026-1-000219' })).toHaveAttribute(
+      'href',
+      '/journal?q=TAH-2026-1-000219',
+    )
     expect(within(grid()).getAllByText('186.340,00').length).toBeGreaterThan(0)
     const totals = screen.getByRole('table', { name: 'Depo toplamları' })
     expect(within(totals).getByText('168.170,00 B')).toBeInTheDocument()
@@ -221,6 +230,28 @@ describe('StatementPage', () => {
     await userEvent.click(within(again).getByRole('button', { name: 'Kaydet' }))
     await waitFor(() => expect(puts).toHaveLength(2))
     expect(puts[1].headers.get('If-Match')).toBe('"2"')
+  })
+
+  it("sets the card's salesperson from the company members", async () => {
+    const puts = capture('put', '/api/orgs/:orgId/sicils/:sicilId')
+    renderApp(URL_)
+    await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const rep = within(dialog).getByLabelText('Plasiyer')
+    await waitFor(() => expect(rep).toHaveValue('7'))
+    await userEvent.selectOptions(rep, '9')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(puts).toHaveLength(1))
+    expect(puts[0].body).toMatchObject({ sales_rep_user_id: 9 })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Kartı düzenle' }))
+    const again = await screen.findByRole('dialog', { name: 'Hesap kartını düzenle' })
+    const rep2 = within(again).getByLabelText('Plasiyer')
+    await waitFor(() => expect(rep2).toHaveValue('9'))
+    await userEvent.selectOptions(rep2, '')
+    await userEvent.click(within(again).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(puts).toHaveLength(2))
+    expect(puts[1].body).toMatchObject({ sales_rep_user_id: null })
   })
 
   it('drops the email and contact when cleared, and shows other errors inline', async () => {

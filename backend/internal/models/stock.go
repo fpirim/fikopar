@@ -57,6 +57,7 @@ type StockMovement struct {
 	SourceNo      *string   `json:"sourceNo" gorm:"column:source_no"`
 	DocumentID    *uint     `json:"documentId" gorm:"column:document_id"`
 	DocumentType  *string   `json:"documentType" gorm:"column:document_type"`
+	Reversal      bool      `json:"reversal" gorm:"column:reversal"`
 	TransferID    *uint     `json:"transferId" gorm:"column:transfer_id"`
 	CountID       *uint     `json:"countId" gorm:"column:count_id"`
 	SicilName     *string   `json:"sicilName" gorm:"column:sicil_name"`

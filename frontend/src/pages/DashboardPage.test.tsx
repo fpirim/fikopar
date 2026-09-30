@@ -27,15 +27,30 @@ describe('DashboardPage', () => {
     expect(kpi('Alacaklar').closest('a')).toHaveAttribute('href', '/balances')
     expect(kpi('Kasadaki nakit').closest('a')).toHaveAttribute('href', '/cash-book')
     expect(screen.getByRole('link', { name: 'Yeni tahsilat' })).toHaveAttribute('href', '/receipts')
-    expect(screen.getByRole('link', { name: 'Yeni fatura' })).toHaveAttribute('href', '/invoices')
+    expect(screen.getByRole('link', { name: 'Yeni fatura' })).toHaveAttribute(
+      'href',
+      '/invoices/new?type=SALES_INVOICE_WITH_WAYBILL',
+    )
   })
 
   it('lists the latest documents and the cheques due this week', async () => {
+    const grid = capture('post', '/api/orgs/:orgId/documents/grid')
     renderApp('/')
     const latest = await screen.findByRole('table', { name: 'Son belgeler' })
-    await waitFor(() => expect(within(latest).getAllByRole('row')).toHaveLength(7))
+    await waitFor(() => expect(within(latest).getAllByRole('row')).toHaveLength(11))
+    expect(grid[0].body).toMatchObject({
+      startRow: 0,
+      endRow: 10,
+      statuses: ['POSTED', 'CANCELLED'],
+      sortModel: [{ colId: 'postedAt', sort: 'desc' }],
+    })
     const first = within(latest).getAllByRole('row')[1]
-    expect(first).toHaveTextContent('SF-2026-1-000418')
+    expect(within(first).getByRole('link', { name: 'SF-2026-1-000418' })).toHaveAttribute(
+      'href',
+      '/invoices/418',
+    )
+    expect(within(latest).getByText('SF-2026-1-000415').closest('tr')).toHaveTextContent('İPTAL')
+    expect(screen.getAllByRole('link', { name: 'Tümü' })[0]).toHaveAttribute('href', '/invoices')
     expect(first).toHaveTextContent('SATIŞ FAT.')
     expect(first).toHaveTextContent('Yılmaz Tarım Makinaları')
     expect(first).toHaveTextContent('48.720,00')
@@ -105,7 +120,6 @@ describe('DashboardPage', () => {
           payables: { total: '0.00', accounts: 0 },
           cash: { total: '0.00', depots: [] },
           instrumentsDue30: { total: '0.00', overdueCount: 0 },
-          latest: [],
           dueThisWeek: [],
           belowMin: [],
           belowMinCount: 0,

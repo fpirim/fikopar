@@ -9,8 +9,10 @@ export function DateField({
   onChange,
   className,
   inputClassName,
+  ariaLabel,
 }: Readonly<{
   label: string
+  ariaLabel?: string
   value: string
   onChange: (iso: string) => void
   className?: string
@@ -29,6 +31,7 @@ export function DateField({
       <input
         type="text"
         inputMode="numeric"
+        aria-label={ariaLabel}
         value={draft ?? formatDay(value)}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}

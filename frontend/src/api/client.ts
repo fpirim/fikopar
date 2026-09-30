@@ -1,4 +1,6 @@
-import type { EntryOwner } from './types'
+import type { CreditLimitExceeded, DocumentDependent, EntryOwner } from './types'
+
+type ErrorDetails = CreditLimitExceeded | { dependents: DocumentDependent[] }
 
 type QueryValue = string | number | boolean | null | undefined
 
@@ -24,15 +26,34 @@ export class ApiError extends Error {
   readonly code: string
   readonly field?: string
   readonly owner?: EntryOwner
+  readonly details?: ErrorDetails
 
-  constructor(status: number, code: string, field?: string, owner?: EntryOwner) {
+  constructor(
+    status: number,
+    code: string,
+    field?: string,
+    owner?: EntryOwner,
+    details?: ErrorDetails,
+  ) {
     super(code)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.field = field
     this.owner = owner
+    this.details = details
   }
+}
+
+export function creditDetails(e: unknown): CreditLimitExceeded | null {
+  if (!(e instanceof ApiError) || e.code !== 'ERR_CREDIT_LIMIT_EXCEEDED') return null
+  return e.details && 'excess' in e.details ? e.details : null
+}
+
+// ERR_DOCUMENT_HAS_DEPENDENTS names the documents in the way (null when the error is another one).
+export function dependentsOf(e: unknown): DocumentDependent[] | null {
+  if (!(e instanceof ApiError) || e.code !== 'ERR_DOCUMENT_HAS_DEPENDENTS') return null
+  return e.details && 'dependents' in e.details ? e.details.dependents : []
 }
 
 // ETag is "<version>"; send it back as If-Match.
@@ -82,8 +103,19 @@ async function toError(res: Response): Promise<ApiError> {
     if (globalThis.location.pathname !== '/login') globalThis.location.assign('/login')
   }
   try {
-    const body = (await res.json()) as { code?: string; field?: string; owner?: EntryOwner }
-    return new ApiError(res.status, body.code ?? 'ERR_UNKNOWN', body.field, body.owner)
+    const body = (await res.json()) as {
+      code?: string
+      field?: string
+      owner?: EntryOwner
+      details?: ErrorDetails
+    }
+    return new ApiError(
+      res.status,
+      body.code ?? 'ERR_UNKNOWN',
+      body.field,
+      body.owner,
+      body.details,
+    )
   } catch {
     return new ApiError(res.status, 'ERR_UNKNOWN')
   }

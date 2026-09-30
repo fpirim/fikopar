@@ -1,6 +1,6 @@
 # Draft migrations
 
-Contract DDL (v1.2). F1 promoted `0001_common`, `0002_ledger` and `0005_receipts_instruments` unchanged into
+Contract DDL (v1.4). F1 promoted `0001_common`, `0002_ledger` and `0005_receipts_instruments` unchanged into
 [`../`](..) (applied at startup by `internal/db`, tracked in `schema_migrations`); the other files follow
 with their phases. GORM `AutoMigrate` still creates `organizations`, `users`, `user_organizations`,
 `sicils` and `sicil_telefons` first.
@@ -18,3 +18,13 @@ v1.2 rewrote `0003_catalog_stock` (catalogs as price lists, dated prices, price 
 trigger, counts frozen at open, closed years for movements), dropped `depots.allow_negative_stock` from `0001_common`
 and moved the `last_purchase_cost()` fallback in `0004_documents` to the part's catalog price. `check/invariants.sql`
 covers price history, import states, the stock projection, transfers and count line versions.
+
+v1.4 rewrote `0004_documents` against the promoted chain; F3 promoted it as is (header comment aside) as [`../0012_documents.sql`](../0012_documents.sql)
+(`../0013_documents_runtime.sql` adds the outbox sequence, TRUNCATE guards and `lock_stock_levels()`). It holds
+document lines with the rounding checks, bills line for line, return caps, price differences both ways with the
+decrease cap, cancel-only posted
+documents, `stock_reservations` with a definer projection into `stock_levels.reserved`, the sweeper function and the
+LAST_PURCHASE branch of `last_purchase_cost()`. `check/run.sh` applies `check/prelude.sql`, the promoted `../0*.sql`
+(`../0012_documents.sql` possibly mutated), `0006_migration`, then `check/invariants.sql` and `check/documents.sql`;
+drafts `0001`–`0003` and `0005` are kept for history only. `check/mutations.sh` removes the billing-once, return-cap,
+available and decrease-cap guards (M1–M4) of `../0012_documents.sql` one at a time and expects the checks to fail.

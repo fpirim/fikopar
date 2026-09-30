@@ -102,3 +102,12 @@ func textArray(vals []string) *string {
 	s := "{" + strings.Join(parts, ",") + "}"
 	return &s
 }
+
+// PgMessage is the message of a Postgres error ("" otherwise); triggers raise contract codes as its prefix.
+func PgMessage(err error) string {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Message
+	}
+	return ""
+}

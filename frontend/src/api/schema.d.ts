@@ -898,6 +898,26 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/orgs/{orgId}/members': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    /** Users of the company (salesperson picker) */
+    get: operations['listMembers']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/orgs/{orgId}/documents/grid': {
     parameters: {
       query?: never
@@ -910,7 +930,17 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Grid of trade documents (filters type, status, depot, account, date, amount); XLSX via Accept */
+    /**
+     * Documents list (type, status, card, depot, date range, number; column filters; totals); XLSX via Accept
+     * @description Top-level filters and column filters (`DocumentColId`) are AND-combined. `documentNo` matches a substring of the
+     *     number literally (`%`, `_`, `\` are plain characters), case-insensitive (drafts have none). `search` is OR over
+     *     documentNo, hesapNo and sicilName. `billed` and `billsWaybill` (v1.5) feed the waybill and original pickers.
+     *     Default sort documentDate desc, then id desc. `totals` has grossTotal, discountTotal, netTotal, vatTotal and grandTotal:
+     *     Σ over the filtered rows except CANCELLED ones. `unfilteredCount` = documents of the company (and `depotId`)
+     *     before the other filters. XLSX carries every filtered row (at most 100 000) with the same columns.
+     *     Dashboard "Latest documents" = this grid with `statuses` [POSTED, CANCELLED], sort postedAt desc, rows 0–10
+     *     (v1.5: `Dashboard.latest` is removed).
+     */
     post: operations['gridDocuments']
     delete?: never
     options?: never
@@ -930,7 +960,29 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Create a DRAFT invoice, waybill, return or price-difference document */
+    /**
+     * Create a DRAFT invoice, waybill, return or price-difference document
+     * @description Server defaults: `dueDate` = documentDate + the card's payment term (`gun` in days; blank or not a number = 0),
+     *     `salesRepUserId` = the card's salesperson, line `vatPct` = the part's, `discount1Pct` / `discount2Pct` = the
+     *     card's `iskonto` / `iskonto2`. With `waybillDocumentId` and no lines the waybill's lines are copied (part,
+     *     qty, prices, discounts, VAT, `billedLineId`). There is no preview endpoint: an editor that shows the lines
+     *     before the first save reads the waybill (`getDocument`) and sends its lines with `billedLineId` itself (v1.5).
+     *     Every line of a bill needs `billedLineId` (a line of the waybill, same part); quantities are checked on post.
+     *     A return that bills a return waybill without `linkedDocumentId` takes the waybill's original. A return may
+     *     go to another depot of the company than its original. The original of a return or price difference must be
+     *     POSTED when the draft is saved.
+     *     Amounts and totals are computed by the server (`Document`).
+     *     A draft that will move stock OUT reserves `min(qty, available)` per line for 48 h (`StockReserved`).
+     *     422: ERR_SICIL_NOT_FOUND, ERR_DEPOT_NOT_FOUND, ERR_PART_NOT_FOUND / ERR_PART_INACTIVE (`lines[i].partId`),
+     *     ERR_USER_NOT_FOUND (`salesRepUserId`, not a member), ERR_LINKED_DOCUMENT_INVALID (`linkedDocumentId`:
+     *     missing on a return or price difference, not POSTED, wrong type or card; `lines[i].originLineId`),
+     *     ERR_WAYBILL_INVALID (`waybillDocumentId`, `lines[i].billedLineId`). 400
+     *     ERR_INVALID_REQUEST (`field`): `priceDirection` missing on PRICE_DIFFERENCE or set on another type;
+     *     `linkedDocumentId` on a type other than a return or price difference; a
+     *     price-difference line with qty ≠ 1, discounts or a `partId` other than its origin line's; another type's
+     *     line without `partId` or with `description`. 409
+     *     ERR_WAYBILL_BILLED (the waybill has another non-cancelled bill), ERR_YEAR_CLOSED.
+     */
     post: operations['createDocument']
     delete?: never
     options?: never
@@ -949,12 +1001,28 @@ export interface paths {
       }
       cookie?: never
     }
-    /** Get document with line stock, totals and, for a DRAFT, the effects of posting; PDF via Accept */
+    /**
+     * Document with per-depot stock, reservations, totals, effects and warnings; PDF via Accept
+     * @description JSON: lines carry the stock of every depot now, what this draft holds (`reservedQty`) and, on documents that
+     *     moved goods, `returnedQty`. `effects` = what posting will do (DRAFT) or did (POSTED); `warnings` are recomputed
+     *     on every read of a draft. PDF: the printed invoice / waybill in the company's language; a DRAFT prints without
+     *     a number and with a DRAFT mark; a CANCELLED document prints with a CANCELLED mark.
+     */
     get: operations['getDocument']
-    /** Replace header and lines of a DRAFT document */
+    /**
+     * Replace header and lines of a DRAFT document
+     * @description Same defaults and 422 codes as create. Replaces the draft's reservations (`StockReleased UPDATED`, then
+     *     `StockReserved`) and restarts their 48 h. 409 ERR_DOCUMENT_NOT_DRAFT, ERR_WAYBILL_BILLED, ERR_YEAR_CLOSED,
+     *     ERR_DOCUMENT_HAS_DEPENDENTS (another draft bills or links this draft's lines; `details` = `DocumentDependents`).
+     */
     put: operations['updateDocument']
     post?: never
-    delete?: never
+    /**
+     * Delete a DRAFT (no number was allocated); releases its reservations
+     * @description 409 ERR_DOCUMENT_NOT_DRAFT for a POSTED or CANCELLED document; ERR_DOCUMENT_HAS_DEPENDENTS when another draft
+     *     bills or links this draft's lines (`details` = `DocumentDependents`). Emits `StockReleased DELETED`.
+     */
+    delete: operations['deleteDocument']
     options?: never
     head?: never
     patch?: never
@@ -974,10 +1042,20 @@ export interface paths {
     get?: never
     put?: never
     /**
-     * DRAFT → POSTED; allocates the number, emits DocumentPosted (ledger entry and stock movements follow)
-     * @description Negative stock never blocks: `warnings` lists NEGATIVE_STOCK per (part, depot). 422 ERR_CREDIT_LIMIT_EXCEEDED over the card's limit;
-     *     422 ERR_PART_INACTIVE for a line with an inactive part;
-     *     422 ERR_WAYBILL_INVALID when `waybillDocumentId` is not a POSTED, unbilled waybill of the matching type, sicil and depot.
+     * DRAFT → POSTED; allocates the number, releases reservations, emits DocumentPosted
+     * @description One transaction (v1.5): checks, number (`next_number`, prefix of the type, year of documentDate), card
+     *     snapshot, reservations released (`StockReleased POSTED`), the journal entry (ADR-0013 posting table) and the
+     *     stock movements, and `DocumentPosted` in the outbox for external consumers. `journalEntryId` is set in the
+     *     response (null for waybills and zero totals). Negative stock never blocks: `warnings` NEGATIVE_STOCK.
+     *     409: ERR_DOCUMENT_NOT_DRAFT, ERR_YEAR_CLOSED, ERR_WAYBILL_BILLED, ERR_CREDIT_LIMIT_EXCEEDED (SF, SF with
+     *     waybill, FF INCREASE on a sale; card limit set and balance + grandTotal > limit; `details` = `CreditLimitExceeded`)
+     *     unless `creditOverride` is sent by an admin. 403 ERR_FORBIDDEN only when a non-admin's override would be
+     *     needed; an override that is not needed is ignored and not recorded, for every user. 400 ERR_INVALID_REQUEST
+     *     `field` `creditOverride.reason` (3–500 characters after trimming), checked before the credit check. 422: ERR_DOCUMENT_EMPTY, ERR_PART_INACTIVE, ERR_WAYBILL_INVALID (waybill not POSTED
+     *     or lines do not bill it line for line), ERR_LINKED_DOCUMENT_INVALID, ERR_RETURN_QTY_EXCEEDED
+     *     (`lines[i].qty`), ERR_PRICE_DIFFERENCE_EXCEEDED (a DECREASE above the original's net minus its posted
+     *     decreases and goods-moving returns; `field` = `lines`),
+     *     ERR_ACCOUNT_ROLE_MISSING, ERR_ACCOUNT_NOT_FOUND (the card has no current account).
      */
     post: operations['postDocument']
     delete?: never
@@ -1000,9 +1078,14 @@ export interface paths {
     get?: never
     put?: never
     /**
-     * Cancel; a POSTED document is cancelled by reversal entries and opposite stock movements
-     * @description 409 ERR_WAYBILL_BILLED for a waybill billed by a document that is not cancelled. Opposite movements may take
-     *     stock negative: `warnings` NEGATIVE_STOCK.
+     * POSTED → CANCELLED by reversal; the document itself is never edited
+     * @description One transaction (v1.5): the reversal entry of the document's entry and one opposite movement per line that
+     *     moved stock, both dated the cancel date, and `DocumentCancelled` in the outbox. Cancel date = the later of
+     *     today (Europe/Istanbul) and the document date. `reversalEntryId` is set in the response.
+     *     Opposite movements may take stock negative: `warnings` NEGATIVE_STOCK. 409: ERR_INVALID_STATE_TRANSITION
+     *     (not POSTED; a draft is deleted instead), ERR_WAYBILL_BILLED (a waybill with a non-cancelled bill),
+     *     ERR_DOCUMENT_HAS_DEPENDENTS (posted returns or price differences link it; `details` = `DocumentDependents`),
+     *     ERR_YEAR_CLOSED.
      */
     post: operations['cancelDocument']
     delete?: never
@@ -1839,8 +1922,10 @@ export interface paths {
      *     Column ids: date, kind, label, sourceNo, sicilName, stockNo, name, depotId, qty, qtyIn, qtyOut, delta, unitCost;
      *     `qtyIn` / `qtyOut` are number columns (null on rows of the other direction, `blank` matches those). Default
      *     sort date desc, id desc. `totals`: qtyIn, qtyOut (Σ over filtered rows). A transfer is two rows
-     *     (TRANSFER_OUT, TRANSFER_IN), each with `otherDepotId`. Until documents exist (F3) `label` comes from the source
-     *     (TRANSFER, COUNT, OPENING for legacy imports) and `documentId`, `documentType`, `sicilName` are null.
+     *     (TRANSFER_OUT, TRANSFER_IN), each with `otherDepotId`. `label`: SALE (SF, SF with waybill, SIR), PURCHASE (AF,
+     *     AF with waybill, AIR), SALES_RETURN (SI, SIRI), PURCHASE_RETURN (AI, AIRI), TRANSFER, COUNT, OPENING (legacy).
+     *     Document movements (v1.4) carry `sourceNo` (document number), `documentId`, `documentType` and `sicilName`;
+     *     the opposite movement of a cancelled document has the same label and `reversal` true.
      */
     post: operations['gridStockMovements']
     delete?: never
@@ -2199,6 +2284,28 @@ export interface components {
       /** @description Request ID (X-Request-Id) */
       traceId?: string
       owner?: components['schemas']['EntryOwner']
+      /** @description `CreditLimitExceeded` with ERR_CREDIT_LIMIT_EXCEEDED, `DocumentDependents` with ERR_DOCUMENT_HAS_DEPENDENTS */
+      details?:
+        | components['schemas']['CreditLimitExceeded']
+        | components['schemas']['DocumentDependents']
+    }
+    /** @description excess = balance + documentTotal − limit (> 0). balance = the current account over all depots and dates (ADR-0014). */
+    CreditLimitExceeded: {
+      limit: components['schemas']['Money']
+      balance: components['schemas']['Money']
+      documentTotal: components['schemas']['Money']
+      excess: components['schemas']['Money']
+    }
+    /**
+     * @description ERR_DOCUMENT_HAS_DEPENDENTS. Cancel: the posted returns and price differences that link the document. Draft
+     *     update or delete: the drafts that bill or link its lines (documentNo null).
+     */
+    DocumentDependents: {
+      dependents: {
+        id: number
+        documentNo: string | null
+        type: components['schemas']['DocumentType']
+      }[]
     }
     /** @description Set only with ERR_ENTRY_OWNED_BY_SOURCE; the document, receipt, instrument or voucher that owns the entry. */
     EntryOwner: {
@@ -2286,6 +2393,9 @@ export interface components {
       | 'ERR_WAYBILL_INVALID'
       | 'ERR_WAYBILL_BILLED'
       | 'ERR_CREDIT_LIMIT_EXCEEDED'
+      | 'ERR_RETURN_QTY_EXCEEDED'
+      | 'ERR_PRICE_DIFFERENCE_EXCEEDED'
+      | 'ERR_DOCUMENT_HAS_DEPENDENTS'
       | 'ERR_INSTRUMENT_NOT_FOUND'
       | 'ERR_INSTRUMENT_DUPLICATE'
       | 'ERR_DUE_BEFORE_ISSUE'
@@ -2475,8 +2585,10 @@ export interface components {
       emails?: string[]
       /** @description Second cascaded discount percent (planned) */
       iskonto2?: number
-      /** @description Planned */
+      /** @description The card's salesperson, a company member (v1.5); default of a document's salesRepUserId */
       sales_rep_user_id?: number | null
+      /** @description Name of sales_rep_user_id */
+      readonly sales_rep_name?: string | null
       /** @description Current account (120 / 320 / 102), planned */
       account_id?: number | null
       /** @description Also sent as ETag; updates need If-Match */
@@ -2510,6 +2622,8 @@ export interface components {
       credit_limit?: components['schemas']['Money'] | null
       contacts?: components['schemas']['SicilContact'][]
       emails?: string[]
+      /** @description A company member or null; 422 ERR_USER_NOT_FOUND otherwise (v1.5) */
+      sales_rep_user_id?: number | null
     }
     /** @description Partial update; unknown fields are ignored, organization_id cannot change. */
     SicilUpdate: {
@@ -2528,6 +2642,8 @@ export interface components {
       credit_limit?: components['schemas']['Money'] | null
       contacts?: components['schemas']['SicilContact'][]
       emails?: string[]
+      /** @description A company member or null; 422 ERR_USER_NOT_FOUND otherwise (v1.5) */
+      sales_rep_user_id?: number | null
     }
     SicilSummary: {
       sicilId: number
@@ -2543,11 +2659,15 @@ export interface components {
       paymentTermDays?: number | null
       discount1Pct?: components['schemas']['Percent']
       discount2Pct?: components['schemas']['Percent']
+      /** @description The card's salesperson (v1.5); a document's default */
+      salesRepUserId?: number | null
+      salesRepName?: string | null
       /** @description Open receivable instruments of this card */
       chequesInPortfolio: components['schemas']['Money']
       /** Format: date */
       lastMoveDate?: string | null
     }
+    /** @description Latest documents come from gridDocuments (v1.5: `latest` removed) */
     Dashboard: {
       /** Format: date */
       date: string
@@ -2570,8 +2690,6 @@ export interface components {
         total: components['schemas']['Money']
         overdueCount: number
       }
-      /** @description Documents, receipts and instruments, newest first */
-      latest: components['schemas']['ActivityItem'][]
       dueThisWeek: {
         instrumentId: number
         instrumentNo: string
@@ -2812,7 +2930,8 @@ export interface components {
        *     STOCK_COUNTS_POSTED (blocking): no stock count in status OPEN with countDate ≤ 31 December of year − 1, in any
        *     depot (their ADJUST movements would land in the closed year); `detail` lists the count numbers.
        *     YEAR_END_COUNTS (not blocking): every depot has a FINALIZED count dated in year − 1; `detail` lists depots
-       *     without one. NO_DRAFT_DOCUMENTS stays always ok until documents exist.
+       *     without one. NO_DRAFT_DOCUMENTS (blocking, v1.4): no DRAFT document dated on or before 31 December of year − 1;
+       *     `detail` lists up to 20 draft ids.
        */
       checks: {
         /** @enum {string} */
@@ -2860,6 +2979,7 @@ export interface components {
         | 'CASH'
         | 'SALES'
         | 'SALES_RETURNS'
+        | 'SALES_DISCOUNTS'
         | 'PURCHASES'
         | 'PURCHASE_RETURNS'
         | 'PRICE_DIFFERENCE'
@@ -2968,6 +3088,9 @@ export interface components {
       sourceId?: string | null
       /** @description Document type, receipt kind or instrument type (SALES_INVOICE, COLLECTION …) */
       subtype?: string | null
+      /** @description v1.4: the document of a document entry or of its reversal (link to the invoice screen); null otherwise */
+      documentId?: number | null
+      documentType?: components['schemas']['DocumentType'] | null
       /** Format: date */
       dueDate?: string | null
       description: string
@@ -3002,8 +3125,9 @@ export interface components {
       closingBalance: components['schemas']['Money']
     }
     /**
-     * @description Waybills (including return waybills) move stock only. Price-difference invoices post to the ledger only and
-     *     take their direction (sales or purchase) from the linked document. Returns post to the ledger and move stock
+     * @description Waybills (including return waybills) move stock only. Price-difference invoices post to the ledger only, take
+     *     sales or purchase from the linked invoice and INCREASE or DECREASE from `priceDirection` (prefix FF for both).
+     *     Returns post to the ledger and move stock
      *     back, unless they bill a return waybill. An invoice or return that bills a waybill never moves stock.
      * @enum {string}
      */
@@ -3019,25 +3143,79 @@ export interface components {
       | 'PURCHASE_RETURN'
       | 'PURCHASE_RETURN_WAYBILL'
       | 'PRICE_DIFFERENCE'
-    /** @enum {string} */
+    /**
+     * @description Price differences only. INCREASE: sales, the customer is debited (C / 600 + 391); purchase, the supplier is
+     *     credited (153 + 191 / C). DECREASE: sales, the customer is credited (611 + 391 / C); purchase, the supplier is
+     *     debited (C / 153 + 191). A DECREASE is capped by the original's net minus its posted decreases and
+     *     goods-moving returns (ERR_PRICE_DIFFERENCE_EXCEEDED).
+     * @enum {string}
+     */
+    PriceDirection: 'INCREASE' | 'DECREASE'
+    /**
+     * @description DRAFT → POSTED → CANCELLED. A DRAFT is deleted, never cancelled.
+     * @enum {string}
+     */
     DocumentStatus: 'DRAFT' | 'POSTED' | 'CANCELLED'
+    Member: {
+      userId: number
+      name: string
+      /** Format: email */
+      email: string
+    }
+    /**
+     * @description PRICE_DIFFERENCE lines are amount only: qty 1, unitPrice = the difference (net), no discounts, VAT applies
+     *     (default the origin line's); `partId` is the origin line's (omit it) or null without `originLineId`, and
+     *     `description` is printed. Every other type needs `partId` and no `description`.
+     */
     DocumentLineWrite: {
-      partId: number
+      /** @description Catalog part; never free text. Null only on a price-difference line without origin */
+      partId?: number | null
+      /** @description Price-difference lines only */
+      description?: string | null
       qty: components['schemas']['Quantity']
       unitPrice: components['schemas']['Money4']
+      /** @description Default: the card's iskonto */
       discount1Pct?: components['schemas']['Percent']
+      /** @description Default: the card's iskonto2; applied after discount1Pct */
       discount2Pct?: components['schemas']['Percent']
+      /** @description Default: the part's VAT rate */
       vatPct?: components['schemas']['Percent']
+      /** @description Returns (required) and price differences (optional); a line of `linkedDocumentId` with the same part */
+      originLineId?: number | null
+      /** @description Bills; a line of `waybillDocumentId` with the same part and qty, each waybill line once */
+      billedLineId?: number | null
     }
+    DepotStock: {
+      depotId: number
+      depotCode: string
+      onHand: components['schemas']['SignedQuantity']
+      reserved: components['schemas']['Quantity']
+      /** @description onHand − reserved */
+      available: components['schemas']['SignedQuantity']
+    }
+    /**
+     * @description Amounts per line, half-up to 2 decimals: grossAmount = round(qty × unitPrice); netAmount = round(qty × unitPrice ×
+     *     (1 − discount1Pct/100) × (1 − discount2Pct/100)) from the unrounded product; discountAmount = grossAmount −
+     *     netAmount; vatAmount = round(netAmount × vatPct/100); lineTotal = netAmount + vatAmount.
+     */
     DocumentLine: components['schemas']['DocumentLineWrite'] & {
       id: number
       lineNo: number
       readonly stockNo?: string
       readonly name?: string
+      readonly catalogCode?: number
       /** @description In the document depot, now */
       onHand?: components['schemas']['SignedQuantity']
-      /** @description onHand − reserved */
+      /** @description onHand − reserved in the document depot, this draft included */
       available?: components['schemas']['SignedQuantity']
+      /** @description Every depot of the company, depot code order, now (DRAFT only; omitted otherwise) */
+      stockByDepot?: components['schemas']['DepotStock'][]
+      /** @description Held by this line (DRAFT); "0" when nothing is held or the reservation expired */
+      reservedQty?: components['schemas']['Quantity']
+      /** @description Documents that moved goods; Σ qty of posted goods-moving returns of this line. Returnable = qty − returnedQty */
+      returnedQty?: components['schemas']['Quantity']
+      grossAmount: components['schemas']['Money']
+      discountAmount: components['schemas']['Money']
       netAmount: components['schemas']['Money']
       vatAmount: components['schemas']['Money']
       lineTotal: components['schemas']['Money']
@@ -3049,20 +3227,79 @@ export interface components {
       /** Format: date */
       documentDate: string
       /** Format: date */
-      shipDate?: string
+      shipDate?: string | null
       /**
        * Format: date
-       * @description Defaults to documentDate + the card's payment term
+       * @description Default: documentDate + the card's payment term (gun, days; blank or not a number = 0). ≥ documentDate
        */
-      dueDate?: string
+      dueDate?: string | null
+      /** @description Member of the company; default the card's salesperson */
       salesRepUserId?: number | null
-      /** @description Original of a return, return waybill or price difference */
+      /**
+       * @description Required for returns and price differences, null otherwise. Returns: the SF / SF with waybill / SIR (sales)
+       *     or AF / AF with waybill / AIR (purchases) that moved the goods, same card, not a bill. Price difference: a
+       *     posted SF / SF with waybill / AF / AF with waybill of the same card and depot.
+       */
       linkedDocumentId?: number | null
-      /** @description Waybill being billed. SALES_INVOICE → SALES_WAYBILL, PURCHASE_INVOICE → PURCHASE_WAYBILL, SALES_RETURN → SALES_RETURN_WAYBILL, PURCHASE_RETURN → PURCHASE_RETURN_WAYBILL; same sicil and depot, POSTED, billed once. The billing document does not move stock. */
+      /** @description Required on PRICE_DIFFERENCE, null otherwise */
+      priceDirection?: components['schemas']['PriceDirection'] | null
+      /** @description Waybill being billed. SALES_INVOICE → SALES_WAYBILL, PURCHASE_INVOICE → PURCHASE_WAYBILL, SALES_RETURN → SALES_RETURN_WAYBILL, PURCHASE_RETURN → PURCHASE_RETURN_WAYBILL; same card and depot, POSTED by the time the bill posts, billed by one non-cancelled document, line for line. The billing document does not move stock. Empty `lines` copies the waybill's lines. */
       waybillDocumentId?: number | null
       description?: string
       /** @description May be empty while DRAFT */
       lines: components['schemas']['DocumentLineWrite'][]
+    }
+    /**
+     * @description gridDocuments column ids. text: documentNo, type, status, hesapNo, sicilName, depotCode, salesRepName,
+     *     linkedDocumentNo, waybillDocumentNo; number: grossTotal, discountTotal, netTotal, vatTotal, grandTotal;
+     *     date: documentDate, dueDate, postedAt.
+     * @enum {string}
+     */
+    DocumentColId:
+      | 'documentNo'
+      | 'type'
+      | 'status'
+      | 'documentDate'
+      | 'dueDate'
+      | 'hesapNo'
+      | 'sicilName'
+      | 'depotCode'
+      | 'salesRepName'
+      | 'grossTotal'
+      | 'discountTotal'
+      | 'netTotal'
+      | 'vatTotal'
+      | 'grandTotal'
+      | 'postedAt'
+      | 'linkedDocumentNo'
+      | 'waybillDocumentNo'
+    DocumentGridRequest: components['schemas']['GridRequest'] & {
+      sortModel?: {
+        colId?: components['schemas']['DocumentColId']
+      }[]
+      filterModel?: Record<string, never>
+      /** @description Empty or omitted = all */
+      types?: components['schemas']['DocumentType'][]
+      /** @description Empty or omitted = all */
+      statuses?: components['schemas']['DocumentStatus'][]
+      sicilId?: number | null
+      depotId?: number | null
+      /**
+       * Format: date
+       * @description documentDate ≥ dateFrom, inclusive
+       */
+      dateFrom?: string | null
+      /**
+       * Format: date
+       * @description documentDate ≤ dateTo, inclusive
+       */
+      dateTo?: string | null
+      /** @description Substring of the number, literal, case-insensitive */
+      documentNo?: string | null
+      /** @description v1.5. Set: waybills only (SIR, AIR, SIRI, AIRI); true = billed by a non-cancelled document, false = not billed */
+      billed?: boolean | null
+      /** @description v1.5. true = invoices and returns that bill a waybill; false = every other document (return originals) */
+      billsWaybill?: boolean | null
     }
     DocumentSummary: {
       id: number
@@ -3070,24 +3307,40 @@ export interface components {
       type: components['schemas']['DocumentType']
       status: components['schemas']['DocumentStatus']
       depotId: number
+      depotCode: string
       sicilId: number
-      sicilName?: string
+      hesapNo: string
+      sicilName: string
       /** Format: date */
       documentDate: string
       /** Format: date */
       dueDate?: string | null
+      salesRepName?: string | null
+      grossTotal: components['schemas']['Money']
+      discountTotal: components['schemas']['Money']
+      netTotal: components['schemas']['Money']
+      vatTotal: components['schemas']['Money']
       grandTotal: components['schemas']['Money']
+      linkedDocumentNo?: string | null
+      priceDirection?: components['schemas']['PriceDirection'] | null
+      waybillDocumentNo?: string | null
+      /** @default false */
+      creditOverride: boolean
+      /** Format: date-time */
+      postedAt?: string | null
       version: number
     }
     Document: {
       id: number
       orgId: number
-      /** @description Allocated on post */
+      /** @description Allocated on post; a draft shows NumberSeries.nextValue */
       documentNo?: string | null
       type: components['schemas']['DocumentType']
       status: components['schemas']['DocumentStatus']
       depotId: number
       sicilId: number
+      /** @description The card's account no. (v1.5) */
+      hesapNo: string
       sicilName?: string
       /** Format: date */
       documentDate: string
@@ -3096,31 +3349,52 @@ export interface components {
       /** Format: date */
       dueDate?: string | null
       salesRepUserId?: number | null
+      salesRepName?: string | null
       linkedDocumentId?: number | null
       linkedDocumentNo?: string | null
+      priceDirection?: components['schemas']['PriceDirection'] | null
       waybillDocumentId?: number | null
       waybillDocumentNo?: string | null
-      /** @description Waybills: the invoice or return that bills it */
+      /** @description Waybills: the non-cancelled invoice or return that bills it */
       billedByDocumentId?: number | null
+      /** @description Posted returns and price differences that link this document (block its cancellation) */
+      dependentDocumentIds?: number[]
       currency: components['schemas']['Currency']
-      /** @description Σ qty × unit price */
+      /** @description Σ line grossAmount */
       grossTotal: components['schemas']['Money']
+      /** @description Σ line discountAmount */
       discountTotal: components['schemas']['Money']
-      /** @description grossTotal − discountTotal */
+      /** @description grossTotal − discountTotal = Σ line netAmount */
       netTotal: components['schemas']['Money']
+      /** @description Σ line vatAmount */
       vatTotal: components['schemas']['Money']
       /** @description netTotal + vatTotal */
       grandTotal: components['schemas']['Money']
-      vatBreakdown?: {
+      /** @description Per VAT rate, Σ of the lines' netAmount and vatAmount (not recomputed) */
+      vatBreakdown: {
         vatPct: components['schemas']['Percent']
         base: components['schemas']['Money']
         vat: components['schemas']['Money']
       }[]
       description?: string
       lines: components['schemas']['DocumentLine'][]
-      /** @description What posting will do (DRAFT) or did (POSTED) */
+      /** @description DRAFT that holds stock; null when nothing is held */
+      reservation?: null | {
+        /**
+         * Format: date-time
+         * @description Last save + 48 h
+         */
+        expiresAt: string
+      }
+      /**
+       * @description What posting will do (DRAFT) or did (POSTED); ADR-0013 posting table. A posting whose role has no account is
+       *     left out (the post answers 422 ERR_ACCOUNT_ROLE_MISSING). `creditUsedPctAfter` on a POSTED document = the
+       *     current balance / limit (the document is in the balance already), rounded half-up.
+       */
       effects?: {
         ledger?: {
+          /** @description Account role; null for the card account */
+          role?: string | null
           accountCode: string
           accountName?: string
           side: components['schemas']['Side']
@@ -3133,25 +3407,46 @@ export interface components {
         creditUsedPctAfter?: number | null
       }
       /**
-       * @description Non-blocking. STOCK_SHORT on a draft (requested > available); NEGATIVE_STOCK in the post and cancel
-       *     responses, computed in that transaction from the stock levels and the document's movements.
+       * @description Non-blocking. DRAFT (every read): STOCK_SHORT per line whose qty exceeds what is available to it (v1.5):
+       *     `available` = onHand − reserved by other documents in the document depot (what this draft holds, expired
+       *     or not, does not count against it); short when `available` < qty (`requested` = qty); lines of one part
+       *     report the same `available`. CREDIT_LIMIT when posting would exceed the limit. PRICE_BELOW_LIST when
+       *     unitPrice < `price_on(documentDate)` on SF, SF with waybill and SIR (not returns, not price differences).
+       *     Post and cancel responses: NEGATIVE_STOCK, computed in that transaction from the stock levels and the
+       *     document's movements, with the part's `stockNo` (v1.5). `stockNo` is set on every warning with a part.
        */
-      warnings?: {
+      warnings: {
         /** @enum {string} */
         code: 'STOCK_SHORT' | 'NEGATIVE_STOCK' | 'CREDIT_LIMIT' | 'PRICE_BELOW_LIST'
         lineNo?: number | null
         partId?: number | null
+        /** @description Set with partId (v1.5) */
+        stockNo?: string | null
         depotId?: number | null
         requested?: components['schemas']['Quantity']
         available?: components['schemas']['SignedQuantity']
         /** @description NEGATIVE_STOCK */
         onHandAfter?: components['schemas']['SignedQuantity']
       }[]
+      /** @description Set when an admin posted over the credit limit */
+      creditOverride?: null | {
+        reason: string
+        userId: number
+        userName?: string
+        /** Format: date-time */
+        at: string
+        excess: components['schemas']['Money']
+      }
+      /** @description Set on post (v1.5: same transaction); null for drafts, waybills and zero totals */
       journalEntryId?: number | null
+      /** @description Set on cancel when the document had an entry */
+      reversalEntryId?: number | null
       /** Format: date-time */
       postedAt?: string | null
       /** Format: date-time */
       cancelledAt?: string | null
+      /** Format: date */
+      cancelDate?: string | null
       cancelReason?: string | null
       version: number
     }
@@ -3499,6 +3794,7 @@ export interface components {
       }
       /** @description Sum over depots */
       onHand?: components['schemas']['SignedQuantity']
+      lastPurchaseCost: components['schemas']['LastPurchaseCost']
       /** @description Parts linked by EQUIVALENT codes, either direction, by stock no */
       readonly equivalents: components['schemas']['PartEquivalent'][]
       /** Format: date-time */
@@ -3506,6 +3802,20 @@ export interface components {
       /** Format: date-time */
       updatedAt?: string
       version: number
+    }
+    /**
+     * @description v1.5. The LAST_PURCHASE branch of `last_purchase_cost()` as of today: unit net (net / qty, 4 decimals) of the
+     *     part's line on the latest POSTED purchase invoice (with or without waybill, bills of a purchase waybill
+     *     included; returns, waybills, price differences and cancelled invoices ignored). Null when none.
+     */
+    LastPurchaseCost: null | {
+      amount: components['schemas']['Money4']
+      /**
+       * Format: date
+       * @description documentDate of the invoice
+       */
+      date: string
+      documentNo: string
     }
     PartEquivalent: {
       partId: number
@@ -3582,6 +3892,7 @@ export interface components {
       minQty?: components['schemas']['Quantity'] | null
       maxQty?: components['schemas']['Quantity'] | null
       shelf?: string | null
+      lastPurchaseCost: components['schemas']['LastPurchaseCost']
       /** @description With depotId: minQty > 0 and onHand < minQty; without: in any depot */
       belowMin: boolean
       /** @description With depotId: onHand < 0; without: in any depot */
@@ -4014,7 +4325,7 @@ export interface components {
       depotId?: number | null
       /** @description Σ movements; negative allowed */
       onHand: components['schemas']['SignedQuantity']
-      /** @description Held by B2B orders (F3) */
+      /** @description Held by drafts that will move stock OUT (v1.4, 48 h) */
       reserved: components['schemas']['Quantity']
       /** @description onHand − reserved */
       available: components['schemas']['SignedQuantity']
@@ -4056,6 +4367,7 @@ export interface components {
       qtyIn?: components['schemas']['Quantity'] | null
       /** @description qty for OUT, ADJUST_OUT, TRANSFER_OUT; null otherwise */
       qtyOut?: components['schemas']['Quantity'] | null
+      /** @description Document lines: net / qty, 4 decimals half-up (v1.5) */
       unitCost?: components['schemas']['Money4'] | null
       /** @enum {string} */
       sourceType: 'document' | 'stock_count' | 'transfer' | 'legacy_import'
@@ -4064,6 +4376,11 @@ export interface components {
       sourceNo?: string | null
       documentId?: number | null
       documentType?: components['schemas']['DocumentType'] | null
+      /**
+       * @description Opposite movement written when the document was cancelled
+       * @default false
+       */
+      reversal: boolean
       transferId?: number | null
       countId?: number | null
       sicilName?: string | null
@@ -4310,7 +4627,7 @@ export interface components {
         'application/json': components['schemas']['Error']
       }
     }
-    /** @description Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_IMPORT_STALE, ERR_ENTRY_OWNED_BY_SOURCE with `owner`) */
+    /** @description Uniqueness or state conflict (ERR_*_EXISTS, ERR_INVALID_STATE_TRANSITION, ERR_IDEMPOTENCY_IN_PROGRESS, ERR_YEAR_CLOSED, ERR_IMPORT_STALE, ERR_ENTRY_OWNED_BY_SOURCE with `owner`, ERR_DOCUMENT_NOT_DRAFT, ERR_WAYBILL_BILLED, ERR_DOCUMENT_HAS_DEPENDENTS, ERR_CREDIT_LIMIT_EXCEEDED with `details`) */
     Conflict: {
       headers: {
         [name: string]: unknown
@@ -6136,6 +6453,31 @@ export interface operations {
       409: components['responses']['Conflict']
     }
   }
+  listMembers: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Members, by name */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Member'][]
+        }
+      }
+      401: components['responses']['Unauthorized']
+      403: components['responses']['Forbidden']
+    }
+  }
   gridDocuments: {
     parameters: {
       query?: never
@@ -6148,7 +6490,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['GridRequest']
+        'application/json': components['schemas']['DocumentGridRequest']
       }
     }
     responses: {
@@ -6164,6 +6506,7 @@ export interface operations {
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': components['schemas']['Xlsx']
         }
       }
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
     }
   }
@@ -6192,6 +6535,7 @@ export interface operations {
       201: components['responses']['DocumentResponse']
       400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
+      409: components['responses']['Conflict']
       422: components['responses']['Unprocessable']
     }
   }
@@ -6245,6 +6589,38 @@ export interface operations {
     responses: {
       200: components['responses']['DocumentResponse']
       401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
+      409: components['responses']['Conflict']
+      412: components['responses']['PreconditionFailed']
+      422: components['responses']['Unprocessable']
+      428: components['responses']['PreconditionRequired']
+    }
+  }
+  deleteDocument: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag (`"<version>"`) from the last read. Missing → 428, stale → 412. */
+        'If-Match': components['parameters']['IfMatch']
+      }
+      path: {
+        /** @description Tenant. Caller must be a member (or admin). */
+        orgId: components['parameters']['OrgId']
+        documentId: components['parameters']['DocumentId']
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Deleted */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
       409: components['responses']['Conflict']
       412: components['responses']['PreconditionFailed']
       428: components['responses']['PreconditionRequired']
@@ -6269,10 +6645,22 @@ export interface operations {
       }
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: {
+      content: {
+        'application/json': {
+          /** @description Admin only. Stored on the document and in the audit trail (`document.credit_override`). */
+          creditOverride?: {
+            reason: string
+          }
+        }
+      }
+    }
     responses: {
       200: components['responses']['DocumentResponse']
+      400: components['responses']['BadRequest']
       401: components['responses']['Unauthorized']
+      403: components['responses']['Forbidden']
+      404: components['responses']['NotFound']
       409: components['responses']['Conflict']
       412: components['responses']['PreconditionFailed']
       422: components['responses']['Unprocessable']
@@ -6302,6 +6690,7 @@ export interface operations {
     responses: {
       200: components['responses']['DocumentResponse']
       401: components['responses']['Unauthorized']
+      404: components['responses']['NotFound']
       409: components['responses']['Conflict']
       412: components['responses']['PreconditionFailed']
       428: components['responses']['PreconditionRequired']

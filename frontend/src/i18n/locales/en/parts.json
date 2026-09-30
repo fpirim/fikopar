@@ -61,6 +61,8 @@
   "change": "Change",
   "nextPrice": "Next: {{price}} from {{date}}",
   "noPrice": "No list price",
+  "lastPurchase": "Last purchase cost",
+  "noPurchase": "No posted purchase invoice",
   "newPrice": "New price",
   "newPriceTitle": "New list price · {{stockNo}}",
   "price": "Price",
@@ -77,7 +79,8 @@
     "depotId": "Depot",
     "in": "In",
     "out": "Out",
-    "runningOnHand": "On hand"
+    "runningOnHand": "On hand",
+    "unitCost": "Cost"
   },
   "label": {
     "SALE": "SALE",
@@ -106,5 +109,6 @@
     "dismiss": "Dismiss"
   },
   "save": "Save",
-  "cancel": "Cancel"
+  "cancel": "Cancel",
+  "reversalTitle": "Opposite movement of a cancelled document"
 }

@@ -104,6 +104,17 @@ var (
 	TransferNotFound       = &APIError{"ERR_TRANSFER_NOT_FOUND", http.StatusNotFound}
 	DuplicateLine          = &APIError{"ERR_DUPLICATE_LINE", http.StatusUnprocessableEntity}
 	SameDepot              = &APIError{"ERR_SAME_DEPOT", http.StatusUnprocessableEntity}
+
+	DocumentNotFound        = &APIError{"ERR_DOCUMENT_NOT_FOUND", http.StatusNotFound}
+	DocumentEmpty           = &APIError{"ERR_DOCUMENT_EMPTY", http.StatusUnprocessableEntity}
+	DocumentNotDraft        = &APIError{"ERR_DOCUMENT_NOT_DRAFT", http.StatusConflict}
+	LinkedDocumentInvalid   = &APIError{"ERR_LINKED_DOCUMENT_INVALID", http.StatusUnprocessableEntity}
+	WaybillInvalid          = &APIError{"ERR_WAYBILL_INVALID", http.StatusUnprocessableEntity}
+	WaybillBilled           = &APIError{"ERR_WAYBILL_BILLED", http.StatusConflict}
+	CreditLimitExceeded     = &APIError{"ERR_CREDIT_LIMIT_EXCEEDED", http.StatusConflict}
+	ReturnQtyExceeded       = &APIError{"ERR_RETURN_QTY_EXCEEDED", http.StatusUnprocessableEntity}
+	PriceDifferenceExceeded = &APIError{"ERR_PRICE_DIFFERENCE_EXCEEDED", http.StatusUnprocessableEntity}
+	DocumentHasDependents   = &APIError{"ERR_DOCUMENT_HAS_DEPENDENTS", http.StatusConflict}
 )
 
 // Owner names the document, receipt, instrument or voucher that owns a journal entry.
@@ -115,10 +126,11 @@ type Owner struct {
 
 // Detailed adds the contract's optional detail and field to a code.
 type Detailed struct {
-	Err    *APIError
-	Detail string
-	Field  string
-	Owner  *Owner
+	Err     *APIError
+	Detail  string
+	Field   string
+	Owner   *Owner
+	Details any
 }
 
 func (e *Detailed) Error() string { return e.Err.Code + ": " + e.Detail }
@@ -127,6 +139,7 @@ func (e *Detailed) Unwrap() error { return e.Err }
 func WithDetail(err *APIError, detail string) error { return &Detailed{Err: err, Detail: detail} }
 func WithField(err *APIError, field string) error   { return &Detailed{Err: err, Field: field} }
 func WithOwner(err *APIError, o Owner) error        { return &Detailed{Err: err, Owner: &o} }
+func WithDetails(err *APIError, v any) error        { return &Detailed{Err: err, Details: v} }
 
 // UnknownRef is an id in the request body that does not resolve: 422 with the field.
 func UnknownRef(err *APIError, field string) error {
@@ -146,6 +159,9 @@ func Respond(c echo.Context, err error) error {
 		}
 		if d.Owner != nil {
 			body["owner"] = d.Owner
+		}
+		if d.Details != nil {
+			body["details"] = d.Details
 		}
 		return c.JSON(d.Err.Status, body)
 	}

@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 
-// Grid cells, filter selects and filter placeholders whose text does not fit: document numbers,
+// Grid cells, column headers, filter selects and filter placeholders whose text does not fit: document numbers,
 // dates, amounts and the columns in `cols` must never be cut. Cells are checked by overflow,
 // selects and placeholders by the measured width of their text.
 export async function clipped(page: Page, cols: string[] = []): Promise<string[]> {
@@ -18,6 +18,11 @@ export async function clipped(page: Page, cols: string[] = []): Promise<string[]
       if (!guarded || !text) continue
       if (value.scrollWidth > value.clientWidth + 1 || cell.scrollWidth > cell.clientWidth + 1) {
         out.push(`${cell.getAttribute('col-id')}: ${text}`)
+      }
+    }
+    for (const h of document.querySelectorAll<HTMLElement>('.fk-grid .ag-header-cell-text')) {
+      if (h.textContent?.trim() && h.scrollWidth > h.clientWidth + 1) {
+        out.push(`header: ${h.textContent.trim()}`)
       }
     }
     const ctx = document.createElement('canvas').getContext('2d')!

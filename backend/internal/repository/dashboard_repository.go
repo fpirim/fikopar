@@ -49,35 +49,6 @@ func (q *Q) InstrumentsDueList(orgID uint, on models.Date, days int, depotID *ui
 		ORDER BY i.due_date, i.id LIMIT ?`, on, orgID, depotID, depotID, on, days, limit)
 }
 
-type Activity struct {
-	Kind      string       `json:"kind" gorm:"column:kind"`
-	ID        uint         `json:"id" gorm:"column:id"`
-	Number    string       `json:"number" gorm:"column:number"`
-	Subtype   string       `json:"subtype" gorm:"column:subtype"`
-	SicilID   *uint        `json:"sicilId" gorm:"column:sicil_id"`
-	SicilName *string      `json:"sicilName" gorm:"column:sicil_name"`
-	Date      models.Date  `json:"date" gorm:"column:date"`
-	DepotID   uint         `json:"depotId" gorm:"column:depot_id"`
-	Amount    models.Money `json:"amount" gorm:"column:amount"`
-	CreatedAt time.Time    `json:"-" gorm:"column:created_at"`
-}
-
-// LatestActivity lists receipts, instruments and cash vouchers dated up to the date, newest first.
-func (q *Q) LatestActivity(orgID uint, on models.Date, depotID *uint, limit int) ([]Activity, error) {
-	return list[Activity](q.db, `SELECT * FROM (
-		SELECT 'RECEIPT' AS kind, r.id, r.receipt_no AS number, r.kind AS subtype, r.sicil_id, s.hesap_adi AS sicil_name,
-		       r.receipt_date AS date, r.depot_id, r.amount, r.created_at
-		FROM receipts r JOIN sicils s ON s.id = r.sicil_id WHERE r.org_id = ?
-		UNION ALL
-		SELECT 'INSTRUMENT', i.id, i.instrument_no, i.type, i.sicil_id, s.hesap_adi, i.issue_date, i.depot_id, i.amount, i.created_at
-		FROM instruments i JOIN sicils s ON s.id = i.sicil_id WHERE i.org_id = ?
-		UNION ALL
-		SELECT 'CASH_VOUCHER', v.id, v.voucher_no, v.kind, NULL, NULL, v.voucher_date, v.depot_id, v.amount, v.created_at
-		FROM cash_vouchers v WHERE v.org_id = ?) a
-		WHERE a.date <= ? AND (?::bigint IS NULL OR a.depot_id = ?)
-		ORDER BY a.date DESC, a.created_at DESC, a.id DESC LIMIT ?`, orgID, orgID, orgID, on, depotID, depotID, limit)
-}
-
 type LedgerCheckRow struct {
 	Status    string     `gorm:"column:status"`
 	CheckedAt *time.Time `gorm:"column:checked_at"`

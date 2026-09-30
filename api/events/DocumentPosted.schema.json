@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fikopar.fpirim.me/schemas/events/DocumentPosted.schema.json",
   "title": "DocumentPosted",
-  "description": "A trade document was posted. Consumers: ledger (skipped when postsToLedger is false: waybills and return waybills), stock (skipped when movesStock is false: price differences and documents that bill a waybill).",
+  "description": "A trade document was posted (contracts v1.4, v1.5). The journal entry (unless postsToLedger is false: waybills and return waybills; posting table in ADR-0013) and the stock movements (unless movesStock is false: price differences and documents that bill a waybill) are written in the post transaction itself (ADR-0014); the event is for external consumers: DocumentExporter (no-op until e-Fatura). Idempotent on the document id.",
   "allOf": [
     {
       "$ref": "envelope.schema.json"
@@ -32,7 +32,11 @@
         "currency",
         "grandTotal",
         "lines",
-        "direction"
+        "direction",
+        "grossTotal",
+        "discountTotal",
+        "netTotal",
+        "vatTotal"
       ],
       "allOf": [
         {
@@ -90,6 +94,22 @@
             "properties": {
               "movesStock": {
                 "const": false
+              },
+              "priceDirection": {
+                "enum": [
+                  "INCREASE",
+                  "DECREASE"
+                ]
+              }
+            },
+            "required": [
+              "priceDirection"
+            ]
+          },
+          "else": {
+            "properties": {
+              "priceDirection": {
+                "const": null
               }
             }
           }
@@ -123,6 +143,18 @@
             "PURCHASE"
           ],
           "description": "For PRICE_DIFFERENCE, taken from the linked document"
+        },
+        "priceDirection": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "INCREASE",
+            "DECREASE",
+            null
+          ],
+          "description": "PRICE_DIFFERENCE only (null otherwise): INCREASE debits a customer / credits a supplier, DECREASE the opposite (posting table in ADR-0013)"
         },
         "sicilId": {
           "type": "integer"
@@ -188,19 +220,32 @@
             "type": "object",
             "additionalProperties": false,
             "required": [
+              "lineId",
               "lineNo",
-              "partId",
               "qty",
               "unitPrice",
+              "discount1Pct",
+              "discount2Pct",
+              "vatPct",
+              "grossAmount",
+              "discountAmount",
               "netAmount",
               "vatAmount"
             ],
             "properties": {
+              "lineId": {
+                "type": "integer",
+                "description": "Stock movements use it as source_id"
+              },
               "lineNo": {
                 "type": "integer"
               },
               "partId": {
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Null only on a price-difference line without origin"
               },
               "qty": {
                 "type": "string",
@@ -226,9 +271,68 @@
               "vatAmount": {
                 "type": "string",
                 "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+              },
+              "grossAmount": {
+                "type": "string",
+                "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+              },
+              "discountAmount": {
+                "type": "string",
+                "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+              },
+              "originLineId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "billedLineId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Price-difference lines: printed text"
               }
-            }
+            },
+            "description": "PRICE_DIFFERENCE lines are amount only: qty 1, unitPrice = netAmount, no discounts"
           }
+        },
+        "salesRepUserId": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "creditOverride": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "userId",
+            "excess"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "userId": {
+              "type": "integer"
+            },
+            "excess": {
+              "type": "string",
+              "pattern": "^-?\\d{1,16}\\.\\d{2}$"
+            }
+          },
+          "description": "Set when an admin posted over the credit limit"
         }
       }
     }

@@ -30,7 +30,8 @@ func (r *sicilRepo) Create(card *models.Sicil) error {
 
 func (r *sicilRepo) GetByID(organizationID, id uint) (*models.Sicil, error) {
 	var card models.Sicil
-	if err := r.db.Preload("Telefonlar").Where("organization_id = ?", organizationID).First(&card, id).Error; err != nil {
+	if err := r.db.Preload("Telefonlar").Select(`sicils.*, (SELECT u.name FROM users u WHERE u.id = sicils.sales_rep_user_id) AS sales_rep_name`).
+		Where("organization_id = ?", organizationID).First(&card, id).Error; err != nil {
 		return nil, err
 	}
 	return &card, nil

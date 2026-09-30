@@ -15,8 +15,13 @@ import (
 )
 
 func newSicilService() (*SicilService, *mocks.SicilRepository) {
-	repo := &mocks.SicilRepository{}
-	return NewSicilService(repo), repo
+	svc, repo, _ := newSicilServiceWithOrgs()
+	return svc, repo
+}
+
+func newSicilServiceWithOrgs() (*SicilService, *mocks.SicilRepository, *mocks.OrganizationRepository) {
+	repo, orgs := &mocks.SicilRepository{}, &mocks.OrganizationRepository{}
+	return NewSicilService(repo, orgs), repo, orgs
 }
 
 // --- Create -------------------------------------------------------------
@@ -74,7 +79,41 @@ func TestCreate_DuplicateMapsToHesapNoExists(t *testing.T) {
 	require.ErrorIs(t, err, apierror.HesapNoExists)
 }
 
+func TestCreate_SalesRepMustBeAMember(t *testing.T) {
+	svc, repo, orgs := newSicilServiceWithOrgs()
+	orgs.On("IsMember", uint(9), uint(1)).Return(false, nil)
+	rep := uint(9)
+	_, err := svc.Create(1, &models.Sicil{HesapNo: "001", HesapAdi: "X", SalesRepUserID: &rep})
+	var d *apierror.Detailed
+	require.ErrorAs(t, err, &d)
+	assert.Equal(t, "ERR_USER_NOT_FOUND", d.Err.Code)
+	assert.Equal(t, 422, d.Err.Status)
+	assert.Equal(t, "sales_rep_user_id", d.Field)
+	repo.AssertNotCalled(t, "Create", mock.Anything)
+}
+
 // --- Update -------------------------------------------------------------
+
+func TestUpdate_SetsAndClearsSalesRep(t *testing.T) {
+	svc, repo, orgs := newSicilServiceWithOrgs()
+	repo.On("GetByID", uint(1), uint(5)).Return(cardV(1), nil)
+	orgs.On("IsMember", uint(4), uint(1)).Return(true, nil)
+	orgs.On("IsMember", uint(9), uint(1)).Return(false, nil)
+	repo.On("Update", uint(1), uint(5), 1, mock.MatchedBy(func(f map[string]any) bool {
+		rep, ok := f["sales_rep_user_id"].(*uint)
+		return ok && (rep == nil || *rep == 4)
+	}), noPhones).Return(true, nil).Twice()
+
+	_, err := svc.Update(1, 5, 1, map[string]any{"sales_rep_user_id": float64(4)})
+	require.NoError(t, err)
+	_, err = svc.Update(1, 5, 1, map[string]any{"sales_rep_user_id": nil})
+	require.NoError(t, err)
+	_, err = svc.Update(1, 5, 1, map[string]any{"sales_rep_user_id": float64(9)})
+	require.Error(t, err)
+	_, err = svc.Update(1, 5, 1, map[string]any{"sales_rep_user_id": "x"})
+	require.ErrorIs(t, err, apierror.InvalidRequest)
+	repo.AssertExpectations(t)
+}
 
 func TestUpdate_NotFound(t *testing.T) {
 	svc, repo := newSicilService()

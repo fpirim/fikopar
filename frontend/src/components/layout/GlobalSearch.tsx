@@ -64,7 +64,10 @@ export default function GlobalSearch() {
         key: `d${d.kind}${d.id}`,
         code: d.number,
         label: d.sicilName ?? '',
-        open: async () => `/journal?q=${encodeURIComponent(d.number)}`,
+        open: async () =>
+          d.kind === 'DOCUMENT'
+            ? `/invoices/${d.id}`
+            : `/journal?q=${encodeURIComponent(d.number)}`,
       })),
       ...shown.parts.map<Hit>((p) => ({
         group: 'parts',

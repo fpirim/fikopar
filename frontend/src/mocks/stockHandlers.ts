@@ -102,6 +102,12 @@ const norm = (s: string) =>
 const fold = (s: string) => s.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i')
 
 const part = (id: number) => st.db.parts.find((p) => p.id === id)
+
+// Stock held by draft documents (documentHandlers registers the lookup).
+let docReserved: (partId: number, depotId: number) => number = () => 0
+export function setDocumentReservations(fn: (partId: number, depotId: number) => number) {
+  docReserved = fn
+}
 const catalog = (id: number) => st.db.catalogs.find((c) => c.id === id)
 
 function pricesOf(partId: number) {
@@ -134,7 +140,7 @@ function onHand(partId: number, depotId: number) {
 function level(p: MockPart, depotId: number): StockLevel {
   const s = st.db.settings.get(key(p.id, depotId))
   const hand = onHand(p.id, depotId)
-  const reserved = s?.reserved ?? 0
+  const reserved = (s?.reserved ?? 0) + docReserved(p.id, depotId)
   const min = s?.minQty ?? 0
   return {
     partId: p.id,
@@ -197,6 +203,7 @@ function toPart(p: MockPart): Part {
     listPriceValidFrom: current?.validFrom ?? null,
     nextPrice: next ? { price: money4(next.price), validFrom: next.validFrom } : null,
     onHand: q(DEPOT_IDS.reduce((s, d) => s + onHand(p.id, d), 0)),
+    lastPurchaseCost: lastPurchaseOut(p.id),
     equivalents: equivalentsOf(p).map((e) => ({
       partId: e.id,
       stockNo: e.stockNo,
@@ -236,6 +243,7 @@ function partRow(p: MockPart, depotId: number | null, priceDate = today): PartRo
     minQty: one ? one.minQty! : null,
     maxQty: one ? (one.maxQty ?? null) : null,
     shelf: one ? one.shelf || null : null,
+    lastPurchaseCost: lastPurchaseOut(p.id),
     belowMin: levels.some((l) => l.belowMin),
     negative: levels.some((l) => l.negative),
     ...(depotId
@@ -438,7 +446,8 @@ function movementOut(m: MockMovement, running: number | null): StockMovement {
     sourceId: m.transferId ? String(m.transferId) : null,
     sourceNo: m.sourceNo,
     documentId: m.documentId,
-    documentType: null,
+    documentType: m.documentType ?? null,
+    reversal: m.reversal ?? false,
     transferId: m.transferId,
     countId: m.countId,
     sicilName: m.sicilName,
@@ -601,14 +610,35 @@ function transfer(body: StockTransferCreate): { status: number; body: JsonBodyTy
   }
 }
 
+// Last purchase cost from posted purchase invoices (documentHandlers registers the lookup).
+export interface PurchaseCost {
+  cost: number
+  date: string
+  documentNo: string
+}
+let lastPurchase: (partId: number, date: string) => PurchaseCost | null = () => null
+export function setLastPurchaseCost(fn: (partId: number, date: string) => PurchaseCost | null) {
+  lastPurchase = fn
+}
+
+function lastPurchaseOut(partId: number): Part['lastPurchaseCost'] {
+  const c = lastPurchase(partId, today)
+  return c ? { amount: c.cost.toFixed(4), date: c.date, documentNo: c.documentNo } : null
+}
+
 function lineOut(c: MockCount, l: MockCountLine): StockCountLine {
   const now = onHand(l.partId, c.depotId)
   const moved = now - l.systemQty
   const diff = l.countedQty === null ? null : l.countedQty - l.systemQty
-  const cost = l.unitCost === null ? null : Number(l.unitCost)
-  const value = diff === null || cost === null || l.costSource === 'NONE' ? null : diff * cost
+  // While open the cost is read live; a finalized line keeps its snapshot.
+  const live = c.status === 'OPEN' ? (lastPurchase(l.partId, c.countDate)?.cost ?? null) : null
+  const source = live === null ? l.costSource : 'LAST_PURCHASE'
+  const cost = live ?? (l.unitCost === null ? null : Number(l.unitCost))
+  const value = diff === null || cost === null || source === 'NONE' ? null : diff * cost
   return {
     ...l,
+    unitCost: cost === null ? null : money4(cost),
+    costSource: source,
     contended: undefined,
     systemQty: q(l.systemQty),
     countedQty: l.countedQty === null ? null : q(l.countedQty),
@@ -1395,6 +1425,31 @@ function setPrice(partId: number, body: PriceWrite): { status: number; body: Jso
   return { status: same ? 200 : 201, body: row as unknown as JsonBodyType }
 }
 
+// What the documents mock needs from the catalog and stock.
+export const stockBridge = {
+  part: (id: number) => part(id),
+  partByNo: (stockNo: string) => st.db.parts.find((p) => p.stockNo === stockNo)?.id,
+  catalogCode: (id: number) => catalog(part(id)!.catalogId)!.code,
+  level: (partId: number, depotId: number) => {
+    const l = level(part(partId)!, depotId)
+    return {
+      onHand: Number(l.onHand),
+      reserved: Number(l.reserved),
+      available: Number(l.available),
+    }
+  },
+  listPrice: (partId: number, date: string) => priceOn(partId, date)?.price ?? null,
+  move(rows: Omit<MockMovement, 'id'>[]): StockWarning[] {
+    for (const r of rows) st.db.movements.push({ ...r, id: st.db.seq.movement++ })
+    return negativeWarnings(rows.map((r) => [r.partId, r.depotId]))
+  },
+  link(sourceNo: string, documentId: number, documentType: MockMovement['documentType']) {
+    for (const m of st.db.movements) {
+      if (m.sourceNo === sourceNo) Object.assign(m, { documentId, documentType })
+    }
+  },
+}
+
 export const stockHandlers = [
   http.get(`${O}/catalog/catalogs`, () => HttpResponse.json(st.db.catalogs)),
   http.post(`${O}/catalog/parts/grid`, async ({ request }) => {
@@ -1403,6 +1458,28 @@ export const stockHandlers = [
     const res = partsGrid(body)
     if (!res) return err(400, 'ERR_INVALID_REQUEST', { field: 'colId' })
     return accept.includes('spreadsheetml') ? binary(XLSX) : HttpResponse.json(res)
+  }),
+  http.post(`${O}/catalog/parts/resolve`, async ({ request }) => {
+    const body = (await request.json()) as { codes: string[] }
+    return HttpResponse.json(
+      body.codes.map((code) => {
+        const n = norm(code)
+        const found = st.db.parts.filter(
+          (p) => p.isActive && (norm(p.stockNo) === n || p.codes.some((c) => norm(c.code) === n)),
+        )
+        if (found.length === 1) {
+          return { code, status: 'FOUND', part: hitOf(found[0], 'STOCK_NO', null, today) }
+        }
+        if (found.length > 1) {
+          return {
+            code,
+            status: 'AMBIGUOUS',
+            candidates: found.map((p) => hitOf(p, 'STOCK_NO', null, today)),
+          }
+        }
+        return { code, status: 'NOT_FOUND' }
+      }) as unknown as JsonBodyType,
+    )
   }),
   http.get(`${O}/catalog/search`, ({ request }) => {
     const sp = new URL(request.url).searchParams

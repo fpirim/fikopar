@@ -61,6 +61,8 @@
   "change": "Değişim",
   "nextPrice": "Sonraki: {{date}} itibarıyla {{price}}",
   "noPrice": "Liste fiyatı yok",
+  "lastPurchase": "Son alış maliyeti",
+  "noPurchase": "Kayıtlı alış faturası yok",
   "newPrice": "Yeni fiyat",
   "newPriceTitle": "Yeni liste fiyatı · {{stockNo}}",
   "price": "Fiyat",
@@ -77,7 +79,8 @@
     "depotId": "Depo",
     "in": "Giriş",
     "out": "Çıkış",
-    "runningOnHand": "Mevcut"
+    "runningOnHand": "Mevcut",
+    "unitCost": "Maliyet"
   },
   "label": {
     "SALE": "SATIŞ",
@@ -106,5 +109,6 @@
     "dismiss": "Kapat"
   },
   "save": "Kaydet",
-  "cancel": "Vazgeç"
+  "cancel": "Vazgeç",
+  "reversalTitle": "İptal edilen belgenin karşı hareketi"
 }

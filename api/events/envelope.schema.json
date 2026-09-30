@@ -25,6 +25,9 @@
       "type": "string",
       "enum": [
         "DocumentPosted",
+        "DocumentCancelled",
+        "StockReserved",
+        "StockReleased",
         "StockMoved",
         "LedgerEntryPosted",
         "ReceiptPosted",

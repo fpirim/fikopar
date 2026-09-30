@@ -122,3 +122,31 @@ export type ImportApply = {
   applyAttributes?: boolean
   missing?: 'KEEP' | 'DEACTIVATE'
 }
+
+export type DocumentType = S['DocumentType']
+export type DocumentStatus = S['DocumentStatus']
+export type PriceDirection = S['PriceDirection']
+export type Document = S['Document']
+export type DocumentLine = S['DocumentLine']
+export type DocumentWrite = S['DocumentWrite']
+export type DocumentLineWrite = S['DocumentLineWrite']
+export type DocumentSummary = S['DocumentSummary']
+export type DocumentColId = S['DocumentColId']
+export type DocumentWarning = Document['warnings'][number]
+export type DocumentEffects = NonNullable<Document['effects']>
+export type Member = S['Member']
+export type CreditLimitExceeded = S['CreditLimitExceeded']
+export type DocumentDependent = S['DocumentDependents']['dependents'][number]
+export type DocumentsRequest = Omit<GridRequest, 'sortModel' | 'filterModel'> & {
+  sortModel?: { colId?: DocumentColId; sort?: 'asc' | 'desc' }[]
+  filterModel?: Partial<Record<DocumentColId, FilterModel[string]>>
+  types?: DocumentType[]
+  statuses?: DocumentStatus[]
+  sicilId?: number | null
+  depotId?: number | null
+  dateFrom?: string | null
+  dateTo?: string | null
+  documentNo?: string | null
+  billed?: boolean | null
+  billsWaybill?: boolean | null
+}

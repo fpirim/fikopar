@@ -20,6 +20,12 @@ func (q *Q) PartsByIDs(orgID uint, ids []uint, on models.Date) ([]models.Part, e
 	return list[models.Part](q.db, partSelect+` WHERE p.org_id = ? AND p.id = ANY(?::bigint[]) ORDER BY p.stock_no, c.code`, on, orgID, uintArray(ids))
 }
 
+// LastPurchases is last_purchase() of each part on the date; parts never bought are left out.
+func (q *Q) LastPurchases(orgID uint, ids []uint, on models.Date) ([]models.LastPurchase, error) {
+	return list[models.LastPurchase](q.db, `SELECT u.id AS part_id, lp.unit_cost AS amount, lp.document_date AS date, lp.document_no
+		FROM unnest(?::bigint[]) u(id) CROSS JOIN LATERAL last_purchase(?, u.id, ?::date) lp`, uintArray(ids), orgID, on)
+}
+
 // PartRef is the minimum a caller needs to reference a part.
 type PartRef struct {
 	ID        uint   `gorm:"column:id"`

@@ -21,6 +21,14 @@ import type {
 import { applyGrid } from './grid'
 import { belowMinLevels, catalogSearch, resetStock, stockHandlers } from './stockHandlers'
 import {
+  documentHandlers,
+  documentRef,
+  documentSeries,
+  memberName,
+  resetDocuments,
+  type Card,
+} from './documentHandlers'
+import {
   balanceRow,
   createDb,
   demoUser,
@@ -41,9 +49,25 @@ const etag = (version: number) => ({ ETag: `"${version}"` })
 
 const db: { current: Db } = { current: createDb() }
 
+const cards = (): Card[] =>
+  db.current.ledger.parties.map((p) => ({
+    sicilId: p.sicilId,
+    accountId: p.accountId,
+    code: p.code,
+    name: p.name,
+    tipi: p.tipi,
+    balance: Number(balanceRow(p, null).balance),
+    limit: p.tipi === 'MUSTERI' ? 250000 : null,
+    salesRepUserId:
+      db.current.ledger.sicils.find((s) => s.id === p.sicilId)?.sales_rep_user_id ?? null,
+  }))
+
+resetDocuments(cards)
+
 export function resetDb() {
   db.current = createDb()
   resetStock()
+  resetDocuments(cards)
 }
 
 function nextNumber(prefix: string, depotId: number, year = 2026): string {
@@ -154,8 +178,11 @@ function statement(accountId: number, from: string, to: string, depotId: number 
       const d = l.depotId ?? 0
       perDepot.set(d, resets ? amount : (perDepot.get(d) ?? 0) + amount)
       const { accountId, ...rest } = l
+      const ref = l.sourceType === 'document' ? documentRef(l.documentNo ?? null) : null
       return {
         ...rest,
+        documentId: ref?.id ?? null,
+        documentType: ref?.type ?? null,
         entryId: l.entryId ?? accountId * 100 + i,
         runningBalance: m(running()),
         resetsBalance: resets,
@@ -498,22 +525,6 @@ function dashboard(depotId: number | null): Dashboard {
       depots: cashDepots,
     },
     instrumentsDue30: { total: '386000.00', overdueCount: 3 },
-    latest: [
-      ...db.current.activity,
-      ...db.current.receipts.slice(0, 5).map((r) => ({
-        kind: 'RECEIPT' as const,
-        id: r.id,
-        number: r.receiptNo,
-        subtype: r.kind,
-        sicilId: r.sicilId,
-        sicilName: r.sicilName ?? null,
-        date: r.date,
-        depotId: r.depotId,
-        amount: r.amount,
-      })),
-    ]
-      .filter((a) => !depotId || a.depotId === depotId)
-      .slice(0, 6),
     dueThisWeek: [
       {
         instrumentId: 71,
@@ -558,6 +569,7 @@ const ROLE_PREFIX: Record<string, string> = {
 
 export const handlers = [
   ...stockHandlers,
+  ...documentHandlers,
   http.get('/healthz', () => HttpResponse.json({ status: 'ok', version: '3.0.0+4f2c91a' })),
   http.post('/api/auth/login', async ({ request }) => {
     const body = (await request.json()) as { email: string; password: string }
@@ -641,7 +653,13 @@ export const handlers = [
     const stale = precondition(request, s.version)
     if (stale) return stale
     const patch = (await request.json()) as Partial<Sicil>
+    if (patch.sales_rep_user_id != null && !memberName(patch.sales_rep_user_id)) {
+      return err(422, 'ERR_USER_NOT_FOUND', { field: 'sales_rep_user_id' })
+    }
     Object.assign(s, patch, {
+      ...(patch.sales_rep_user_id === undefined
+        ? {}
+        : { sales_rep_name: memberName(patch.sales_rep_user_id) }),
       id: s.id,
       organization_id: s.organization_id,
       version: s.version + 1,
@@ -654,6 +672,7 @@ export const handlers = [
     const depotId = num(new URL(request.url).searchParams.get('depotId'))
     const row = balanceRow(p, depotId)
     const limit = p.tipi === 'MUSTERI' ? 250000 : null
+    const rep = db.current.ledger.sicils.find((s) => s.id === p.sicilId)?.sales_rep_user_id ?? null
     return HttpResponse.json({
       sicilId: p.sicilId,
       accountId: p.accountId,
@@ -665,6 +684,8 @@ export const handlers = [
       paymentTermDays: 30,
       discount1Pct: '10',
       discount2Pct: '5',
+      salesRepUserId: rep,
+      salesRepName: memberName(rep),
       chequesInPortfolio: p.code === '120.10482' ? '55000.00' : '0.00',
       lastMoveDate: p.lastMove,
     })
@@ -672,7 +693,7 @@ export const handlers = [
   http.get(`${O}/number-series`, ({ request }) => {
     const q = new URL(request.url).searchParams
     return HttpResponse.json(
-      db.current.series.filter(
+      [...db.current.series, ...documentSeries()].filter(
         (s) =>
           (!q.get('prefix') || s.prefix === q.get('prefix')) &&
           (!q.get('depotId') || s.depotId === Number(q.get('depotId'))) &&

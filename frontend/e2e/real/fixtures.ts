@@ -28,3 +28,9 @@ export const V12 = { tag: '@v12' }
 
 // Needs a backend on contracts v1.3 (npm run e2e:real:v13).
 export const V13 = { tag: '@v13' }
+
+// Needs a backend on contracts v1.4, documents (npm run e2e:real:v14).
+export const V14 = { tag: '@v14' }
+
+// Needs a backend on contracts v1.5 (npm run e2e:real:v15).
+export const V15 = { tag: '@v15' }

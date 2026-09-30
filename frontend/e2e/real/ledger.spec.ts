@@ -5,7 +5,8 @@ const grid = (page: import('@playwright/test').Page) => page.locator('.fk-grid')
 test('balances list the seeded accounts as of a date', async ({ page }) => {
   await page.goto('/balances?asOf=2026-09-29')
   const row = grid(page).locator('.ag-row', { hasText: 'Yılmaz Tarım Makinaları' })
-  await expect(row).toContainText('244,820.00')
+  // 244,820 of the ledger seed + the seeded sale 37,920 − its return 10,638 + the price increase 600.
+  await expect(row).toContainText('272,702.00')
   await expect(grid(page)).toContainText('Marmara Filtre')
 })
 
@@ -14,11 +15,12 @@ test(
   V11,
   async ({ page }) => {
     await page.goto('/balances?asOf=2026-09-29')
-    await page.getByLabel('Filter Name').fill('Tarım')
+    // Cards the document specs never post to: Çelik Ziraat Aletleri and Kaya Ziraat (with its bill).
+    await page.getByLabel('Filter Name').fill('Ziraat')
     const pinned = grid(page).locator('.ag-floating-bottom')
-    await expect(pinned).toContainText('4 of 9 · 1 filter')
-    await expect(pinned).toContainText('318,285.00')
-    await expect(pinned).toContainText('222,885.00')
+    await expect(pinned).toContainText('2 of 9 · 1 filter')
+    await expect(pinned).toContainText('111,320.00')
+    await expect(pinned).toContainText('96,320.00')
   },
 )
 
@@ -37,8 +39,8 @@ test(
     const id = seeded().accounts['120.10482']
     await page.goto(`/statements/${id}?from=2026-01-01&to=2026-09-29`)
     const totals = page.getByRole('table', { name: 'Depot totals' })
-    await expect(totals).toContainText('244,820.00 Dr')
-    await expect(totals).toContainText('124,350.00')
+    await expect(totals).toContainText('272,702.00 Dr')
+    await expect(totals).toContainText('162,870.00')
   },
 )
 

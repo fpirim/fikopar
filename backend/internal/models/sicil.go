@@ -49,8 +49,11 @@ type Sicil struct {
 	Contacts    SicilContacts `gorm:"-:migration;column:contacts" json:"contacts"`
 	Emails      StringList    `gorm:"-:migration;column:emails" json:"emails"`
 	Version     int           `gorm:"-:migration;column:version;default:1" json:"version"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
+	// SalesRepUserID is a company member; SalesRepName is read with the card.
+	SalesRepUserID *uint     `gorm:"-:migration;column:sales_rep_user_id" json:"sales_rep_user_id"`
+	SalesRepName   *string   `gorm:"-:migration;->;column:sales_rep_name" json:"sales_rep_name"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // SicilContact is a contact person; the first one is shown on the statement card.

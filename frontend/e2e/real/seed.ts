@@ -20,6 +20,10 @@ export interface Seeded {
   catalogs: Record<string, number>
   parts: Record<string, number>
   openCountId: number | null
+  // v1.4 documents by role in the flows (sale, purchase, waybill, bill, return, increase, decrease, draft).
+  documents: Record<string, number>
+  // v1.5: the salesperson of card 10482.
+  salesRep: { userId: number; name: string }
 }
 
 const API = process.env.E2E_API_URL || 'http://localhost:18080'
@@ -30,9 +34,13 @@ const LEDGER: [code: string, name: string, type: string][] = [
   ['100.01', 'Cash · Depot 1', 'ASSET'],
   ['100.02', 'Cash · Depot 2', 'ASSET'],
   ['102.00002', '[BANK A]', 'ASSET'],
+  ['153.01', 'Merchandise', 'ASSET'],
+  ['191.20', 'Input VAT', 'ASSET'],
   ['391.20', 'Output VAT', 'LIABILITY'],
   ['500.01', 'Opening balances', 'EQUITY'],
   ['600.01', 'Domestic sales', 'INCOME'],
+  ['610.01', 'Sales returns', 'INCOME'],
+  ['611.01', 'Sales discounts', 'INCOME'],
   ['689.01', 'Cash over / short', 'EXPENSE'],
   ['770.01', 'Fuel', 'EXPENSE'],
   ['770.02', 'Office supplies', 'EXPENSE'],
@@ -108,6 +116,10 @@ const RECEIPTS: [string, number, string, 'COLLECTION' | 'PAYMENT', number][] = [
 
 const money = (n: number) => n.toFixed(2)
 
+// Card 10482 has a salesperson (v1.5); documents of the card take it as their default.
+const SALES_REP = 'Selin Arslan'
+const SALES_REP_CARD = '10482'
+
 class Api {
   token = ''
 
@@ -171,6 +183,31 @@ async function accounts(api: Api, o: string): Promise<Record<string, number>> {
   return out
 }
 
+// A company member to be the salesperson of a card; created once per company.
+async function member(
+  api: Api,
+  o: string,
+  orgId: number,
+  slug: string,
+): Promise<{ userId: number; name: string }> {
+  const find = async () =>
+    (await api.call<{ userId: number; name: string }[]>('GET', `${o}/members`)).find(
+      (m) => m.name === SALES_REP,
+    )
+  const hit = await find()
+  if (hit) return hit
+  await api.call('POST', '/api/admin/users', {
+    email: `selin.arslan.${slug}@fikopar.local`,
+    password: 'salesrep-2026',
+    name: SALES_REP,
+    role: 'user',
+    organization_ids: [orgId],
+  })
+  const made = await find()
+  if (!made) throw new Error(`salesperson ${SALES_REP} is not a member of ${o}`)
+  return made
+}
+
 async function sicils(api: Api, o: string): Promise<Record<string, number>> {
   const grid = await api.call<{ rows: { id: number; hesap_no: string }[] }>(
     'POST',
@@ -199,6 +236,8 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
     if (!acc[code]) await api.call('POST', `${o}/ledger/accounts`, { code, name, type })
   }
 
+  const salesRep = await member(api, o, orgId, slug)
+
   let sic = await sicils(api, o)
   for (const p of PARTIES) {
     if (sic[p.no]) continue
@@ -212,7 +251,9 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
       iskonto: 10,
       v_dairesi: p.city,
       v_no: '[TAX NO]',
+      credit_limit: p.tipi !== 'MUSTERI' ? null : p.no === '10482' ? '400000.00' : '250000.00',
       telefonlar: [{ tipi: 'IS', numara: '+90 332 000 00 00' }],
+      sales_rep_user_id: p.no === SALES_REP_CARD ? salesRep.userId : null,
     })
   }
   sic = await sicils(api, o)
@@ -231,20 +272,38 @@ export async function seed(slug = 'demo-a'): Promise<Seeded> {
   }
   acc = await accounts(api, o)
 
-  await api.call('PUT', `${o}/ledger/account-roles`, [
+  const roles = [
     { role: 'CASH', depotId: depot['1'], accountId: acc['100.01'] },
     { role: 'CASH', depotId: depot['2'], accountId: acc['100.02'] },
     { role: 'SALES', depotId: null, accountId: acc['600.01'] },
     { role: 'OUTPUT_VAT', depotId: null, accountId: acc['391.20'] },
     { role: 'OPENING', depotId: null, accountId: acc['500.01'] },
     { role: 'CASH_OVER_SHORT', depotId: null, accountId: acc['689.01'] },
-  ])
+    // v1.4 posting table (ADR-0013 §2).
+    { role: 'SALES_RETURNS', depotId: null, accountId: acc['610.01'] },
+    { role: 'SALES_DISCOUNTS', depotId: null, accountId: acc['611.01'] },
+    { role: 'PRICE_DIFFERENCE', depotId: null, accountId: acc['600.01'] },
+    { role: 'PURCHASES', depotId: null, accountId: acc['153.01'] },
+    { role: 'PURCHASE_RETURNS', depotId: null, accountId: acc['153.01'] },
+    { role: 'INPUT_VAT', depotId: null, accountId: acc['191.20'] },
+  ]
+  await api.call('PUT', `${o}/ledger/account-roles`, roles)
 
   const entries = await api.call<{ items: unknown[] }>('GET', `${o}/ledger/entries?limit=1`)
   if (entries.items.length === 0) await activity(api, o, depot, acc, sic)
 
   const stocked = await stock(api, o, depot)
-  return { token: api.token, orgId, depots: depot, accounts: acc, sicils: sic, ...stocked }
+  const documents = await trade(api, o, depot, sic, stocked.parts)
+  return {
+    token: api.token,
+    orgId,
+    depots: depot,
+    accounts: acc,
+    sicils: sic,
+    ...stocked,
+    documents,
+    salesRep,
+  }
 }
 
 // Parts from the mockups; depot rows are [on hand, min, max, shelf].
@@ -583,6 +642,152 @@ async function activity(
   await voucher('EXPENSE', '2026-09-15', acc['770.02'], 1264.5, 'Office supplies')
   await voucher('EXPENSE', '2026-09-25', acc['770.01'], 3800, 'Fuel · delivery van')
   await voucher('BANK_DEPOSIT', '2026-09-27', acc['102.00002'], 15000, 'Deposit to [BANK A]')
+}
+
+interface Doc {
+  id: number
+  version: number
+  documentNo: string | null
+  lines: { id: number; partId: number | null }[]
+}
+
+// v1.4 documents: a purchase, a sale, a waybill and its bill, a return, a price increase and a
+// decrease, and a draft over Öztürk Tarım's credit limit. Posted through the API like the screens do.
+async function trade(
+  api: Api,
+  o: string,
+  depot: Record<string, number>,
+  sic: Record<string, number>,
+  parts: Record<string, number>,
+): Promise<Record<string, number>> {
+  const out: Record<string, number> = {}
+  const existing = await api.call<{ rows: { id: number; type: string; status: string }[] }>(
+    'POST',
+    `${o}/documents/grid`,
+    { startRow: 0, endRow: 100, sortModel: [{ colId: 'documentDate', sort: 'asc' }] },
+  )
+  if (existing.rows.length) {
+    const byType = (t: string, s = 'POSTED') =>
+      existing.rows.find((r) => r.type === t && r.status === s)?.id
+    out.sale = byType('SALES_INVOICE_WITH_WAYBILL')!
+    out.purchase = byType('PURCHASE_INVOICE')!
+    out.waybill = byType('SALES_WAYBILL')!
+    out.bill = byType('SALES_INVOICE')!
+    out.return = byType('SALES_RETURN')!
+    out.draft = byType('SALES_INVOICE', 'DRAFT')!
+    return out
+  }
+  const d1 = depot['1']
+  const create = (body: Json) => api.call<Doc>('POST', `${o}/documents`, body)
+  const post = (d: Doc) => api.call<Doc>('POST', `${o}/documents/${d.id}/post`, {}, d.version)
+  const line = (no: string, qty: number, price: number, extra: Json = {}) => ({
+    partId: parts[no],
+    qty: String(qty),
+    unitPrice: money(price),
+    discount1Pct: '0',
+    discount2Pct: '0',
+    vatPct: '20',
+    ...extra,
+  })
+
+  const purchase = await post(
+    await create({
+      type: 'PURCHASE_INVOICE',
+      depotId: d1,
+      sicilId: sic['00044'],
+      documentDate: '2026-09-20',
+      lines: [line('HP-3774', 5, 8900), line('CL-1150', 10, 2850)],
+    }),
+  )
+  out.purchase = purchase.id
+  const sale = await post(
+    await create({
+      type: 'SALES_INVOICE_WITH_WAYBILL',
+      depotId: d1,
+      sicilId: sic['10482'],
+      documentDate: '2026-09-22',
+      lines: [
+        line('HP-3702', 2, 9850, { discount1Pct: '10' }),
+        line('CL-1150', 4, 3650, { discount1Pct: '5' }),
+      ],
+    }),
+  )
+  out.sale = sale.id
+  const waybill = await post(
+    await create({
+      type: 'SALES_WAYBILL',
+      depotId: d1,
+      sicilId: sic['10517'],
+      documentDate: '2026-09-23',
+      lines: [line('CL-1210', 1, 4100)],
+    }),
+  )
+  out.waybill = waybill.id
+  // An empty bill copies the waybill line for line.
+  const bill = await post(
+    await create({
+      type: 'SALES_INVOICE',
+      depotId: d1,
+      sicilId: sic['10517'],
+      documentDate: '2026-09-24',
+      waybillDocumentId: waybill.id,
+      lines: [],
+    }),
+  )
+  out.bill = bill.id
+  const ret = await post(
+    await create({
+      type: 'SALES_RETURN',
+      depotId: d1,
+      sicilId: sic['10482'],
+      documentDate: '2026-09-25',
+      linkedDocumentId: sale.id,
+      lines: [line('HP-3702', 1, 9850, { discount1Pct: '10', originLineId: sale.lines[0].id })],
+    }),
+  )
+  out.return = ret.id
+  const amount = (price: number, extra: Json) => ({
+    qty: '1',
+    unitPrice: money(price),
+    vatPct: '20',
+    ...extra,
+  })
+  out.increase = (
+    await post(
+      await create({
+        type: 'PRICE_DIFFERENCE',
+        priceDirection: 'INCREASE',
+        depotId: d1,
+        sicilId: sic['10482'],
+        documentDate: '2026-09-26',
+        linkedDocumentId: sale.id,
+        lines: [amount(500, { originLineId: sale.lines[1].id })],
+      }),
+    )
+  ).id
+  out.decrease = (
+    await post(
+      await create({
+        type: 'PRICE_DIFFERENCE',
+        priceDirection: 'DECREASE',
+        depotId: d1,
+        sicilId: sic['00044'],
+        documentDate: '2026-09-27',
+        linkedDocumentId: purchase.id,
+        lines: [amount(300, { partId: null, description: 'Volume rebate, September' })],
+      }),
+    )
+  ).id
+  out.draft = (
+    await create({
+      type: 'SALES_INVOICE',
+      depotId: d1,
+      sicilId: sic['10711'],
+      documentDate: '2026-09-29',
+      lines: [line('HP-3774', 25, 12400)],
+    })
+  ).id
+  return out
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fikopar.fpirim.me/schemas/events/StockReleased.schema.json",
+  "title": "StockReleased",
+  "description": "Reservations of a draft were released (contracts v1.4): POSTED (post transaction, before the movements), DELETED (draft deleted), UPDATED (draft saved again; a StockReserved follows), EXPIRED (sweeper, 48 h after the last save). Emitted once, by the transaction that deleted the rows.",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "StockReleased"
+    },
+    "version": {
+      "const": 1
+    },
+    "aggregateType": {
+      "const": "document"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "documentId",
+        "reason",
+        "lines"
+      ],
+      "properties": {
+        "documentId": {
+          "type": "integer"
+        },
+        "reason": {
+          "enum": [
+            "POSTED",
+            "DELETED",
+            "UPDATED",
+            "EXPIRED"
+          ]
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "lineId",
+              "partId",
+              "qty"
+            ],
+            "properties": {
+              "lineId": {
+                "type": "integer"
+              },
+              "partId": {
+                "type": "integer"
+              },
+              "qty": {
+                "type": "string",
+                "pattern": "^\\d{1,14}(\\.\\d{1,4})?$"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

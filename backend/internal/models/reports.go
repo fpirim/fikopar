@@ -23,6 +23,8 @@ type StatementLine struct {
 	SourceType     SourceType `json:"sourceType" gorm:"column:source_type"`
 	SourceID       *string    `json:"sourceId" gorm:"column:source_id"`
 	Subtype        *string    `json:"subtype" gorm:"column:subtype"`
+	DocumentID     *uint      `json:"documentId" gorm:"column:document_id"`
+	DocumentType   *string    `json:"documentType" gorm:"column:document_type"`
 	DueDate        *Date      `json:"dueDate" gorm:"column:due_date"`
 	Description    string     `json:"description" gorm:"column:description"`
 	Debit          Money      `json:"debit" gorm:"column:debit"`
@@ -74,16 +76,18 @@ type SearchResult struct {
 }
 
 type SicilSummary struct {
-	SicilID            uint   `json:"sicilId"`
-	AccountID          uint   `json:"accountId"`
-	AccountCode        string `json:"accountCode"`
-	Balance            Money  `json:"balance"`
-	Overdue            Money  `json:"overdue"`
-	CreditLimit        *Money `json:"creditLimit"`
-	CreditUsedPct      *int   `json:"creditUsedPct"`
-	PaymentTermDays    *int   `json:"paymentTermDays"`
-	Discount1Pct       string `json:"discount1Pct"`
-	Discount2Pct       string `json:"discount2Pct"`
-	ChequesInPortfolio Money  `json:"chequesInPortfolio"`
-	LastMoveDate       *Date  `json:"lastMoveDate"`
+	SicilID            uint    `json:"sicilId"`
+	AccountID          uint    `json:"accountId"`
+	AccountCode        string  `json:"accountCode"`
+	Balance            Money   `json:"balance"`
+	Overdue            Money   `json:"overdue"`
+	CreditLimit        *Money  `json:"creditLimit"`
+	CreditUsedPct      *int    `json:"creditUsedPct"`
+	PaymentTermDays    *int    `json:"paymentTermDays"`
+	Discount1Pct       string  `json:"discount1Pct"`
+	Discount2Pct       string  `json:"discount2Pct"`
+	SalesRepUserID     *uint   `json:"salesRepUserId"`
+	SalesRepName       *string `json:"salesRepName"`
+	ChequesInPortfolio Money   `json:"chequesInPortfolio"`
+	LastMoveDate       *Date   `json:"lastMoveDate"`
 }

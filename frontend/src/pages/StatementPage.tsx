@@ -170,6 +170,8 @@ function Statement({ orgId, accountId }: Readonly<{ orgId: number; accountId: nu
         cellRenderer: (p: ICellRendererParams<StatementLine>) =>
           p.node.rowPinned ? (
             <span className="font-sans">{t('statement.broughtForward')}</span>
+          ) : p.value && p.data?.documentId ? (
+            <Link to={withDepot(`/invoices/${p.data.documentId}`, depotId)}>{p.value}</Link>
           ) : p.value ? (
             <Link to={withDepot(`/journal?q=${encodeURIComponent(p.value)}`, depotId)}>
               {p.value}

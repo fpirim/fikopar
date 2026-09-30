@@ -10,12 +10,17 @@ import (
 // movement in (date, id) order over every movement of the scope.
 const movementSelect = `SELECT m.id, m.part_id, p.stock_no, p.name, m.depot_id, m.kind,
 	CASE m.source_type WHEN 'transfer' THEN 'TRANSFER' WHEN 'stock_count' THEN 'COUNT' WHEN 'legacy_import' THEN 'OPENING'
-	     ELSE CASE WHEN m.kind = 'IN' THEN 'PURCHASE' ELSE 'SALE' END END AS label,
+	     ELSE CASE WHEN doc.type IN ('SALES_RETURN','SALES_RETURN_WAYBILL') THEN 'SALES_RETURN'
+	               WHEN doc.type IN ('PURCHASE_RETURN','PURCHASE_RETURN_WAYBILL') THEN 'PURCHASE_RETURN'
+	               WHEN doc.type LIKE 'PURCHASE_%' THEN 'PURCHASE'
+	               WHEN doc.type LIKE 'SALES_%' THEN 'SALE'
+	               WHEN m.kind = 'IN' THEN 'PURCHASE' ELSE 'SALE' END END AS label,
 	m.qty, movement_sign(m.kind) * m.qty AS delta,
 	CASE WHEN movement_sign(m.kind) > 0 THEN m.qty END AS qty_in, CASE WHEN movement_sign(m.kind) < 0 THEN m.qty END AS qty_out,
 	m.unit_cost, m.source_type, m.source_id,
-	coalesce(t.transfer_no, sc.count_no) AS source_no, NULL::bigint AS document_id, NULL::text AS document_type,
-	m.transfer_id, sc.id AS count_id, NULL::text AS sicil_name,
+	coalesce(t.transfer_no, sc.count_no, doc.document_no) AS source_no, doc.id AS document_id, doc.type AS document_type,
+	doc.id IS NOT NULL AND m.kind IS DISTINCT FROM document_stock_kind(doc.type) AS reversal,
+	m.transfer_id, sc.id AS count_id, ds.hesap_adi AS sicil_name,
 	CASE WHEN t.id IS NULL THEN NULL WHEN m.kind = 'TRANSFER_OUT' THEN t.to_depot_id ELSE t.from_depot_id END AS other_depot_id,
 	RUNNING AS running_on_hand,
 	m.movement_date, m.occurred_at
@@ -23,7 +28,10 @@ const movementSelect = `SELECT m.id, m.part_id, p.stock_no, p.name, m.depot_id, 
 	JOIN parts p ON p.id = m.part_id
 	LEFT JOIN stock_transfers t ON t.id = m.transfer_id
 	LEFT JOIN stock_count_lines scl ON m.source_type = 'stock_count' AND scl.id::text = m.source_id
-	LEFT JOIN stock_counts sc ON sc.id = scl.count_id`
+	LEFT JOIN stock_counts sc ON sc.id = scl.count_id
+	LEFT JOIN document_lines dl ON m.source_type = 'document' AND dl.id::text = m.source_id
+	LEFT JOIN documents doc ON doc.id = dl.document_id
+	LEFT JOIN sicils ds ON ds.id = doc.sicil_id`
 
 var movementCols = map[string]GridCol{
 	"date": {"movement_date", ColDate}, "kind": {"kind", ColText}, "label": {"label", ColText},

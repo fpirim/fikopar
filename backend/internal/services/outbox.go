@@ -93,24 +93,40 @@ func (r *OutboxRelay) Register(c Consumer) {
 	r.consumers = append(r.consumers, c)
 }
 
-// RunOnce delivers one batch and returns how many events were published.
+// relayRounds bounds how often one run re-reads the outbox for events their predecessors released.
+const relayRounds = 10
+
+// RunOnce delivers what is deliverable now and returns how many events were published. An event waits for the earlier
+// events of its aggregate, so the run re-reads the outbox after each round; an event is tried at most once per run.
 func (r *OutboxRelay) RunOnce(ctx context.Context) (int, error) {
-	ids, err := r.store.Read(ctx).PendingOutboxIDs(100)
-	if err != nil {
-		return 0, err
-	}
 	published := 0
-	for _, id := range ids {
-		ok, err := r.deliver(ctx, id)
+	tried := map[string]bool{}
+	for round := 0; round < relayRounds; round++ {
+		ids, err := r.store.Read(ctx).PendingOutboxIDs(100)
 		if err != nil {
-			slog.Warn("outbox delivery failed", "event", id, "err", err)
-			if ferr := r.store.InTx(ctx, func(q *repository.Q) error { return q.RecordOutboxFailure(id, err.Error()) }); ferr != nil {
-				return published, ferr
-			}
-			continue
+			return published, err
 		}
-		if ok {
-			published++
+		fresh := 0
+		for _, id := range ids {
+			if tried[id] {
+				continue
+			}
+			tried[id] = true
+			fresh++
+			ok, err := r.deliver(ctx, id)
+			if err != nil {
+				slog.Warn("outbox delivery failed", "event", id, "err", err)
+				if ferr := r.store.InTx(ctx, func(q *repository.Q) error { return q.RecordOutboxFailure(id, err.Error()) }); ferr != nil {
+					return published, ferr
+				}
+				continue
+			}
+			if ok {
+				published++
+			}
+		}
+		if fresh == 0 {
+			break
 		}
 	}
 	return published, nil

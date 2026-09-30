@@ -21,6 +21,19 @@ test('parts grid filters by code and stock state and opens the part card', async
   await expect(page.getByRole('table', { name: 'Stock per depot' })).toContainText('−2')
 })
 
+test('the part card shows the last purchase cost and its invoice', async ({ page }) => {
+  await page.goto('/parts/1001')
+  const box = page.getByRole('region', { name: 'Last purchase cost' })
+  await expect(box).toContainText('8,900.00')
+  await expect(box).toContainText('26.09.2026')
+  await expect(box).toContainText('AF-2026-1-000201')
+  expect(await cutControls(page)).toEqual([])
+  await page.goto('/parts/1009')
+  await expect(page.getByRole('region', { name: 'Last purchase cost' })).toContainText(
+    'No posted purchase invoice',
+  )
+})
+
 test('depot switch scopes stock and shows min, max and shelf', async ({ page }) => {
   await page.goto('/parts')
   await expect(grid(page).getByRole('columnheader', { name: 'Shelf' })).toHaveCount(0)

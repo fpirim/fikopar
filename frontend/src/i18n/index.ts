@@ -20,6 +20,7 @@ import enTreasury from './locales/en/treasury.json'
 import enParts from './locales/en/parts.json'
 import enCounts from './locales/en/counts.json'
 import enCatalog from './locales/en/catalog.json'
+import enDocuments from './locales/en/documents.json'
 
 import trCommon from './locales/tr/common.json'
 import trNav from './locales/tr/nav.json'
@@ -38,6 +39,7 @@ import trTreasury from './locales/tr/treasury.json'
 import trParts from './locales/tr/parts.json'
 import trCounts from './locales/tr/counts.json'
 import trCatalog from './locales/tr/catalog.json'
+import trDocuments from './locales/tr/documents.json'
 
 const resources = {
   en: {
@@ -58,6 +60,7 @@ const resources = {
     parts: enParts,
     counts: enCounts,
     catalog: enCatalog,
+    documents: enDocuments,
   },
   tr: {
     common: trCommon,
@@ -77,6 +80,7 @@ const resources = {
     parts: trParts,
     counts: trCounts,
     catalog: trCatalog,
+    documents: trDocuments,
   },
 } as const
 

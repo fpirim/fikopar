@@ -82,5 +82,14 @@
   "ERR_STOCK_COUNT_LINE_NOT_FOUND": "Count line not found",
   "ERR_TRANSFER_NOT_FOUND": "Transfer not found",
   "ERR_DUPLICATE_LINE": "A part appears twice",
-  "ERR_SAME_DEPOT": "Choose two different depots"
+  "ERR_SAME_DEPOT": "Choose two different depots",
+  "ERR_DOCUMENT_NOT_FOUND": "Document not found",
+  "ERR_DOCUMENT_EMPTY": "Add at least one line before posting",
+  "ERR_DOCUMENT_NOT_DRAFT": "Only a draft can be changed",
+  "ERR_LINKED_DOCUMENT_INVALID": "The original must be a posted document of this account",
+  "ERR_WAYBILL_INVALID": "The waybill must be posted, of this account and depot, and billed line for line",
+  "ERR_WAYBILL_BILLED": "This waybill is already billed",
+  "ERR_RETURN_QTY_EXCEEDED": "More than the remaining quantity is returned",
+  "ERR_PRICE_DIFFERENCE_EXCEEDED": "The decrease is larger than what is left of the invoice",
+  "ERR_DOCUMENT_HAS_DEPENDENTS": "Returns or price differences link this document; cancel them first"
 }

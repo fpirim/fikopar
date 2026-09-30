@@ -27,10 +27,12 @@
     "stack:e2e:down": "docker compose -f ../docker-compose.yml -p fikopar-e2e --profile e2e down -v",
     "seed": "node --experimental-strip-types e2e/real/seed.ts",
     "dev:real": "VITE_API_TARGET=${E2E_API_URL:-http://localhost:18080} vite",
-    "e2e:real": "playwright test --config playwright.real.config.ts --grep-invert \"@v11|@v12|@v13\"",
-    "e2e:real:v11": "playwright test --config playwright.real.config.ts --grep-invert \"@v12|@v13\"",
-    "e2e:real:v12": "playwright test --config playwright.real.config.ts --grep-invert @v13",
-    "e2e:real:v13": "playwright test --config playwright.real.config.ts"
+    "e2e:real": "playwright test --config playwright.real.config.ts --grep-invert \"@v11|@v12|@v13|@v14|@v15\"",
+    "e2e:real:v11": "playwright test --config playwright.real.config.ts --grep-invert \"@v12|@v13|@v14|@v15\"",
+    "e2e:real:v12": "playwright test --config playwright.real.config.ts --grep-invert \"@v13|@v14|@v15\"",
+    "e2e:real:v13": "playwright test --config playwright.real.config.ts --grep-invert \"@v14|@v15\"",
+    "e2e:real:v14": "playwright test --config playwright.real.config.ts --grep-invert @v15",
+    "e2e:real:v15": "playwright test --config playwright.real.config.ts"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
