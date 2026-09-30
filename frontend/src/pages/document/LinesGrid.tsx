@@ -456,7 +456,8 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
       {
         colId: 'd1',
         field: 'discount1Pct',
-        headerName: t('col.d1'),
+        headerName: t('col.d1Head'),
+        headerTooltip: t('col.d1'),
         flex: 0,
         width: PCT_W,
         ...numCol,
@@ -472,7 +473,8 @@ function LinesGridInner(p: Readonly<LinesGridProps>, ref: Ref<LinesGridHandle>) 
       {
         colId: 'd2',
         field: 'discount2Pct',
-        headerName: t('col.d2'),
+        headerName: t('col.d2Head'),
+        headerTooltip: t('col.d2'),
         flex: 0,
         width: PCT_W,
         ...numCol,
