@@ -76,7 +76,7 @@ export default function SidePanel({
         ) : (
           <KeyValue label={t('stockMove')}>—</KeyValue>
         )}
-        {pct !== null && pct !== undefined && status === 'DRAFT' && (
+        {pct !== null && pct !== undefined && status !== 'CANCELLED' && (
           <div className="flex items-center justify-between gap-3 text-sm">
             <span>{t('creditUsed')}</span>
             <Chip tone={creditTone(pct)}>{t('pct', { pct })}</Chip>
