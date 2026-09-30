@@ -6,12 +6,13 @@ import { server } from '../mocks/node'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
 import { findDialog } from '../test/dialog'
+import { fill } from '../test/input'
 
 const grid = () => document.querySelector('.fk-grid') as HTMLElement
 const kpi = (label: string) => screen.getByRole('group', { name: label })
 
 async function openRow(code: string, depot: string) {
-  await userEvent.type(await screen.findByLabelText('Hesap filtresi'), code)
+  await fill(await screen.findByLabelText('Hesap filtresi'), code)
   await waitFor(() => expect(within(grid()).getAllByText(code).length).toBeGreaterThan(0))
   const row = within(grid())
     .getAllByRole('row')

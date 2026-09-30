@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
+import { fill } from '../test/input'
 
 const pinned = () => document.querySelector('.ag-floating-bottom') as HTMLElement
 const location = () => screen.getByTestId('location').textContent
@@ -11,7 +12,7 @@ const firstPart = async () => (await screen.findAllByRole('link', { name: /^[A-Z
 
 async function findHp() {
   await firstPart()
-  await userEvent.type(screen.getByLabelText('Parça filtresi'), 'HP-3774')
+  await fill(screen.getByLabelText('Parça filtresi'), 'HP-3774')
   await screen.findByText('1–1 / 1')
   return screen.findByRole('link', { name: 'HP-3774' })
 }
@@ -59,7 +60,7 @@ describe('PartsPage', () => {
     expect(await findHp()).toHaveAttribute('href', '/parts/1001?depot=1')
     expect(screen.getByRole('columnheader', { name: 'Raf' })).toBeInTheDocument()
     expect(calls[0].body).toMatchObject({ depotId: 1 })
-    const row = (await findHp()).closest('.ag-row')!
+    const row = screen.getByRole('link', { name: 'HP-3774' }).closest('.ag-row')!
     const idx = row.getAttribute('row-index')
     const cells = document.querySelectorAll(`.ag-row[row-index="${idx}"] [col-id="shelf"]`)
     expect(cells[0]).toHaveTextContent('A-04-2')
@@ -97,14 +98,14 @@ describe('PartsPage', () => {
     const calls = capture('post', '/api/orgs/:orgId/catalog/parts/grid')
     renderApp('/parts')
     await firstPart()
-    await userEvent.type(screen.getByLabelText('OEM / alternatif filtresi'), '3774612')
+    await fill(screen.getByLabelText('OEM / alternatif filtresi'), '3774612')
     await waitFor(() =>
       expect(last(calls).body).toMatchObject({
         filterModel: { codes: { filterType: 'text', type: 'contains', filter: '3774612' } },
       }),
     )
     await waitFor(() => expect(pinned()).toHaveTextContent('1 / 1.988 · 1 filtre'))
-    await userEvent.type(screen.getByLabelText('Liste fiyatı filtresi'), '> 10.000')
+    await fill(screen.getByLabelText('Liste fiyatı filtresi'), '> 10.000')
     await waitFor(() =>
       expect(last(calls).body).toMatchObject({
         filterModel: { listPrice: { filterType: 'number', type: 'greaterThan', filter: 10000 } },

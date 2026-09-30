@@ -25,20 +25,25 @@ async function edit(row: number, col: string, value: string) {
 }
 
 describe('LinesGrid', () => {
-  it('edits quantity, price and discounts in the language of the UI and recomputes the line', async () => {
+  it('edits quantity and price in the language of the UI and recomputes the line', async () => {
     await open('/invoices/1001')
     await edit(2, 'qty', '10')
     expect(text(2, 'net')).toBe('2.650,00')
     await edit(2, 'price', '1.234,5')
     expect(text(2, 'price')).toBe('1.234,50')
     expect(text(2, 'net')).toBe('12.345,00')
-    await edit(2, 'd1', '10')
-    await edit(2, 'd2', '10')
-    expect(text(2, 'net')).toBe('9.999,45')
-    await edit(2, 'vat', '10')
-    expect(screen.getByRole('region', { name: 'Toplamlar' })).toHaveTextContent('KDV %10999,95')
     expect(screen.getByRole('button', { name: 'Taslağı kaydet' })).toBeEnabled()
     expect(grid().querySelector('.ag-floating-bottom')).toHaveTextContent('4 satır · 22 adet')
+  })
+
+  it('edits discounts and VAT and recomputes the line and the totals', async () => {
+    await open('/invoices/1001')
+    await edit(2, 'd1', '10')
+    await edit(2, 'd2', '10')
+    expect(text(2, 'net')).toBe('4.293,00')
+    await edit(2, 'vat', '10')
+    expect(screen.getByRole('region', { name: 'Toplamlar' })).toHaveTextContent('KDV %10429,30')
+    expect(screen.getByRole('button', { name: 'Taslağı kaydet' })).toBeEnabled()
   })
 
   it('refuses text, zero quantities and discounts over 100 with a message on the line', async () => {

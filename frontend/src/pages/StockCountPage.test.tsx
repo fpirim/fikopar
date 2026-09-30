@@ -7,6 +7,7 @@ import { capture, captureDownloads } from '../test/msw'
 import { server } from '../mocks/node'
 import { gridParts, gridStockCountLines, setStockCountLine } from '../api/endpoints'
 import { findDialog } from '../test/dialog'
+import { fill } from '../test/input'
 
 const pinned = () => document.querySelector('.ag-floating-bottom') as HTMLElement
 const row = (no: string) => screen.getByText(no).closest('[role="row"]') as HTMLElement
@@ -15,7 +16,7 @@ const LINE = '/api/orgs/:orgId/stock/counts/:countId/lines/:lineId'
 
 async function shelfA0() {
   renderApp('/stock-counts/2')
-  await userEvent.type(await screen.findByLabelText('Raf filtresi'), 'A-0')
+  await fill(await screen.findByLabelText('Raf filtresi'), 'A-0')
   await waitFor(() => expect(pinned()).toHaveTextContent(/7 \/ [\d.]+ · raf A-0\*/))
   await screen.findByText('GS-4410')
 }

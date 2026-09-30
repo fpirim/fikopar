@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from '../test/renderApp'
 import { capture, captureDownloads } from '../test/msw'
+import { fill } from '../test/input'
 
 const G = '/api/orgs/:orgId/documents/grid'
 const rows = () => [...document.querySelectorAll('.fk-grid .ag-center-cols-container .ag-row')]
@@ -22,7 +23,7 @@ describe('DocumentsPage', () => {
     expect(await screen.findByText('SF-2026-1-000418')).toBeInTheDocument()
   })
 
-  it('sends type, status, account, date and number filters in one request', async () => {
+  it('sends type, status and account filters in one request', async () => {
     const reqs = capture('post', G)
     renderApp('/invoices?depot=1')
     await waitFor(() => expect(rows().length).toBeGreaterThan(0))
@@ -30,22 +31,35 @@ describe('DocumentsPage', () => {
     await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Satış faturası' }))
     await userEvent.keyboard('{Escape}')
     await userEvent.click(screen.getByRole('button', { name: 'KAYITLI' }))
-    await userEvent.type(screen.getByRole('combobox', { name: 'Cari' }), 'Yılmaz')
+    await fill(screen.getByRole('combobox', { name: 'Cari' }), 'Yılmaz')
     await userEvent.click(await screen.findByRole('option', { name: /Yılmaz/ }))
-    await userEvent.type(screen.getByLabelText('Başlangıç'), '01.09.2026{Enter}')
-    await userEvent.type(screen.getByLabelText('Numara'), '000418')
     await waitFor(() =>
       expect(reqs.slice(-1)[0].body).toMatchObject({
         depotId: 1,
         types: ['SALES_INVOICE'],
         statuses: ['POSTED'],
         sicilId: 1000,
+      }),
+    )
+    expect(location()).toContain('status=POSTED')
+  })
+
+  it('sends date and number filters with the others in one request', async () => {
+    const reqs = capture('post', G)
+    renderApp('/invoices?depot=1&status=POSTED')
+    await waitFor(() => expect(rows().length).toBeGreaterThan(0))
+    await userEvent.type(screen.getByLabelText('Başlangıç'), '01.09.2026{Enter}')
+    await fill(screen.getByLabelText('Numara'), '000418')
+    await waitFor(() =>
+      expect(reqs.slice(-1)[0].body).toMatchObject({
+        depotId: 1,
+        statuses: ['POSTED'],
         dateFrom: '2026-09-01',
         documentNo: '000418',
       }),
     )
-    await waitFor(() => expect(rows()).toHaveLength(0))
-    expect(location()).toContain('status=POSTED')
+    await waitFor(() => expect(rows()).toHaveLength(1))
+    expect(rows()[0]).toHaveTextContent('SF-2026-1-000418')
   })
 
   it('opens a document from its row and a new one by type', async () => {
