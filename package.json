@@ -34,6 +34,6 @@
     "sonar": "npm run cov && npm run sonar:scan"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^10.0.5"
   }
 }
