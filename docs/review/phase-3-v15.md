@@ -33,7 +33,14 @@ Backend: build, vet, golangci-lint 0, go-arch-lint, deadcode (Go 1.25) clean; `-
 green (router 143 s). Frontend: eslint 0 errors (7 older warnings), tsc, prettier, knip, depcruise clean, vitest
 354 / 354 three times, build ok.
 
+## Follow-ups (2026-09-30)
+- TR discount headers were cut (`İsk1 %`): headers are now `İsk1` / `İsk2` (full name in the tooltip and the line
+  messages); `clipped()` counts cut grid headers, so the no-truncation specs catch it.
+- Posted documents show "Credit used" from `effects.creditUsedPctAfter` (cancelled ones do not).
+- An expired, unswept hold is tested (expires_at moved into the past); the mutation that drops expired own holds
+  fails it.
+- The keyboard invoice spec pins today (it read the real date for the due date).
+Gates after these: vitest 357 / 357 three times, MSW e2e 96, real suites 47, screens regenerated.
+
 ## Open
-- TR editor headers `İsk1…` / `İsk2…` are cut at 1440 px (older, also in the MSW shot).
-- A reservation cannot be expired in place (the guard admits only deletes), so "expired but not swept" is covered by
-  the rule, not a test.
+- None from phase 3.
